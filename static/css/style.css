@@ -1,36 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;1,500;1,600&family=IBM+Plex+Sans:wght@400;500&display=swap');
 
 :root {
-  --font-heading: 'Playfair Display', Georgia, serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: 'Newsreader', Georgia, serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
 
-  --accent:       #8B5E3C;   /* warm brown — buttons, highlights */
-  --accent-hover: #6E4A2E;
-  --accent-soft:  #F5EDE5;   /* tinted cream for hover/focus rings */
+  --accent:       #A9714F;   /* terracotta — catalog numbering, buttons */
+  --accent-hover: #8F5D3F;
+  --accent-soft:  #F3E9E1;   /* tinted wash for hover/focus rings */
 
-  --gold:         #B07D3A;   /* numbered labels */
+  --gold:         #A9714F;   /* numbered labels (alias of accent) */
 
   --success:      #3A7D44;
   --success-soft: #EBF5EC;
-  --danger:       #B03A3A;
-  --danger-soft:  #F5EBEB;
+  --danger:       #9C3B2E;
+  --danger-soft:  #F5EAE7;
 
-  --text-primary:   #1A1208;
-  --text-secondary: #5C4E3A;
-  --text-muted:     #9C8C78;
+  --text-primary:   #161616;
+  --text-secondary: #6B6258;
+  --text-muted:     #8A7A68;
 
-  --border:      #D6C9B8;
-  --border-dark: #B8A898;
-  --bg-page:     #F2EDE5;   /* warm cream background */
-  --bg-surface:  #FAFAF7;   /* slightly off-white cards */
+  --border:      rgba(22, 22, 22, 0.14);
+  --border-dark: #161616;
+  --bg-page:     #FAFAF8;   /* near-white gallery background */
+  --bg-surface:  #FFFFFF;   /* pure white cards */
 
-  --bg-sidebar:       #FAFAF7;
-  --sidebar-border:   #D6C9B8;
-  --sidebar-text:     #5C4E3A;
-  --sidebar-text-hover: #1A1208;
-  --sidebar-active:   #1A1208;
+  --bg-sidebar:       #FFFFFF;
+  --sidebar-border:   #161616;
+  --sidebar-text:     #6B6258;
+  --sidebar-text-hover: #161616;
+  --sidebar-active:   #161616;
 
-  --radius: 0px;  /* flat, editorial style */
+  --radius: 0px;  /* flat, catalog style */
   --shadow-card: none;
 }
 
@@ -136,7 +136,7 @@ a:hover { color: var(--text-primary); }
 .sidebar-nav a.active {
   color: var(--sidebar-active);
   font-weight: 600;
-  border-left-color: var(--text-primary);
+  border-left-color: var(--accent);
 }
 
 .sidebar-footer {
@@ -169,7 +169,7 @@ a:hover { color: var(--text-primary); }
   align-items: flex-start;
   justify-content: space-between;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-dark);
   margin-bottom: 32px;
   flex-wrap: wrap;
   gap: 14px;
@@ -210,7 +210,7 @@ a:hover { color: var(--text-primary); }
 .flash-error {
   background: var(--danger-soft);
   color: var(--danger);
-  border-color: rgba(176, 58, 58, 0.3);
+  border-color: rgba(156, 59, 46, 0.3);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -222,8 +222,8 @@ a:hover { color: var(--text-primary); }
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0;
   margin-bottom: 36px;
-  border: 1px solid var(--border);
-  background: var(--border);  /* gap colour = border colour */
+  border: 1px solid var(--border-dark);
+  background: var(--border-dark);  /* gap colour = border colour */
 }
 
 .stat-card {
@@ -274,7 +274,7 @@ a:hover { color: var(--text-primary); }
   color: var(--text-secondary);
   margin: 0 0 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-dark);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -348,7 +348,7 @@ a:hover { color: var(--text-primary); }
 
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-dark);
   padding: 28px;
 }
 
@@ -358,7 +358,7 @@ a:hover { color: var(--text-primary); }
 
 .table-wrap {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-dark);
   overflow-x: auto;
 }
 
@@ -376,7 +376,7 @@ thead th {
   color: var(--text-muted);
   font-weight: 600;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-dark);
   white-space: nowrap;
   background: var(--bg-page);
 }
@@ -390,7 +390,7 @@ tbody td {
 
 tbody tr:last-child td { border-bottom: none; }
 
-tbody tr:hover { background: #F5EDE5; }
+tbody tr:hover { background: var(--accent-soft); }
 
 .badge {
   display: inline-block;
@@ -556,7 +556,7 @@ textarea {
   width: 100%;
   max-width: 380px;
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-dark);
   padding: 40px 36px;
 }
 
