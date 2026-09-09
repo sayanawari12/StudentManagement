@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Add student — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Add student</h1>
+      <p>Fill in the details below to create a new record.</p>
+    </div>
+  </div>
+
+  <ul class="flash-list" id="client-errors"></ul>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('add_student') }}" id="student-form">
+      <div class="form-grid">
+        <div class="field">
+          <label for="student_id">Student ID / roll number</label>
+          <input type="text" id="student_id" name="student_id" value="{{ form.student_id }}" required>
+        </div>
+        <div class="field">
+          <label for="course">Course</label>
+          <input type="text" id="course" name="course" value="{{ form.course or 'BCA' }}" required>
+        </div>
+
+        <div class="field full">
+          <label for="student_name">Student name</label>
+          <input type="text" id="student_name" name="student_name" value="{{ form.student_name }}" required>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="{{ form.email }}" required>
+        </div>
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input type="text" id="phone" name="phone" value="{{ form.phone }}">
+          <div class="hint">Digits only, 10–12 characters.</div>
+        </div>
+
+        <div class="field">
+          <label for="gender">Gender</label>
+          <select id="gender" name="gender">
+            <option value="" {{ 'selected' if not form.gender }}>Select gender</option>
+            <option value="Male" {{ 'selected' if form.gender == 'Male' }}>Male</option>
+            <option value="Female" {{ 'selected' if form.gender == 'Female' }}>Female</option>
+            <option value="Other" {{ 'selected' if form.gender == 'Other' }}>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="date_of_birth">Date of birth</label>
+          <input type="date" id="date_of_birth" name="date_of_birth" value="{{ form.date_of_birth }}">
+        </div>
+
+        <div class="field">
+          <label for="semester">Semester</label>
+          <select id="semester" name="semester" required>
+            <option value="" {{ 'selected' if not form.semester }}>Select semester</option>
+            {% for n in range(1, 7) %}
+              <option value="{{ n }}" {{ 'selected' if form.semester == n|string }}>Semester {{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div></div>
+
+        <div class="field full">
+          <label for="address">Address</label>
+          <textarea id="address" name="address">{{ form.address }}</textarea>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary">Save student</button>
+        <a href="{{ url_for('students') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

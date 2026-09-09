@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Dashboard</h1>
+      <p>An overview of everyone currently on record.</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+      <a href="{{ url_for('students') }}"   class="btn btn-outline">View students</a>
+    </div>
+  </div>
+
+  {# ── Top-level stat cards ─────────────────────────────────── #}
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="card-number">No. 01</div>
+      <div class="value">{{ stats.total_students }}</div>
+      <div class="label">Total Students</div>
+    </div>
+    <div class="stat-card">
+      <div class="card-number">No. 02</div>
+      <div class="value">{{ stats.total_bca }}</div>
+      <div class="label">Total BCA Students</div>
+    </div>
+  </div>
+
+  {# ── Semester breakdown ───────────────────────────────────── #}
+  <h2 class="section-title">By Semester</h2>
+
+  {% if stats.semester_counts %}
+    <div class="stat-grid">
+      {% for row in stats.semester_counts %}
+        <div class="stat-card">
+          <div class="card-number">No. {{ '%02d'|format(loop.index + 2) }}</div>
+          <div class="value">{{ row.total }}</div>
+          <div class="label">Semester {{ row.semester }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="table-wrap">
+      <div class="empty-state">
+        <strong>No students yet</strong>
+        Add your first record to see semester-wise numbers here.
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

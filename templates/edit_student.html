@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Edit student — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Edit student</h1>
+      <p>Update the details for {{ student.student_name }}.</p>
+    </div>
+  </div>
+
+  <ul class="flash-list" id="client-errors"></ul>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('edit_student', record_id=student.id) }}" id="student-form">
+      <div class="form-grid">
+        <div class="field">
+          <label for="student_id">Student ID / roll number</label>
+          <input type="text" id="student_id" name="student_id" value="{{ student.student_id }}" required>
+        </div>
+        <div class="field">
+          <label for="course">Course</label>
+          <input type="text" id="course" name="course" value="{{ student.course }}" required>
+        </div>
+
+        <div class="field full">
+          <label for="student_name">Student name</label>
+          <input type="text" id="student_name" name="student_name" value="{{ student.student_name }}" required>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="{{ student.email }}" required>
+        </div>
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input type="text" id="phone" name="phone" value="{{ student.phone }}">
+          <div class="hint">Digits only, 10–12 characters.</div>
+        </div>
+
+        <div class="field">
+          <label for="gender">Gender</label>
+          <select id="gender" name="gender">
+            <option value="" {{ 'selected' if not student.gender }}>Select gender</option>
+            <option value="Male" {{ 'selected' if student.gender == 'Male' }}>Male</option>
+            <option value="Female" {{ 'selected' if student.gender == 'Female' }}>Female</option>
+            <option value="Other" {{ 'selected' if student.gender == 'Other' }}>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="date_of_birth">Date of birth</label>
+          <input type="date" id="date_of_birth" name="date_of_birth" value="{{ student.date_of_birth }}">
+        </div>
+
+        <div class="field">
+          <label for="semester">Semester</label>
+          <select id="semester" name="semester" required>
+            <option value="" {{ 'selected' if not student.semester }}>Select semester</option>
+            {% for n in range(1, 7) %}
+              <option value="{{ n }}" {{ 'selected' if student.semester|string == n|string }}>Semester {{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div></div>
+
+        <div class="field full">
+          <label for="address">Address</label>
+          <textarea id="address" name="address">{{ student.address }}</textarea>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ student.student_name }} — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>{{ student.student_name }}</h1>
+      <p>Student ID {{ student.student_id }}</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('edit_student', record_id=student.id) }}" class="btn btn-outline">Edit</a>
+      <form method="POST" action="{{ url_for('delete_student', record_id=student.id) }}"
+            class="js-confirm-delete" data-student-name="{{ student.student_name }}">
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="detail-grid">
+      <div class="detail-item">
+        <div class="label">Course</div>
+        <div class="value">{{ student.course }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Semester</div>
+        <div class="value"><span class="badge">Sem {{ student.semester }}</span></div>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Email</div>
+        <div class="value">{{ student.email }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Phone</div>
+        <div class="value">{{ student.phone or '—' }}</div>
+      </div>
+
+      <div class="detail-item">
+        <div class="label">Gender</div>
+        <div class="value">{{ student.gender or '—' }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Date of birth</div>
+        <div class="value">{{ student.date_of_birth or '—' }}</div>
+      </div>
+
+      <div class="detail-item full">
+        <div class="label">Address</div>
+        <div class="value">{{ student.address or '—' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions-row" style="margin-top: 20px;">
+    <a href="{{ url_for('students') }}" class="btn btn-outline">Back to students</a>
+  </div>
+{% endblock %}

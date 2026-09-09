@@ -1,0 +1,25 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+# Environment / secrets  (never commit your real credentials)
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask session secret — keep config.py but remind yourself to change SECRET_KEY
+# If you accidentally left real passwords in config.py, add it here:
+# config.py
