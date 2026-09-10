@@ -12,6 +12,7 @@ __pycache__/
 # Environment / secrets  (never commit your real credentials)
 .env
 .env.*
+!.env.example
 
 # VS Code
 .vscode/

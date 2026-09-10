@@ -1,10 +1,14 @@
-# Database configuration
-# Update these to match your local MySQL setup.
-DB_HOST = "localhost"
-DB_USER = "root"
-DB_PASSWORD = "root123"
-DB_NAME = "student_management"
+import os
+from dotenv import load_dotenv
 
-# Used by Flask to sign the session cookie.
-# Change this to any random string before submitting/deploying the project.
-SECRET_KEY = "change-this-to-a-random-secret-key"
+# Load environment variables from .env file if present
+load_dotenv()
+
+# Database configuration
+DB_HOST = os.environ["DB_HOST"]
+DB_USER = os.environ["DB_USER"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+DB_NAME = os.environ["DB_NAME"]
+
+# Used by Flask to sign session cookies and CSRF tokens
+SECRET_KEY = os.environ["SECRET_KEY"]

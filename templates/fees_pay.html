@@ -34,6 +34,7 @@
   {# ── Payment form ──────────────────────────────────────────── #}
   <div class="card">
     <form method="POST" action="{{ url_for('fees_pay', fee_id=fee.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="field">
           <label for="payment_amount">Payment Amount (₹)</label>

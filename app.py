@@ -8,9 +8,11 @@ from mysql.connector import Error
 
 import config
 import database
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+csrf = CSRFProtect(app)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

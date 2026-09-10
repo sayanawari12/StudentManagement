@@ -11,6 +11,7 @@
 
   <div class="card">
     <form method="POST" action="{{ url_for('fees_create', record_id=student.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
 
         <div class="field">

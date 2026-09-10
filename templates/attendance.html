@@ -16,6 +16,7 @@
   </form>
 
   <form method="POST" action="{{ url_for('attendance') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="date" value="{{ selected_date }}">
 
     <div class="table-wrap">
