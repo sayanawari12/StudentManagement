@@ -1,8 +1,4 @@
-"""
-pdf_generator.py — Pure-Python PDF generation using ReportLab.
-Handles Bonafide Certificate and Dashboard PDF exports.
-"""
-
+import os
 from io import BytesIO
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
@@ -12,6 +8,8 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 
 TERRACOTTA = colors.HexColor("#A9714F")
@@ -20,12 +18,26 @@ MUTED_TEXT = colors.HexColor("#555555")
 BG_LIGHT   = colors.HexColor("#F8F7F4")
 BORDER_CLR = colors.HexColor("#DDDDDD")
 
+_FONT_REGISTERED = False
+
+
+def _register_cursive_font():
+    global _FONT_REGISTERED
+    if not _FONT_REGISTERED:
+        font_path = os.path.join(os.path.dirname(__file__), "static", "fonts", "DancingScript-Variable.ttf")
+        if os.path.exists(font_path):
+            pdfmetrics.registerFont(TTFont("DancingScript", font_path))
+            _FONT_REGISTERED = True
+
 
 def generate_bonafide_pdf(institution_name, student):
     """
-    Generates a Bonafide Certificate PDF for a single student.
+    Generates a Bonafide Certificate PDF for a single student in cursive handwriting style.
+    All student data (name, student_id, course, semester, date) is loaded dynamically.
     Returns a BytesIO buffer containing the PDF bytes.
     """
+    _register_cursive_font()
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -37,6 +49,9 @@ def generate_bonafide_pdf(institution_name, student):
     )
 
     styles = getSampleStyleSheet()
+
+    # Font fallback if DancingScript registered
+    body_font = "DancingScript" if _FONT_REGISTERED else "Helvetica"
 
     # Custom paragraph styles
     inst_style = ParagraphStyle(
@@ -58,88 +73,102 @@ def generate_bonafide_pdf(institution_name, student):
         leading=24,
         textColor=DARK_TEXT,
         alignment=TA_CENTER,
-        spaceAfter=24,
-    )
-
-    body_style = ParagraphStyle(
-        'CertBody',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=12,
-        leading=20,
-        textColor=DARK_TEXT,
-        alignment=TA_JUSTIFY,
         spaceAfter=20,
     )
 
-    meta_style = ParagraphStyle(
-        'CertMeta',
+    cursive_meta = ParagraphStyle(
+        'CertCursiveMeta',
         parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=11,
-        leading=16,
-        textColor=MUTED_TEXT,
+        fontName=body_font,
+        fontSize=16,
+        leading=22,
+        textColor=DARK_TEXT,
         alignment=TA_LEFT,
+        spaceAfter=18,
     )
 
-    sig_style = ParagraphStyle(
-        'CertSig',
+    cursive_body = ParagraphStyle(
+        'CertCursiveBody',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=16,
+        fontName=body_font,
+        fontSize=18,
+        leading=26,
+        textColor=DARK_TEXT,
+        alignment=TA_LEFT,
+        spaceAfter=18,
+    )
+
+    cursive_sig_name = ParagraphStyle(
+        'CertSigName',
+        parent=styles['Normal'],
+        fontName=body_font,
+        fontSize=18,
+        leading=22,
         textColor=DARK_TEXT,
         alignment=TA_RIGHT,
     )
 
-    today_str = datetime.now().strftime("%B %d, %Y")
-
+    # Dynamic Student Data Extraction
     student_name = student.get("student_name", "")
     student_id   = student.get("student_id", "")
     course       = student.get("course", "")
     semester     = student.get("semester", "")
+    gender       = student.get("gender", "")
+    pk_id        = student.get("id", 1)
+
+    # Dynamic Pronouns & Salutation
+    salutation   = "Mr." if gender == "Male" else ("Ms." if gender == "Female" else "")
+    pronoun_subj = "He" if gender == "Male" else ("She" if gender == "Female" else "They")
+
+    # Dynamic Dates & Certificate Number
+    curr_date    = datetime.now()
+    curr_year    = curr_date.year
+    next_year_short = str(curr_year + 1)[-2:]
+    academic_year = f"{curr_year}–{next_year_short}"
+    issue_date   = curr_date.strftime("%d %B %Y")
+
+    course_code  = "BCA" if "BCA" in course.upper() else "CERT"
+    cert_no      = f"{course_code}/{curr_year}/{pk_id:03d}"
 
     story = []
 
-    # Institution Header
-    story.append(Paragraph(institution_name.upper(), inst_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceAfter=20, spaceBefore=4))
+    # Institution Header & Title (Formal font)
+    if institution_name:
+        story.append(Paragraph(institution_name.upper(), inst_style))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceAfter=20, spaceBefore=4))
 
-    # Certificate Title
     story.append(Paragraph("BONAFIDE CERTIFICATE", title_style))
+    story.append(Spacer(1, 10))
+
+    # Certificate Number & Date Line (Cursive)
+    meta_text = f"Certificate No.: <b>{cert_no}</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: <b>{issue_date}</b>"
+    story.append(Paragraph(meta_text, cursive_meta))
+    story.append(Spacer(1, 10))
+
+    # Cursive Body Paragraphs
+    salut_prefix = f"{salutation} " if salutation else ""
+    p1 = f"This is to certify that {salut_prefix}<b>{student_name}</b>, Roll No. <b>{student_id}</b>, is a bonafide student of <b>{course}</b> in our institution."
+    story.append(Paragraph(p1, cursive_body))
+
+    p2 = f"{pronoun_subj} is currently studying in <b>Semester {semester}</b> during the <b>Academic Year {academic_year}</b>, as per the official records of the institution."
+    story.append(Paragraph(p2, cursive_body))
+
+    p3 = "This certificate is issued at the request of the student for official purposes."
+    story.append(Paragraph(p3, cursive_body))
+
     story.append(Spacer(1, 15))
+    story.append(Paragraph("Place: Wani, Maharashtra", cursive_body))
+    story.append(Spacer(1, 40))
 
-    # Certificate Body Text
-    cert_text = (
-        f"This is to certify that <b>{student_name}</b> (Roll No. <b>{student_id}</b>) "
-        f"is a bonafide student of <b>{course}</b>, currently enrolled in Semester <b>{semester}</b> "
-        f"in our institution, as per our official institutional records."
+    # Signature Block
+    sig_cell = (
+        "____________________________<br/>"
+        "<b>Sayan Awari</b><br/>"
+        "<font fontName=\"Helvetica\" size=\"10\">Principal<br/>Sushganga Institute of Computer Applications</font>"
     )
-    story.append(Paragraph(cert_text, body_style))
-    story.append(Spacer(1, 15))
-
-    cert_text_extra = (
-        "This certificate is issued upon the request of the student for official purposes."
-    )
-    story.append(Paragraph(cert_text_extra, body_style))
-    story.append(Spacer(1, 50))
-
-    # Date and Signature Table
-    table_data = [
-        [
-            Paragraph(f"<b>Date of Issue:</b> {today_str}", meta_style),
-            Paragraph("____________________________<br/><b>Registrar / Principal</b>", sig_style)
-        ]
-    ]
-
-    sig_table = Table(table_data, colWidths=[250, 254])
-    sig_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
-        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-    ]))
-
-    story.append(sig_table)
+    story.append(Table([
+        ["", Paragraph(sig_cell, cursive_sig_name)]
+    ], colWidths=[250, 254]))
 
     doc.build(story)
     buffer.seek(0)
