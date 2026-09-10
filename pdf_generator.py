@@ -1,7 +1,7 @@
 import os
 from io import BytesIO
 from datetime import datetime
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib import colors
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
@@ -30,10 +30,24 @@ def _register_cursive_font():
             _FONT_REGISTERED = True
 
 
+def _draw_certificate_border(canvas, doc):
+    canvas.saveState()
+    # Outer thin border frame (A4 portrait)
+    canvas.setLineWidth(1.5)
+    canvas.setStrokeColor(colors.HexColor("#222222"))
+    canvas.rect(30, 30, doc.pagesize[0] - 60, doc.pagesize[1] - 60)
+    # Inner accent border line
+    canvas.setLineWidth(0.5)
+    canvas.setStrokeColor(colors.HexColor("#555555"))
+    canvas.rect(34, 34, doc.pagesize[0] - 68, doc.pagesize[1] - 68)
+    canvas.restoreState()
+
+
 def generate_bonafide_pdf(institution_name, student):
     """
-    Generates a Bonafide Certificate PDF for a single student in cursive handwriting style.
-    All student data (name, student_id, course, semester, date) is loaded dynamically.
+    Generates a professional Bonafide Certificate PDF for a single student.
+    Matches exact college certificate structure with Helvetica standard typography
+    and DancingScript cursive font exclusively for Student Name and Principal Signature.
     Returns a BytesIO buffer containing the PDF bytes.
     """
     _register_cursive_font()
@@ -41,7 +55,7 @@ def generate_bonafide_pdf(institution_name, student):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=letter,
+        pagesize=A4,
         rightMargin=54,
         leftMargin=54,
         topMargin=54,
@@ -50,62 +64,105 @@ def generate_bonafide_pdf(institution_name, student):
 
     styles = getSampleStyleSheet()
 
-    # Font fallback if DancingScript registered
-    body_font = "DancingScript" if _FONT_REGISTERED else "Helvetica"
+    # Cursive font fallback
+    cursive_font = "DancingScript" if _FONT_REGISTERED else "Helvetica-Bold"
 
-    # Custom paragraph styles
-    inst_style = ParagraphStyle(
-        'InstHeader',
+    # Header & Typography Styles
+    college_name_style = ParagraphStyle(
+        'CollegeHeader',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=18,
-        leading=22,
-        textColor=TERRACOTTA,
+        fontSize=17,
+        leading=21,
+        textColor=DARK_TEXT,
         alignment=TA_CENTER,
-        spaceAfter=6,
+        spaceAfter=4,
     )
 
-    title_style = ParagraphStyle(
+    college_location_style = ParagraphStyle(
+        'CollegeLocation',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=11,
+        leading=14,
+        textColor=DARK_TEXT,
+        alignment=TA_CENTER,
+        spaceAfter=2,
+    )
+
+    college_affiliation_style = ParagraphStyle(
+        'CollegeAffiliation',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=10,
+        leading=13,
+        textColor=MUTED_TEXT,
+        alignment=TA_CENTER,
+        spaceAfter=12,
+    )
+
+    cert_title_style = ParagraphStyle(
         'CertTitle',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=20,
-        leading=24,
+        fontSize=19,
+        leading=23,
         textColor=DARK_TEXT,
         alignment=TA_CENTER,
-        spaceAfter=20,
+        spaceAfter=12,
     )
 
-    cursive_meta = ParagraphStyle(
-        'CertCursiveMeta',
+    meta_left_style = ParagraphStyle(
+        'MetaLeft',
         parent=styles['Normal'],
-        fontName=body_font,
-        fontSize=16,
-        leading=22,
+        fontName='Helvetica',
+        fontSize=11,
+        leading=14,
         textColor=DARK_TEXT,
         alignment=TA_LEFT,
-        spaceAfter=18,
     )
 
-    cursive_body = ParagraphStyle(
-        'CertCursiveBody',
+    meta_right_style = ParagraphStyle(
+        'MetaRight',
         parent=styles['Normal'],
-        fontName=body_font,
-        fontSize=18,
-        leading=26,
-        textColor=DARK_TEXT,
-        alignment=TA_LEFT,
-        spaceAfter=18,
-    )
-
-    cursive_sig_name = ParagraphStyle(
-        'CertSigName',
-        parent=styles['Normal'],
-        fontName=body_font,
-        fontSize=18,
-        leading=22,
+        fontName='Helvetica',
+        fontSize=11,
+        leading=14,
         textColor=DARK_TEXT,
         alignment=TA_RIGHT,
+    )
+
+    body_style = ParagraphStyle(
+        'CertBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=12,
+        leading=22,
+        textColor=DARK_TEXT,
+        alignment=TA_JUSTIFY,
+        spaceAfter=14,
+    )
+
+    place_style = ParagraphStyle(
+        'CertPlace',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=11,
+        leading=15,
+        textColor=DARK_TEXT,
+        alignment=TA_LEFT,
+        spaceBefore=10,
+        spaceAfter=35,
+    )
+
+    sig_style = ParagraphStyle(
+        'CertSigStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=11,
+        leading=16,
+        textColor=DARK_TEXT,
+        alignment=TA_LEFT,
     )
 
     # Dynamic Student Data Extraction
@@ -117,8 +174,8 @@ def generate_bonafide_pdf(institution_name, student):
     pk_id        = student.get("id", 1)
 
     # Dynamic Pronouns & Salutation
-    salutation   = "Mr." if gender == "Male" else ("Ms." if gender == "Female" else "")
-    pronoun_subj = "He" if gender == "Male" else ("She" if gender == "Female" else "They")
+    salutation   = "Mr." if gender == "Male" else ("Ms." if gender == "Female" else "Mr./Ms.")
+    pronoun_subj = "He" if gender == "Male" else ("She" if gender == "Female" else "He/She")
 
     # Dynamic Dates & Certificate Number
     curr_date    = datetime.now()
@@ -127,50 +184,83 @@ def generate_bonafide_pdf(institution_name, student):
     academic_year = f"{curr_year}–{next_year_short}"
     issue_date   = curr_date.strftime("%d %B %Y")
 
-    course_code  = "BCA" if "BCA" in course.upper() else "CERT"
+    course_code  = "BCA" if "BCA" in str(course).upper() else "CERT"
     cert_no      = f"{course_code}/{curr_year}/{pk_id:03d}"
 
     story = []
 
-    # Institution Header & Title (Formal font)
-    if institution_name:
-        story.append(Paragraph(institution_name.upper(), inst_style))
-        story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceAfter=20, spaceBefore=4))
+    # 1. College Header (Exact Hierarchy)
+    story.append(Paragraph("SUSHGANGA INSTITUTE OF<br/>COMPUTER APPLICATIONS", college_name_style))
+    story.append(Paragraph("Wani, Maharashtra", college_location_style))
+    story.append(Paragraph("Affiliated to Sant Gadge Baba Amravati University, Amravati", college_affiliation_style))
 
-    story.append(Paragraph("BONAFIDE CERTIFICATE", title_style))
-    story.append(Spacer(1, 10))
+    # Divider line 1
+    story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=4, spaceAfter=14))
 
-    # Certificate Number & Date Line (Cursive)
-    meta_text = f"Certificate No.: <b>{cert_no}</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: <b>{issue_date}</b>"
-    story.append(Paragraph(meta_text, cursive_meta))
-    story.append(Spacer(1, 10))
+    # 2. Bonafide Certificate Title
+    story.append(Paragraph("BONAFIDE CERTIFICATE", cert_title_style))
 
-    # Cursive Body Paragraphs
+    # Divider line 2
+    story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=0, spaceAfter=18))
+
+    # 3. Certificate Number & Date Line
+    meta_table = Table([
+        [
+            Paragraph(f"Certificate No.: <b>{cert_no}</b>", meta_left_style),
+            Paragraph(f"Date: <b>{issue_date}</b>", meta_right_style)
+        ]
+    ], colWidths=[240, 247.27])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 18))
+
+    # 4. Certificate Body Paragraphs
     salut_prefix = f"{salutation} " if salutation else ""
-    p1 = f"This is to certify that {salut_prefix}<b>{student_name}</b>, Roll No. <b>{student_id}</b>, is a bonafide student of <b>{course}</b> in our institution."
-    story.append(Paragraph(p1, cursive_body))
+    p1 = (
+        f"This is to certify that {salut_prefix}"
+        f"<font fontName=\"{cursive_font}\" size=\"20\"><b>{student_name}</b></font>, "
+        f"Roll No. <b>{student_id}</b>, is a bonafide student of <b>{course}</b> in our institution."
+    )
+    story.append(Paragraph(p1, body_style))
 
-    p2 = f"{pronoun_subj} is currently studying in <b>Semester {semester}</b> during the <b>Academic Year {academic_year}</b>, as per the official records of the institution."
-    story.append(Paragraph(p2, cursive_body))
+    p2 = (
+        f"{pronoun_subj} is currently studying in <b>Semester {semester}</b> during the "
+        f"Academic Year <b>{academic_year}</b>, as per the official records of the institution."
+    )
+    story.append(Paragraph(p2, body_style))
 
     p3 = "This certificate is issued at the request of the student for official purposes."
-    story.append(Paragraph(p3, cursive_body))
+    story.append(Paragraph(p3, body_style))
 
-    story.append(Spacer(1, 15))
-    story.append(Paragraph("Place: Wani, Maharashtra", cursive_body))
-    story.append(Spacer(1, 40))
+    # 5. Place
+    story.append(Paragraph("Place: Wani, Maharashtra", place_style))
 
-    # Signature Block
+    # 6. Principal Signature Section (Bottom Right)
     sig_cell = (
-        "____________________________<br/>"
-        "<b>Sayan Awari</b><br/>"
-        "<font fontName=\"Helvetica\" size=\"10\">Principal<br/>Sushganga Institute of Computer Applications</font>"
+        "______________________<br/><br/>"
+        f"<font fontName=\"{cursive_font}\" size=\"20\"><b>Sayan Awari</b></font><br/>"
+        "Principal<br/>"
+        "Sushganga Institute of Computer Applications"
     )
-    story.append(Table([
-        ["", Paragraph(sig_cell, cursive_sig_name)]
-    ], colWidths=[250, 254]))
+    sig_table = Table([
+        ["", Paragraph(sig_cell, sig_style)]
+    ], colWidths=[240, 247.27])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(sig_table)
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_draw_certificate_border)
     buffer.seek(0)
     return buffer
 
