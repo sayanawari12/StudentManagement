@@ -46,6 +46,34 @@ def get_user_by_username(username):
         conn.close()
 
 
+def get_user_by_id(user_id):
+    """Return the users row matching primary key user_id, or None."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_user_password(user_id, new_hashed_password):
+    """Update the password hash for user_id."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET password = %s WHERE id = %s",
+            (new_hashed_password, user_id)
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Dashboard queries
 # ---------------------------------------------------------------------------

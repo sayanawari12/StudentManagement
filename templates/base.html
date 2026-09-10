@@ -45,6 +45,8 @@
       </nav>
 
       <div class="sidebar-footer">
+        <a href="{{ url_for('change_password') }}"
+           class="{{ 'active' if request.endpoint == 'change_password' else '' }}">Change Password</a>
         <a href="{{ url_for('logout') }}">Log out</a>
       </div>
     </aside>

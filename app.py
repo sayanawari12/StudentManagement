@@ -3,7 +3,7 @@ from decimal import Decimal
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from mysql.connector import Error
 
 import config
@@ -96,6 +96,28 @@ def validate_student_form(form):
     return errors
 
 
+def validate_password_change_form(form, user):
+    """Validates current_password, new_password, and confirm_new_password."""
+    errors = []
+    current_password = form.get("current_password", "")
+    new_password = form.get("new_password", "")
+    confirm_new_password = form.get("confirm_new_password", "")
+
+    if not current_password or not check_password_hash(user["password"], current_password):
+        errors.append("Current password is incorrect.")
+
+    if len(new_password) < 8:
+        errors.append("New password must be at least 8 characters long.")
+
+    if new_password != confirm_new_password:
+        errors.append("New password and confirmation do not match.")
+
+    if current_password and new_password and current_password == new_password:
+        errors.append("New password must be different from current password.")
+
+    return errors
+
+
 def student_payload(form):
     """Turns a submitted form into the dict shape database.py expects."""
     return {
@@ -151,6 +173,40 @@ def logout():
     session.clear()
     flash("You have been logged out.", "success")
     return redirect(url_for("login"))
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    user_id = _get_user_id()
+    try:
+        user = database.get_user_by_id(user_id)
+    except Error:
+        flash("Could not reach the database.", "error")
+        return redirect(url_for("dashboard"))
+
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("logout"))
+
+    if request.method == "POST":
+        errors = validate_password_change_form(request.form, user)
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("change_password.html")
+
+        new_hashed = generate_password_hash(request.form.get("new_password"))
+        try:
+            database.update_user_password(user_id, new_hashed)
+            flash("Password updated.", "success")
+            return redirect(url_for("dashboard"))
+        except Error as e:
+            flash(f"Database error: {e}", "error")
+            return render_template("change_password.html")
+
+    return render_template("change_password.html")
 
 
 # ---------------------------------------------------------------------------
