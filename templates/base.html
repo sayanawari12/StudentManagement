@@ -22,7 +22,7 @@
         {# Students list — admin + teacher only #}
         {% if session.get('role') in ('admin', 'teacher') %}
           <a href="{{ url_for('students') }}"
-             class="{{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student'] else '' }}">Students</a>
+             class="{{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student', 'grades_add', 'fees_create', 'fees_pay'] else '' }}">Students</a>
         {% endif %}
 
         {# Add student — admin only #}

@@ -377,3 +377,66 @@ def get_total_dues():
     finally:
         cursor.close()
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Grades queries
+# NOTE: stud_id = students.id (INT PK), NOT students.student_id (VARCHAR roll)
+# ---------------------------------------------------------------------------
+
+def insert_grade(data):
+    """Insert a new grade record for a student."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """INSERT INTO grades
+                   (stud_id, subject, exam_type, marks_obtained, max_marks, semester, recorded_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (data["stud_id"], data["subject"], data["exam_type"],
+             data["marks_obtained"], data["max_marks"], data["semester"],
+             data["recorded_by"])
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_student_grades(stud_id):
+    """Return all grade records for a student ordered by semester, then subject."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT id, stud_id, subject, exam_type, marks_obtained, max_marks,
+                      semester, recorded_by, created_at
+               FROM grades
+               WHERE stud_id = %s
+               ORDER BY semester ASC, subject ASC""",
+            (stud_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_grade_summary(stud_id):
+    """Calculate overall percentage across all grade rows for a student.
+    Returns 0 instead of NULL when the student has no grades yet.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT COALESCE(SUM(marks_obtained) / NULLIF(SUM(max_marks), 0) * 100, 0) AS overall_percentage
+               FROM grades
+               WHERE stud_id = %s""",
+            (stud_id,)
+        )
+        row = cursor.fetchone()
+        return row["overall_percentage"] if row else 0
+    finally:
+        cursor.close()
+        conn.close()

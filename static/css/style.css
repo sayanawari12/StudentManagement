@@ -425,6 +425,14 @@ tbody tr:hover { background: var(--accent-soft); }
   background: var(--danger-soft);
   color: var(--danger);
 }
+.badge-pass {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.badge-fail {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 
 .table-actions {
   display: flex;

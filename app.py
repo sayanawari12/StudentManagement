@@ -245,6 +245,23 @@ def student_details(record_id):
         present_count = sum(1 for r in attendance_records if r["status"] == "Present")
         attendance_pct = round(present_count / len(attendance_records) * 100)
 
+    # Grades section data
+    PASSING_THRESHOLD = 40.0  # Defined here for easy modification
+    try:
+        grade_records = database.get_student_grades(record_id)
+        raw_grade_pct = database.get_grade_summary(record_id)
+        grade_summary_pct = round(float(raw_grade_pct), 1) if raw_grade_pct else 0.0
+    except Error:
+        grade_records = []
+        grade_summary_pct = 0.0
+
+    for g in grade_records:
+        obtained = float(g["marks_obtained"])
+        maximum = float(g["max_marks"]) if g["max_marks"] and float(g["max_marks"]) > 0 else 100.0
+        pct = (obtained / maximum) * 100.0
+        g["percentage"] = round(pct, 1)
+        g["passed"] = (pct >= PASSING_THRESHOLD)
+
     # Fees section data
     try:
         fee_records = database.get_student_fees(record_id)
@@ -268,6 +285,9 @@ def student_details(record_id):
         student=student,
         attendance_records=attendance_records,
         attendance_pct=attendance_pct,
+        grade_records=grade_records,
+        grade_summary_pct=grade_summary_pct,
+        passing_threshold=PASSING_THRESHOLD,
         fee_records=fee_records,
     )
 
@@ -406,6 +426,114 @@ def attendance_history(record_id):
         records=records,
         pct=pct,
     )
+
+
+# ---------------------------------------------------------------------------
+# Grades routes
+# ---------------------------------------------------------------------------
+
+def validate_grade_form(form):
+    """Server-side validation for grade entry."""
+    errors = []
+    subject = form.get("subject", "").strip()
+    exam_type = form.get("exam_type", "").strip()
+    marks_obtained_str = form.get("marks_obtained", "").strip()
+    max_marks_str = form.get("max_marks", "100").strip()
+    semester_str = form.get("semester", "").strip()
+
+    if not subject:
+        errors.append("Subject name is required.")
+    elif len(subject) > 100:
+        errors.append("Subject name must be 100 characters or fewer.")
+
+    valid_exam_types = ("Internal", "Mid-term", "Final")
+    if not exam_type:
+        errors.append("Exam type is required.")
+    elif exam_type not in valid_exam_types:
+        errors.append("Invalid exam type selected.")
+
+    marks_obtained = None
+    if not marks_obtained_str:
+        errors.append("Marks obtained is required.")
+    else:
+        try:
+            marks_obtained = Decimal(marks_obtained_str)
+            if marks_obtained < 0:
+                errors.append("Marks obtained cannot be negative.")
+        except Exception:
+            errors.append("Marks obtained must be a valid number.")
+
+    max_marks = None
+    if not max_marks_str:
+        errors.append("Maximum marks is required.")
+    else:
+        try:
+            max_marks = Decimal(max_marks_str)
+            if max_marks <= 0:
+                errors.append("Maximum marks must be greater than zero.")
+        except Exception:
+            errors.append("Maximum marks must be a valid number.")
+
+    if marks_obtained is not None and max_marks is not None:
+        if marks_obtained > max_marks:
+            errors.append("Marks obtained cannot exceed maximum marks.")
+
+    if not semester_str:
+        errors.append("Semester is required.")
+    elif not semester_str.isdigit() or not (1 <= int(semester_str) <= 6):
+        errors.append("Semester must be a number between 1 and 6.")
+
+    return errors
+
+
+@app.route("/grades/add/<int:record_id>", methods=["GET", "POST"])
+@role_required("admin", "teacher")
+def grades_add(record_id):
+    try:
+        student = database.get_student_by_id(record_id)
+    except Error:
+        flash("Could not reach the database.", "error")
+        return redirect(url_for("students"))
+
+    if not student:
+        flash("Student not found.", "error")
+        return redirect(url_for("students"))
+
+    if request.method == "POST":
+        form = request.form
+        errors = validate_grade_form(form)
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("grades_add.html", student=student, form=form)
+
+        recorded_by = session.get("linked_student_id") or _get_user_id()
+
+        try:
+            database.insert_grade({
+                "stud_id":        record_id,
+                "subject":        form.get("subject", "").strip(),
+                "exam_type":      form.get("exam_type", "").strip(),
+                "marks_obtained": Decimal(form.get("marks_obtained", "").strip()),
+                "max_marks":       Decimal(form.get("max_marks", "100").strip()),
+                "semester":       int(form.get("semester", "").strip()),
+                "recorded_by":    recorded_by,
+            })
+            flash("Grade recorded successfully.", "success")
+            return redirect(url_for("student_details", record_id=record_id))
+        except Error as e:
+            flash(f"Database error: {e}", "error")
+            return render_template("grades_add.html", student=student, form=form)
+
+    return render_template("grades_add.html", student=student, form={"max_marks": "100.00"})
+
+
+@app.route("/grades/<int:record_id>")
+@role_required("admin", "teacher", "student")
+def grades_view(record_id):
+    _assert_own_record(record_id)
+    return redirect(url_for("student_details", record_id=record_id))
 
 
 def _get_user_id():

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Add Grade — {{ student.student_name }}{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Add Grade</h1>
+      <p>Recording exam marks for {{ student.student_name }} ({{ student.student_id }})</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('grades_add', record_id=student.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-grid">
+
+        <div class="field">
+          <label for="subject">Subject Name</label>
+          <input type="text"
+                 id="subject"
+                 name="subject"
+                 value="{{ form.subject or '' }}"
+                 placeholder="e.g. Mathematics, C++ Programming"
+                 required>
+        </div>
+
+        <div class="field">
+          <label for="exam_type">Exam Type</label>
+          <select id="exam_type" name="exam_type" required>
+            <option value="" {{ 'selected' if not form.exam_type }}>Select exam type</option>
+            <option value="Internal" {{ 'selected' if form.exam_type == 'Internal' }}>Internal</option>
+            <option value="Mid-term" {{ 'selected' if form.exam_type == 'Mid-term' }}>Mid-term</option>
+            <option value="Final" {{ 'selected' if form.exam_type == 'Final' }}>Final</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="semester">Semester</label>
+          <select id="semester" name="semester" required>
+            <option value="" {{ 'selected' if not form.semester }}>Select semester</option>
+            {% for n in range(1, 7) %}
+              <option value="{{ n }}" {{ 'selected' if (form.semester|string) == (n|string) or (not form.semester and (student.semester|string) == (n|string)) }}>Semester {{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="marks_obtained">Marks Obtained</label>
+          <input type="number"
+                 id="marks_obtained"
+                 name="marks_obtained"
+                 min="0"
+                 max="1000"
+                 step="0.01"
+                 value="{{ form.marks_obtained or '' }}"
+                 required>
+        </div>
+
+        <div class="field">
+          <label for="max_marks">Maximum Marks</label>
+          <input type="number"
+                 id="max_marks"
+                 name="max_marks"
+                 min="0.01"
+                 max="1000"
+                 step="0.01"
+                 value="{{ form.max_marks or '100.00' }}"
+                 required>
+        </div>
+
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary">Save Grade</button>
+        <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

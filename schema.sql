@@ -78,6 +78,25 @@ CREATE TABLE IF NOT EXISTS fees (
 );
 
 -- ----------------------------------------------------------------
+-- 5. Grades
+-- stud_id = FK -> students.id (INT primary key)
+-- recorded_by = FK -> users.id
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS grades (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    stud_id         INT            NOT NULL,
+    subject         VARCHAR(100)   NOT NULL,
+    exam_type       ENUM('Internal','Mid-term','Final') NOT NULL,
+    marks_obtained  DECIMAL(5,2)   NOT NULL,
+    max_marks       DECIMAL(5,2)   NOT NULL DEFAULT 100.00,
+    semester        INT            NOT NULL,
+    recorded_by     INT            NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (stud_id)     REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id)
+);
+
+-- ----------------------------------------------------------------
 -- Sample student data (INSERT IGNORE = safe to re-run)
 -- ----------------------------------------------------------------
 INSERT IGNORE INTO students
