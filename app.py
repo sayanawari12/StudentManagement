@@ -133,8 +133,9 @@ def login():
             return render_template("login.html")
 
         if user and check_password_hash(user["password"], password):
-            session["admin"] = user["username"]          # kept for any legacy checks
-            session["role"]  = user["role"]
+            session["user_id"] = user["id"]
+            session["admin"]   = user["username"]          # kept for any legacy checks
+            session["role"]    = user["role"]
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
             return redirect(url_for("dashboard"))
 
@@ -363,7 +364,7 @@ def attendance():
             return redirect(url_for("attendance"))
 
         students_list = database.get_all_students_for_attendance()
-        marked_by = session.get("linked_student_id") or _get_user_id()
+        marked_by = _get_user_id()
 
         for s in students_list:
             status = request.form.get(f"status_{s['id']}", "")
@@ -508,7 +509,7 @@ def grades_add(record_id):
                 flash(error, "error")
             return render_template("grades_add.html", student=student, form=form)
 
-        recorded_by = session.get("linked_student_id") or _get_user_id()
+        recorded_by = _get_user_id()
 
         try:
             database.insert_grade({
@@ -538,6 +539,8 @@ def grades_view(record_id):
 
 def _get_user_id():
     """Fetch the users.id for the currently logged-in user."""
+    if "user_id" in session:
+        return session["user_id"]
     try:
         user = database.get_user_by_username(session.get("admin", ""))
         return user["id"] if user else 1
