@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Record Payment — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Record Payment</h1>
+      <p>{{ student.student_name if student else 'Student' }} — {{ student.student_id if student }}</p>
+    </div>
+  </div>
+
+  {# ── Fee summary card ─────────────────────────────────────── #}
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="detail-grid">
+      <div class="detail-item">
+        <div class="label">Amount Due</div>
+        <div class="value">₹{{ fee.amount_due }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Already Paid</div>
+        <div class="value">₹{{ fee.amount_paid }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Remaining Balance</div>
+        <div class="value" style="font-weight: 600;">₹{{ remaining }}</div>
+      </div>
+      <div class="detail-item">
+        <div class="label">Due Date</div>
+        <div class="value">{{ fee.due_date }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Payment form ──────────────────────────────────────────── #}
+  <div class="card">
+    <form method="POST" action="{{ url_for('fees_pay', fee_id=fee.id) }}">
+      <div class="form-grid">
+        <div class="field">
+          <label for="payment_amount">Payment Amount (₹)</label>
+          <input type="number"
+                 id="payment_amount"
+                 name="payment_amount"
+                 min="0.01"
+                 step="0.01"
+                 max="{{ remaining }}"
+                 value="{{ form.payment_amount or '' }}"
+                 required>
+          <div class="hint">Maximum payable: ₹{{ remaining }}</div>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary">Record Payment</button>
+        {% if student %}
+          <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Cancel</a>
+        {% else %}
+          <a href="{{ url_for('students') }}" class="btn btn-outline">Cancel</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -7,10 +7,14 @@
       <h1>Dashboard</h1>
       <p>An overview of everyone currently on record.</p>
     </div>
-    <div class="actions-row">
-      <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
-      <a href="{{ url_for('students') }}"   class="btn btn-outline">View students</a>
-    </div>
+    {% if session.get('role') in ('admin', 'teacher') %}
+      <div class="actions-row">
+        {% if session.get('role') == 'admin' %}
+          <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+        {% endif %}
+        <a href="{{ url_for('students') }}" class="btn btn-outline">View students</a>
+      </div>
+    {% endif %}
   </div>
 
   {# ── Top-level stat cards ─────────────────────────────────── #}
@@ -25,6 +29,16 @@
       <div class="value">{{ stats.total_bca }}</div>
       <div class="label">Total BCA Students</div>
     </div>
+    <div class="stat-card">
+      <div class="card-number">No. 03</div>
+      <div class="value">{{ stats.attendance_today }}</div>
+      <div class="label">Present Today</div>
+    </div>
+    <div class="stat-card">
+      <div class="card-number">No. 04</div>
+      <div class="value">₹{{ stats.total_dues }}</div>
+      <div class="label">Dues Outstanding</div>
+    </div>
   </div>
 
   {# ── Semester breakdown ───────────────────────────────────── #}
@@ -34,7 +48,8 @@
     <div class="stat-grid">
       {% for row in stats.semester_counts %}
         <div class="stat-card">
-          <div class="card-number">No. {{ '%02d'|format(loop.index + 2) }}</div>
+          {# Fix 2: start from No. 05 so numbering is sequential after new cards #}
+          <div class="card-number">No. {{ '%02d'|format(loop.index + 4) }}</div>
           <div class="value">{{ row.total }}</div>
           <div class="label">Semester {{ row.semester }}</div>
         </div>

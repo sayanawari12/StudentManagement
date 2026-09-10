@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Mark Attendance</h1>
+      <p>Select a date and toggle each student's status.</p>
+    </div>
+  </div>
+
+  {# Date picker — changing date reloads the page to pre-fill existing marks #}
+  <form method="GET" action="{{ url_for('attendance') }}" class="search-form" style="margin-bottom: 24px;">
+    <input type="date" name="date" value="{{ selected_date }}" id="attendance-date">
+    <button type="submit" class="btn btn-outline">Load</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('attendance') }}">
+    <input type="hidden" name="date" value="{{ selected_date }}">
+
+    <div class="table-wrap">
+      {% if students %}
+        <table>
+          <thead>
+            <tr>
+              <th>Student ID</th>
+              <th>Name</th>
+              <th>Present</th>
+              <th>Absent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in students %}
+              {% set current = existing_marks.get(student.id, '') %}
+              <tr>
+                <td>{{ student.student_id }}</td>
+                <td>{{ student.student_name }}</td>
+                <td style="text-align: center;">
+                  <input type="radio"
+                         id="present_{{ student.id }}"
+                         name="status_{{ student.id }}"
+                         value="Present"
+                         {{ 'checked' if current == 'Present' }}>
+                </td>
+                <td style="text-align: center;">
+                  <input type="radio"
+                         id="absent_{{ student.id }}"
+                         name="status_{{ student.id }}"
+                         value="Absent"
+                         {{ 'checked' if current == 'Absent' }}>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty-state">
+          <strong>No students found</strong>
+          Add students first before marking attendance.
+        </div>
+      {% endif %}
+    </div>
+
+    {% if students %}
+      <div class="form-footer" style="margin-top: 20px;">
+        <button type="submit" class="btn btn-primary">Save Attendance</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    {% endif %}
+  </form>
+{% endblock %}

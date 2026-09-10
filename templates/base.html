@@ -11,16 +11,39 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         Student MS
-        <span>Admin Panel</span>
+        <span>{{ session.role | upper if session.role else 'Panel' }}</span>
       </div>
+
       <nav class="sidebar-nav">
+        {# Dashboard — all roles #}
         <a href="{{ url_for('dashboard') }}"
            class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">Dashboard</a>
-        <a href="{{ url_for('students') }}"
-           class="{{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student'] else '' }}">Students</a>
-        <a href="{{ url_for('add_student') }}"
-           class="{{ 'active' if request.endpoint == 'add_student' else '' }}">Add student</a>
+
+        {# Students list — admin + teacher only #}
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('students') }}"
+             class="{{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student'] else '' }}">Students</a>
+        {% endif %}
+
+        {# Add student — admin only #}
+        {% if session.get('role') == 'admin' %}
+          <a href="{{ url_for('add_student') }}"
+             class="{{ 'active' if request.endpoint == 'add_student' else '' }}">Add student</a>
+        {% endif %}
+
+        {# Attendance — admin + teacher #}
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('attendance') }}"
+             class="{{ 'active' if request.endpoint in ['attendance', 'attendance_history'] else '' }}">Attendance</a>
+        {% endif %}
+
+        {# My Profile — student only (links to their own record) #}
+        {% if session.get('role') == 'student' and session.get('linked_student_id') %}
+          <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}"
+             class="{{ 'active' if request.endpoint == 'student_details' else '' }}">My Profile</a>
+        {% endif %}
       </nav>
+
       <div class="sidebar-footer">
         <a href="{{ url_for('logout') }}">Log out</a>
       </div>

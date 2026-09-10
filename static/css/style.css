@@ -4,16 +4,18 @@
   --font-heading: 'Newsreader', Georgia, serif;
   --font-body: 'IBM Plex Sans', sans-serif;
 
-  --accent:       #A9714F;   /* terracotta — catalog numbering, buttons */
+  --accent:       #A9714F;
   --accent-hover: #8F5D3F;
-  --accent-soft:  #F3E9E1;   /* tinted wash for hover/focus rings */
+  --accent-soft:  #F3E9E1;
 
-  --gold:         #A9714F;   /* numbered labels (alias of accent) */
+  --gold:         #A9714F;
 
   --success:      #3A7D44;
   --success-soft: #EBF5EC;
   --danger:       #9C3B2E;
   --danger-soft:  #F5EAE7;
+  --warning:      #C17D3A;
+  --warning-soft: #F7EFE3;
 
   --text-primary:   #161616;
   --text-secondary: #6B6258;
@@ -400,6 +402,28 @@ tbody tr:hover { background: var(--accent-soft); }
   letter-spacing: 0.04em;
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* Status badge variants */
+.badge-present {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.badge-absent {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge-paid {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.badge-partial {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.badge-due {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .table-actions {

@@ -8,14 +8,17 @@
       <p>Student ID {{ student.student_id }}</p>
     </div>
     <div class="actions-row">
-      <a href="{{ url_for('edit_student', record_id=student.id) }}" class="btn btn-outline">Edit</a>
-      <form method="POST" action="{{ url_for('delete_student', record_id=student.id) }}"
-            class="js-confirm-delete" data-student-name="{{ student.student_name }}">
-        <button type="submit" class="btn btn-danger">Delete</button>
-      </form>
+      {% if session.get('role') == 'admin' %}
+        <a href="{{ url_for('edit_student', record_id=student.id) }}" class="btn btn-outline">Edit</a>
+        <form method="POST" action="{{ url_for('delete_student', record_id=student.id) }}"
+              class="js-confirm-delete" data-student-name="{{ student.student_name }}">
+          <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+      {% endif %}
     </div>
   </div>
 
+  {# ── Profile card ──────────────────────────────────────────── #}
   <div class="card">
     <div class="detail-grid">
       <div class="detail-item">
@@ -52,7 +55,125 @@
     </div>
   </div>
 
-  <div class="actions-row" style="margin-top: 20px;">
-    <a href="{{ url_for('students') }}" class="btn btn-outline">Back to students</a>
+  {# ── Attendance section ────────────────────────────────────── #}
+  {# Visible to admin + teacher + the linked student (Fix 6 guard only for fees below) #}
+  {% if session.get('role') in ('admin', 'teacher') or session.get('linked_student_id') == student.id %}
+    <h2 class="section-title" style="margin-top: 32px;">Attendance</h2>
+
+    {% if attendance_records %}
+      <div style="margin-bottom: 14px;">
+        {% if attendance_pct is not none %}
+          <span class="badge badge-{% if attendance_pct >= 75 %}present{% else %}absent{% endif %}">
+            {{ attendance_pct }}% Present
+          </span>
+          <span style="margin-left: 8px; font-size: 13px; color: var(--text-secondary);">
+            {{ attendance_records|length }} total session{{ 's' if attendance_records|length != 1 }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in attendance_records %}
+              <tr>
+                <td>{{ rec.date }}</td>
+                <td>
+                  <span class="badge badge-{{ 'present' if rec.status == 'Present' else 'absent' }}">
+                    {{ rec.status }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <div class="empty-state">
+          <strong>No attendance records yet</strong>
+          Records appear here once attendance is marked.
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {# ── Fees section ──────────────────────────────────────────── #}
+  {# Fix 6: teacher excluded — admin + linked student only #}
+  {% if session.get('role') == 'admin' or session.get('linked_student_id') == student.id %}
+    <h2 class="section-title" style="margin-top: 32px;">Fees</h2>
+
+    {% if session.get('role') == 'admin' %}
+      <div style="margin-bottom: 14px;">
+        <a href="{{ url_for('fees_create', record_id=student.id) }}" class="btn btn-primary btn-sm">
+          + Add Due
+        </a>
+      </div>
+    {% endif %}
+
+    {% if fee_records %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Amount Due</th>
+              <th>Amount Paid</th>
+              <th>Remaining</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              {% if session.get('role') == 'admin' %}
+                <th>Action</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for fee in fee_records %}
+              <tr>
+                <td>₹{{ fee.amount_due }}</td>
+                <td>₹{{ fee.amount_paid }}</td>
+                <td>₹{{ fee.remaining }}</td>
+                <td>{{ fee.due_date }}</td>
+                <td>
+                  <span class="badge badge-{{ fee.status | lower }}">{{ fee.status }}</span>
+                </td>
+                {% if session.get('role') == 'admin' %}
+                  <td>
+                    {% if fee.status != 'Paid' %}
+                      <a href="{{ url_for('fees_pay', fee_id=fee.id) }}" class="btn btn-outline btn-sm">
+                        Pay →
+                      </a>
+                    {% else %}
+                      <span style="color: var(--text-muted); font-size: 13px;">—</span>
+                    {% endif %}
+                  </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <div class="empty-state">
+          <strong>No fee records yet</strong>
+          {% if session.get('role') == 'admin' %}
+            Use "Add Due" above to create a billing record.
+          {% else %}
+            Fee records appear here once they are created.
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="actions-row" style="margin-top: 28px;">
+    {% if session.get('role') in ('admin', 'teacher') %}
+      <a href="{{ url_for('students') }}" class="btn btn-outline">Back to students</a>
+    {% endif %}
   </div>
 {% endblock %}

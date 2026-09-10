@@ -7,7 +7,9 @@
       <h1>Students</h1>
       <p>{{ students|length }} record{{ 's' if students|length != 1 else '' }}{{ ' matching "%s"' % search if search else '' }}</p>
     </div>
-    <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+    {% if session.get('role') == 'admin' %}
+      <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+    {% endif %}
   </div>
 
   <form class="search-form" method="GET" action="{{ url_for('students') }}">
@@ -44,11 +46,13 @@
               <td>
                 <div class="table-actions">
                   <a href="{{ url_for('student_details', record_id=student.id) }}">View</a>
-                  <a href="{{ url_for('edit_student', record_id=student.id) }}">Edit</a>
-                  <form method="POST" action="{{ url_for('delete_student', record_id=student.id) }}"
-                        class="js-confirm-delete" data-student-name="{{ student.student_name }}">
-                    <button type="submit" class="danger-link">Delete</button>
-                  </form>
+                  {% if session.get('role') == 'admin' %}
+                    <a href="{{ url_for('edit_student', record_id=student.id) }}">Edit</a>
+                    <form method="POST" action="{{ url_for('delete_student', record_id=student.id) }}"
+                          class="js-confirm-delete" data-student-name="{{ student.student_name }}">
+                      <button type="submit" class="danger-link">Delete</button>
+                    </form>
+                  {% endif %}
                 </div>
               </td>
             </tr>
