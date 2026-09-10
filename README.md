@@ -101,3 +101,31 @@ Open your browser and navigate to `http://127.0.0.1:5000` to log in.
 ## Security Note
 
 > **Security Alert:** The initial development password (`root123`) was committed to this repository in earlier git history. Removing secrets from `config.py` does not remove them from past commits. It is strongly recommended to change the actual MySQL root password used on your database server going forward.
+
+---
+
+## Running Tests
+
+The test suite uses **pytest** and targets a separate `student_management_test` database — it never touches your real data.
+
+### 1. Install dev dependencies
+```bash
+pip install -r requirements-dev.txt
+```
+
+### 2. Run the full suite
+```bash
+pytest
+```
+
+The test DB is created and torn down automatically. All tests run against the same MySQL credentials configured in `.env`.
+
+### Test coverage
+
+| File | What is tested |
+|------|----------------|
+| `tests/test_auth.py` | Login flow, session contents after login, `marked_by`/`recorded_by` audit trail regression |
+| `tests/test_permissions.py` | Full route permission matrix (admin/teacher/student/anon), `_assert_own_record` guard, fees-section visibility per role |
+| `tests/test_fees.py` | `get_total_dues()` NULL safety, partial payments, overpayment rejection at DB level |
+| `tests/test_grades.py` | `get_grade_summary()` NULL safety, grade insert/query correctness, ordering |
+| `tests/test_csrf.py` | CSRF enforcement on POST — missing/empty/invalid/valid token cases |

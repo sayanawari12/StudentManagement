@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Fees — {{ student.student_name }}{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Fee Records</h1>
+      <p>{{ student.student_name }} — {{ student.student_id }}</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    {% if fee_records %}
+      <table>
+        <thead>
+          <tr>
+            <th>Amount Due</th>
+            <th>Amount Paid</th>
+            <th>Remaining</th>
+            <th>Due Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fee in fee_records %}
+            <tr>
+              <td>₹{{ fee.amount_due }}</td>
+              <td>₹{{ fee.amount_paid }}</td>
+              <td>₹{{ fee.remaining }}</td>
+              <td>{{ fee.due_date }}</td>
+              <td>
+                <span class="badge badge-{{ fee.status | lower }}">{{ fee.status }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <strong>No fee records yet</strong>
+        Fee records appear here once they are created.
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="actions-row" style="margin-top: 28px;">
+    <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Back to profile</a>
+  </div>
+{% endblock %}
