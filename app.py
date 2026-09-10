@@ -2,12 +2,13 @@ import re
 from decimal import Decimal
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
 from werkzeug.security import check_password_hash
 from mysql.connector import Error
 
 import config
 import database
+from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf
 from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
@@ -15,6 +16,7 @@ app.secret_key = config.SECRET_KEY
 csrf = CSRFProtect(app)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+INSTITUTION_NAME = "Your College Name Here"
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +172,26 @@ def dashboard():
             "total_dues":       Decimal("0"),
         }
     return render_template("dashboard.html", stats=stats)
+
+
+@app.route("/dashboard/export")
+@role_required("admin")
+def dashboard_export():
+    from datetime import date as dt_date
+    try:
+        stats = database.get_dashboard_stats()
+    except Error:
+        flash("Could not load dashboard stats from the database.", "error")
+        return redirect(url_for("dashboard"))
+
+    today_str = dt_date.today().isoformat()
+    pdf_buffer = generate_dashboard_pdf(INSTITUTION_NAME, stats, today_str)
+    return send_file(
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"dashboard_report_{today_str}.pdf",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +366,29 @@ def delete_student(record_id):
     except Error as e:
         flash(f"Database error: {e}", "error")
     return redirect(url_for("students"))
+
+
+@app.route("/students/<int:record_id>/certificate")
+@role_required("admin", "student")
+def student_certificate(record_id):
+    _assert_own_record(record_id)
+    try:
+        student = database.get_student_by_id(record_id)
+    except Error:
+        flash("Could not reach the database.", "error")
+        return redirect(url_for("students"))
+
+    if not student:
+        flash("Student not found.", "error")
+        return redirect(url_for("students"))
+
+    pdf_buffer = generate_bonafide_pdf(INSTITUTION_NAME, student)
+    return send_file(
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"certificate_{student['student_id']}.pdf",
+    )
 
 
 # ---------------------------------------------------------------------------

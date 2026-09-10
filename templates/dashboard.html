@@ -11,6 +11,7 @@
       <div class="actions-row">
         {% if session.get('role') == 'admin' %}
           <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+          <a href="{{ url_for('dashboard_export') }}" class="btn btn-outline">Export Report</a>
         {% endif %}
         <a href="{{ url_for('students') }}" class="btn btn-outline">View students</a>
       </div>

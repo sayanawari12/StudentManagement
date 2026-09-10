@@ -165,6 +165,36 @@ class TestRoutePermissions:
         stud_id = db["linked_pk"]
         assert_forbidden(get(student_client, f"/grades/add/{stud_id}"), "grades_add as student")
 
+    # /dashboard/export
+    def test_dashboard_export_admin_allowed(self, admin_client):
+        resp = get(admin_client, "/dashboard/export")
+        assert resp.status_code == 200
+        assert resp.headers.get("Content-Type") == "application/pdf"
+
+    def test_dashboard_export_teacher_forbidden(self, teacher_client):
+        assert_forbidden(get(teacher_client, "/dashboard/export"), "/dashboard/export as teacher")
+
+    def test_dashboard_export_student_forbidden(self, student_client):
+        assert_forbidden(get(student_client, "/dashboard/export"), "/dashboard/export as student")
+
+    def test_dashboard_export_anon_redirects(self, client):
+        assert_redirected_to_login(get(client, "/dashboard/export"))
+
+    # /students/<id>/certificate
+    def test_certificate_admin_allowed(self, admin_client, db):
+        stud_id = db["linked_pk"]
+        resp = get(admin_client, f"/students/{stud_id}/certificate")
+        assert resp.status_code == 200
+        assert resp.headers.get("Content-Type") == "application/pdf"
+
+    def test_certificate_teacher_forbidden(self, teacher_client, db):
+        stud_id = db["linked_pk"]
+        assert_forbidden(get(teacher_client, f"/students/{stud_id}/certificate"), "certificate as teacher")
+
+    def test_certificate_anon_redirects(self, client, db):
+        stud_id = db["linked_pk"]
+        assert_redirected_to_login(get(client, f"/students/{stud_id}/certificate"))
+
 
 # ---------------------------------------------------------------------------
 # _assert_own_record tests
@@ -210,6 +240,16 @@ class TestOwnRecordGuard:
     def test_student_other_grades_forbidden(self, student_client, db):
         other_id = db["other_pk"]
         assert_forbidden(get(student_client, f"/grades/{other_id}"), "student viewing other grades")
+
+    def test_student_own_certificate_allowed(self, student_client, db):
+        own_id = db["linked_pk"]
+        resp = get(student_client, f"/students/{own_id}/certificate")
+        assert resp.status_code == 200, f"Student should get own certificate, got {resp.status_code}"
+        assert resp.headers.get("Content-Type") == "application/pdf"
+
+    def test_student_other_certificate_forbidden(self, student_client, db):
+        other_id = db["other_pk"]
+        assert_forbidden(get(student_client, f"/students/{other_id}/certificate"), "student downloading other certificate")
 
 
 # ---------------------------------------------------------------------------
