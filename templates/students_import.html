@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Import Students — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Import Students via CSV</h1>
+      <p>Upload a .csv file to bulk register students.</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('students_import_sample') }}" class="btn btn-outline">Download Sample CSV</a>
+    </div>
+  </div>
+
+  <div class="card" style="max-width: 600px; margin-bottom: 24px;">
+    <form method="POST" action="{{ url_for('students_import') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="csv_file">Select CSV File (.csv, max 1MB)</label>
+        <input type="file" id="csv_file" name="file" accept=".csv" required style="padding: 8px 0;">
+      </div>
+
+      <div class="actions-row" style="margin-top: 20px;">
+        <button type="submit" class="btn btn-primary">Upload & Import</button>
+        <a href="{{ url_for('students') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  {% if processed %}
+    <h2 class="section-title">Import Results</h2>
+
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <div>
+          <span class="badge badge-present" style="font-size: 14px; padding: 6px 12px;">
+            ✓ {{ imported_count }} Imported Successfully
+          </span>
+        </div>
+        <div>
+          <span class="badge badge-absent" style="font-size: 14px; padding: 6px 12px;">
+            ⚠ {{ skipped_rows|length }} Skipped
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {% if skipped_rows %}
+      <h2 class="section-title">Skipped Rows Details</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 80px;">CSV Row</th>
+              <th style="width: 180px;">Student Name</th>
+              <th>Skip Reason(s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in skipped_rows %}
+              <tr>
+                <td><strong>Row {{ item.row_num }}</strong></td>
+                <td>{{ item.name }}</td>
+                <td>
+                  <ul style="margin: 0; padding-left: 18px; color: var(--danger, #d32f2f);">
+                    {% for reason in item.reasons %}
+                      <li>{{ reason }}</li>
+                    {% endfor %}
+                  </ul>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+{% endblock %}

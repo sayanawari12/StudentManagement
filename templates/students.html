@@ -8,7 +8,10 @@
       <p>{{ students|length }} record{{ 's' if students|length != 1 else '' }}{{ ' matching "%s"' % search if search else '' }}</p>
     </div>
     {% if session.get('role') == 'admin' %}
-      <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+      <div class="actions-row">
+        <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
+        <a href="{{ url_for('students_import') }}" class="btn btn-outline">Import CSV</a>
+      </div>
     {% endif %}
   </div>
 

@@ -1,3 +1,5 @@
+import csv
+import io
 import re
 from decimal import Decimal
 from functools import wraps
@@ -18,6 +20,10 @@ csrf = CSRFProtect(app)
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 INSTITUTION_NAME = "Your College Name Here"
 ATTENDANCE_TREND_DAYS = 14
+EXPECTED_CSV_HEADERS = [
+    "student_id", "student_name", "email", "phone",
+    "gender", "date_of_birth", "course", "semester", "address"
+]
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +335,129 @@ def add_student():
             return render_template("add_student.html", form=form)
 
     return render_template("add_student.html", form={})
+
+
+@app.route("/students/import/sample")
+@role_required("admin")
+def students_import_sample():
+    sample_csv = (
+        "student_id,student_name,email,phone,gender,date_of_birth,course,semester,address\n"
+        "BCA2499,Demo Student,demo@example.com,9876543219,Male,2005-01-01,BCA,1,Mumbai\n"
+    )
+    buffer = io.BytesIO(sample_csv.encode("utf-8"))
+    return send_file(
+        buffer,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="sample_students.csv",
+    )
+
+
+@app.route("/students/import", methods=["GET", "POST"])
+@role_required("admin")
+def students_import():
+    if request.method == "POST":
+        if "file" not in request.files:
+            flash("Please select a CSV file to upload.", "error")
+            return render_template("students_import.html")
+
+        file = request.files["file"]
+        if not file or not file.filename:
+            flash("Please select a CSV file to upload.", "error")
+            return render_template("students_import.html")
+
+        filename = file.filename
+        if not filename.lower().endswith(".csv"):
+            flash("Only .csv files are supported.", "error")
+            return render_template("students_import.html")
+
+        file_bytes = file.read()
+        if len(file_bytes) > 1 * 1024 * 1024:
+            flash("File size exceeds maximum allowed limit of 1MB.", "error")
+            return render_template("students_import.html")
+
+        try:
+            text_content = file_bytes.decode("utf-8-sig", errors="replace")
+        except Exception:
+            flash("Could not read CSV file. Please ensure it is UTF-8 encoded.", "error")
+            return render_template("students_import.html")
+
+        reader = csv.DictReader(io.StringIO(text_content))
+
+        # Header check
+        raw_headers = reader.fieldnames
+        if raw_headers is None:
+            flash("CSV file is empty or missing headers.", "error")
+            return render_template("students_import.html")
+
+        found_headers = [h.strip() for h in raw_headers if h is not None]
+        if found_headers != EXPECTED_CSV_HEADERS:
+            flash(
+                f"Invalid CSV headers. Expected: {', '.join(EXPECTED_CSV_HEADERS)} | Found: {', '.join(found_headers)}",
+                "error",
+            )
+            return render_template("students_import.html")
+
+        imported_count = 0
+        skipped_rows = []
+        seen_student_ids = set()
+
+        for row_index, raw_row in enumerate(reader, start=1):
+            # Normalize row: replace None with empty string (handles short rows)
+            row = {
+                k: (v.strip() if isinstance(v, str) else (v if v is not None else ""))
+                for k, v in (raw_row or {}).items()
+            }
+
+            student_id = row.get("student_id", "").strip()
+            student_name = row.get("student_name", "").strip() or f"Row {row_index}"
+            row_errors = []
+
+            # Check in-file duplicate first
+            if student_id and student_id in seen_student_ids:
+                row_errors.append("Student ID is duplicate within this file.")
+
+            # Validate using validate_student_form
+            form_errors = validate_student_form(row)
+            row_errors.extend(form_errors)
+
+            # Check DB duplicate if student_id is provided and no in-file duplicate error yet
+            if student_id and "Student ID is duplicate within this file." not in row_errors:
+                try:
+                    existing = database.get_student_by_student_id(student_id)
+                    if existing:
+                        row_errors.append("Student ID already exists in database.")
+                except Error as e:
+                    row_errors.append(f"Database lookup error: {e}")
+
+            if not row_errors:
+                try:
+                    payload = student_payload(row)
+                    database.insert_student(payload)
+                    seen_student_ids.add(student_id)
+                    imported_count += 1
+                except Error as e:
+                    row_errors.append(f"Database insertion error: {e}")
+                    skipped_rows.append({
+                        "row_num": row_index,
+                        "name": student_name,
+                        "reasons": row_errors,
+                    })
+            else:
+                skipped_rows.append({
+                    "row_num": row_index,
+                    "name": student_name,
+                    "reasons": row_errors,
+                })
+
+        return render_template(
+            "students_import.html",
+            processed=True,
+            imported_count=imported_count,
+            skipped_rows=skipped_rows,
+        )
+
+    return render_template("students_import.html", processed=False)
 
 
 @app.route("/students/<int:record_id>")
