@@ -122,6 +122,94 @@ def get_dashboard_stats():
         conn.close()
 
 
+def get_attendance_trend(days=14):
+    """
+    Returns attendance trend for the last `days` calendar days (today-13 to today).
+    Guarantees one row per calendar day with keys:
+    { 'date': 'YYYY-MM-DD', 'present_count': int, 'total_marked': int, 'percentage': float }
+    """
+    from datetime import date, timedelta
+    today = date.today()
+    start_date = today - timedelta(days=days - 1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT date, "
+            "SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) AS present_count, "
+            "COUNT(*) AS total_marked "
+            "FROM attendance "
+            "WHERE date >= %s AND date <= %s "
+            "GROUP BY date ORDER BY date",
+            (start_date.isoformat(), today.isoformat())
+        )
+        db_rows = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+    db_map = {
+        (row["date"].isoformat() if hasattr(row["date"], "isoformat") else str(row["date"])): row
+        for row in db_rows
+    }
+
+    results = []
+    for i in range(days):
+        day_date = start_date + timedelta(days=i)
+        day_str = day_date.isoformat()
+        if day_str in db_map:
+            row = db_map[day_str]
+            present = int(row["present_count"] or 0)
+            total   = int(row["total_marked"] or 0)
+            pct     = round((present / total) * 100.0, 1) if total > 0 else 0.0
+        else:
+            present = 0
+            total   = 0
+            pct     = 0.0
+
+        results.append({
+            "date":          day_str,
+            "present_count": present,
+            "total_marked":  total,
+            "percentage":    pct,
+        })
+
+    return results
+
+
+def get_fee_status_breakdown():
+    """
+    Returns counts of {paid, partial, due} fee records.
+    Uses the exact status logic of student_details.html & fees_view.html:
+      - paid: amount_paid >= amount_due
+      - partial: amount_paid > 0 and amount_paid < amount_due
+      - due: amount_paid == 0
+    Returns {'paid': int, 'partial': int, 'due': int}. Never returns None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT "
+            "COALESCE(SUM(CASE WHEN amount_paid >= amount_due THEN 1 ELSE 0 END), 0) AS paid, "
+            "COALESCE(SUM(CASE WHEN amount_paid > 0 AND amount_paid < amount_due THEN 1 ELSE 0 END), 0) AS partial, "
+            "COALESCE(SUM(CASE WHEN amount_paid = 0 THEN 1 ELSE 0 END), 0) AS due "
+            "FROM fees"
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {"paid": 0, "partial": 0, "due": 0}
+        return {
+            "paid":    int(row["paid"] or 0),
+            "partial": int(row["partial"] or 0),
+            "due":     int(row["due"] or 0),
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Student queries
 # ---------------------------------------------------------------------------

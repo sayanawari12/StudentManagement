@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Analytics — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Analytics Overview</h1>
+      <p>Visual trends for attendance, enrollment, and financial status.</p>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr; gap: 24px;">
+
+    {# ── 1. Attendance Trend ────────────────────────────────────── #}
+    <div class="card">
+      <h2 class="section-title">Attendance Trend (Last 14 Days)</h2>
+
+      {% set marked_count = attendance_trend | map(attribute='total_marked') | sum %}
+      {% if marked_count > 0 %}
+        <div style="max-height: 280px; position: relative;">
+          <canvas id="attendanceChart"></canvas>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <strong>No attendance records yet</strong>
+          Attendance trends will appear here once daily sessions are marked.
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── 2. Semester Distribution ───────────────────────────────── #}
+    <div class="card">
+      <h2 class="section-title">Semester Distribution</h2>
+
+      {% if semester_counts %}
+        <div style="max-height: 280px; position: relative;">
+          <canvas id="semesterChart"></canvas>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <strong>No student records yet</strong>
+          Semester distribution will appear here once students are enrolled.
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── 3. Fee Status (ADMIN ONLY — Data & Script gated) ───────── #}
+    {% if session.get('role') == 'admin' %}
+      <div class="card">
+        <h2 class="section-title">Fee Status Breakdown</h2>
+
+        {% if fee_status and (fee_status.paid + fee_status.partial + fee_status.due) > 0 %}
+          <div style="max-height: 280px; position: relative; max-width: 400px; margin: 0 auto;">
+            <canvas id="feeChart"></canvas>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <strong>No fee records yet</strong>
+            Fee breakdown will appear here once billing dues are created.
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      Chart.defaults.font.family = "'IBM Plex Sans', -apple-system, sans-serif";
+
+      // 1. Attendance Trend Line Chart
+      {% set marked_count = attendance_trend | map(attribute='total_marked') | sum %}
+      {% if marked_count > 0 %}
+        const trendData = {{ attendance_trend | tojson }};
+        const attendanceCtx = document.getElementById('attendanceChart');
+        if (attendanceCtx) {
+          new Chart(attendanceCtx, {
+            type: 'line',
+            data: {
+              labels: trendData.map(d => d.date),
+              datasets: [{
+                label: '% Present',
+                data: trendData.map(d => d.percentage),
+                borderColor: '#A9714F',
+                backgroundColor: 'rgba(169, 113, 79, 0.1)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2,
+                pointBackgroundColor: '#A9714F'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }
+              }
+            }
+          });
+        }
+      {% endif %}
+
+      // 2. Semester Distribution Bar Chart
+      {% if semester_counts %}
+        const semData = {{ semester_counts | tojson }};
+        const semesterCtx = document.getElementById('semesterChart');
+        if (semesterCtx) {
+          new Chart(semesterCtx, {
+            type: 'bar',
+            data: {
+              labels: semData.map(s => 'Sem ' + s.semester),
+              datasets: [{
+                label: 'Students Enrolled',
+                data: semData.map(s => s.total),
+                backgroundColor: 'rgba(169, 113, 79, 0.85)',
+                borderColor: '#A9714F',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+              }
+            }
+          });
+        }
+      {% endif %}
+
+      // 3. Fee Status Donut Chart (Strictly ADMIN ONLY script)
+      {% if session.get('role') == 'admin' %}
+        {% if fee_status and (fee_status.paid + fee_status.partial + fee_status.due) > 0 %}
+          const feeData = {{ fee_status | tojson }};
+          const feeCtx = document.getElementById('feeChart');
+          if (feeCtx) {
+            new Chart(feeCtx, {
+              type: 'doughnut',
+              data: {
+                labels: ['Paid', 'Partial', 'Due'],
+                datasets: [{
+                  data: [feeData.paid, feeData.partial, feeData.due],
+                  backgroundColor: ['#2E7D32', '#ED6C02', '#D32F2F'],
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false
+              }
+            });
+          }
+        {% endif %}
+      {% endif %}
+    });
+  </script>
+{% endblock %}

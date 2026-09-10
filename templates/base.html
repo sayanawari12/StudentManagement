@@ -37,6 +37,12 @@
              class="{{ 'active' if request.endpoint in ['attendance', 'attendance_history'] else '' }}">Attendance</a>
         {% endif %}
 
+        {# Analytics — admin + teacher #}
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('analytics') }}"
+             class="{{ 'active' if request.endpoint == 'analytics' else '' }}">Analytics</a>
+        {% endif %}
+
         {# My Profile — student only (links to their own record) #}
         {% if session.get('role') == 'student' and session.get('linked_student_id') %}
           <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}"

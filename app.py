@@ -17,6 +17,7 @@ csrf = CSRFProtect(app)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 INSTITUTION_NAME = "Your College Name Here"
+ATTENDANCE_TREND_DAYS = 14
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +248,38 @@ def dashboard_export():
         mimetype="application/pdf",
         as_attachment=True,
         download_name=f"dashboard_report_{today_str}.pdf",
+    )
+
+
+@app.route("/analytics")
+@role_required("admin", "teacher")
+def analytics():
+    try:
+        attendance_trend = database.get_attendance_trend(ATTENDANCE_TREND_DAYS)
+    except Error:
+        flash("Could not load attendance trend from the database.", "error")
+        attendance_trend = []
+
+    try:
+        stats = database.get_dashboard_stats()
+        semester_counts = stats.get("semester_counts", [])
+    except Error:
+        flash("Could not load semester distribution stats.", "error")
+        semester_counts = []
+
+    fee_status = None
+    if session.get("role") == "admin":
+        try:
+            fee_status = database.get_fee_status_breakdown()
+        except Error:
+            flash("Could not load fee status breakdown.", "error")
+            fee_status = {"paid": 0, "partial": 0, "due": 0}
+
+    return render_template(
+        "analytics.html",
+        attendance_trend=attendance_trend,
+        semester_counts=semester_counts,
+        fee_status=fee_status,
     )
 
 
