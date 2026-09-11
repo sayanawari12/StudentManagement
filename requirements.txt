@@ -3,3 +3,4 @@ mysql-connector-python
 python-dotenv
 Flask-WTF
 reportlab
+gunicorn

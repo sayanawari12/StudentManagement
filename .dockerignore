@@ -1,0 +1,30 @@
+# Exclude secrets — never bake real credentials into the image
+.env
+
+# Git history
+.git
+.gitignore
+
+# Python cache artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Test suite — not needed in the production image
+tests/
+
+# Virtual environment — image uses its own pip install
+venv/
+.venv/
+env/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Agent workspace / CI scratch
+.agents/
+scratch/

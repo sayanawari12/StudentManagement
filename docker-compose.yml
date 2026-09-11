@@ -1,0 +1,45 @@
+# docker-compose.yml — local full-stack development environment
+# Usage: docker-compose up --build
+#
+# Reads secrets from .env (copy .env.example → .env and fill in values).
+# Schema and seed accounts are applied automatically on every start.
+
+version: "3.9"
+
+services:
+
+  # ── MySQL 8 database ─────────────────────────────────────────────────────
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
+      MYSQL_DATABASE: "${DB_NAME}"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "root", "-p${DB_PASSWORD}", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Flask application ─────────────────────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      # Override DB_HOST so the app connects to the db service, not localhost
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+
+# ── Named volume for DB persistence across restarts ───────────────────────
+volumes:
+  db_data:
