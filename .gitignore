@@ -24,3 +24,8 @@ Thumbs.db
 # Flask session secret — keep config.py but remind yourself to change SECRET_KEY
 # If you accidentally left real passwords in config.py, add it here:
 # config.py
+
+# Agent workspace / scratch
+.agents/
+scratch/
+

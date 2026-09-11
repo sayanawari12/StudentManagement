@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import re
 from decimal import Decimal
 from functools import wraps
@@ -16,6 +17,24 @@ from flask_wtf.csrf import CSRFProtect
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 csrf = CSRFProtect(app)
+
+# ---------------------------------------------------------------------------
+# Logging — only configure when not in debug mode; Flask's dev server already
+# handles log output in debug mode.
+# ---------------------------------------------------------------------------
+if not config.FLASK_DEBUG:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+# ---------------------------------------------------------------------------
+# Session cookie hardening (Task 4)
+# ---------------------------------------------------------------------------
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Secure flag requires HTTPS — only enforce when not in local debug mode.
+app.config["SESSION_COOKIE_SECURE"] = not config.FLASK_DEBUG
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 INSTITUTION_NAME = "Your College Name Here"
@@ -159,7 +178,8 @@ def login():
 
         try:
             user = database.get_user_by_username(username)
-        except Error:
+        except Error as e:
+            app.logger.warning("DB error during login for user %r from %s: %s", username, request.remote_addr, e)
             flash("Could not reach the database. Please check MySQL is running.", "error")
             return render_template("login.html")
 
@@ -170,6 +190,7 @@ def login():
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
             return redirect(url_for("dashboard"))
 
+        app.logger.warning("Failed login attempt for user %r from %s", username, request.remote_addr)
         flash("Invalid username or password.", "error")
 
     return render_template("login.html")
@@ -188,7 +209,8 @@ def change_password():
     user_id = _get_user_id()
     try:
         user = database.get_user_by_id(user_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching user %s in change_password: %s", user_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("dashboard"))
 
@@ -210,6 +232,7 @@ def change_password():
             flash("Password updated.", "success")
             return redirect(url_for("dashboard"))
         except Error as e:
+            app.logger.warning("DB error updating password for user %s: %s", user_id, e)
             flash(f"Database error: {e}", "error")
             return render_template("change_password.html")
 
@@ -225,7 +248,8 @@ def change_password():
 def dashboard():
     try:
         stats = database.get_dashboard_stats()
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading dashboard stats: %s", e)
         flash("Could not load dashboard stats from the database.", "error")
         stats = {
             "total_students":   0,
@@ -243,7 +267,8 @@ def dashboard_export():
     from datetime import date as dt_date
     try:
         stats = database.get_dashboard_stats()
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading stats for dashboard export: %s", e)
         flash("Could not load dashboard stats from the database.", "error")
         return redirect(url_for("dashboard"))
 
@@ -262,14 +287,16 @@ def dashboard_export():
 def analytics():
     try:
         attendance_trend = database.get_attendance_trend(ATTENDANCE_TREND_DAYS)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading attendance trend: %s", e)
         flash("Could not load attendance trend from the database.", "error")
         attendance_trend = []
 
     try:
         stats = database.get_dashboard_stats()
         semester_counts = stats.get("semester_counts", [])
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading semester distribution: %s", e)
         flash("Could not load semester distribution stats.", "error")
         semester_counts = []
 
@@ -277,7 +304,8 @@ def analytics():
     if session.get("role") == "admin":
         try:
             fee_status = database.get_fee_status_breakdown()
-        except Error:
+        except Error as e:
+            app.logger.warning("DB error loading fee status breakdown: %s", e)
             flash("Could not load fee status breakdown.", "error")
             fee_status = {"paid": 0, "partial": 0, "due": 0}
 
@@ -299,7 +327,8 @@ def students():
     search = request.args.get("search", "").strip()
     try:
         student_list = database.get_all_students(search if search else None)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading student list: %s", e)
         flash("Could not load students from the database.", "error")
         student_list = []
     return render_template("students.html", students=student_list, search=search)
@@ -315,7 +344,8 @@ def add_student():
         if not errors:
             try:
                 existing = database.get_student_by_student_id(form.get("student_id").strip())
-            except Error:
+            except Error as e:
+                app.logger.warning("DB error checking duplicate student_id in add_student: %s", e)
                 flash("Could not reach the database. Please try again.", "error")
                 return render_template("add_student.html", form=form)
             if existing:
@@ -331,6 +361,7 @@ def add_student():
             flash("Student added successfully.", "success")
             return redirect(url_for("students"))
         except Error as e:
+            app.logger.warning("DB error inserting student: %s", e)
             flash(f"Database error: {e}", "error")
             return render_template("add_student.html", form=form)
 
@@ -538,7 +569,8 @@ def student_details(record_id):
 def edit_student(record_id):
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in edit_student: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -553,7 +585,8 @@ def edit_student(record_id):
         if not errors:
             try:
                 existing = database.get_student_by_student_id(form.get("student_id").strip())
-            except Error:
+            except Error as e:
+                app.logger.warning("DB error checking duplicate student_id in edit_student: %s", e)
                 flash("Could not reach the database. Please try again.", "error")
                 return render_template("edit_student.html", student={**student, **form})
             if existing and existing["id"] != record_id:
@@ -569,6 +602,7 @@ def edit_student(record_id):
             flash("Student updated successfully.", "success")
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
+            app.logger.warning("DB error updating student %s: %s", record_id, e)
             flash(f"Database error: {e}", "error")
             return render_template("edit_student.html", student={**student, **form})
 
@@ -582,6 +616,7 @@ def delete_student(record_id):
         database.delete_student(record_id)
         flash("Student deleted successfully.", "success")
     except Error as e:
+        app.logger.warning("DB error deleting student %s: %s", record_id, e)
         flash(f"Database error: {e}", "error")
     return redirect(url_for("students"))
 
@@ -592,7 +627,8 @@ def student_certificate(record_id):
     _assert_own_record(record_id)
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s for certificate: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -635,6 +671,7 @@ def attendance():
                 try:
                     database.upsert_attendance(s["id"], post_date, status, marked_by)
                 except Error as e:
+                    app.logger.warning("DB error saving attendance for student %s on %s: %s", s['id'], post_date, e)
                     flash(f"Database error saving attendance: {e}", "error")
                     return redirect(url_for("attendance", date=post_date))
 
@@ -645,7 +682,8 @@ def attendance():
     try:
         students_list    = database.get_all_students_for_attendance()
         existing_marks   = database.get_attendance_by_date(selected_date)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading attendance page: %s", e)
         flash("Could not load attendance data.", "error")
         students_list  = []
         existing_marks = {}
@@ -665,7 +703,8 @@ def attendance_history(record_id):
 
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in attendance_history: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -675,7 +714,8 @@ def attendance_history(record_id):
 
     try:
         records = database.get_student_attendance(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading attendance history for student %s: %s", record_id, e)
         flash("Could not load attendance records.", "error")
         records = []
 
@@ -755,7 +795,8 @@ def validate_grade_form(form):
 def grades_add(record_id):
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in grades_add: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -787,6 +828,7 @@ def grades_add(record_id):
             flash("Grade recorded successfully.", "success")
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
+            app.logger.warning("DB error inserting grade for student %s: %s", record_id, e)
             flash(f"Database error: {e}", "error")
             return render_template("grades_add.html", student=student, form=form)
 
@@ -820,7 +862,8 @@ def _get_user_id():
 def fees_create(record_id):
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in fees_create: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -861,6 +904,7 @@ def fees_create(record_id):
             flash("Fee due created successfully.", "success")
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
+            app.logger.warning("DB error creating fee due for student %s: %s", record_id, e)
             flash(f"Database error: {e}", "error")
             return render_template("fees_create.html", student=student, form=request.form)
 
@@ -872,7 +916,8 @@ def fees_create(record_id):
 def fees_pay(fee_id):
     try:
         fee = database.get_fee_by_id(fee_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching fee %s in fees_pay: %s", fee_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -885,7 +930,8 @@ def fees_pay(fee_id):
 
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in fees_pay: %s", record_id, e)
         student = None
 
     if request.method == "POST":
@@ -922,6 +968,7 @@ def fees_pay(fee_id):
                 flash("Payment recorded successfully.", "success")
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
+            app.logger.warning("DB error recording payment for fee %s: %s", fee_id, e)
             flash(f"Database error: {e}", "error")
             return render_template(
                 "fees_pay.html", fee=fee, student=student, remaining=remaining, form=request.form
@@ -939,7 +986,8 @@ def fees_view(record_id):
 
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in fees_view: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -949,7 +997,8 @@ def fees_view(record_id):
 
     try:
         fee_records = database.get_student_fees(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error loading fee records for student %s: %s", record_id, e)
         flash("Could not load fee records.", "error")
         fee_records = []
 
@@ -976,5 +1025,16 @@ def forbidden(e):
     return render_template("403.html"), 403
 
 
+@app.errorhandler(404)
+def not_found(e):
+    return render_template("404.html"), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    app.logger.error("Unhandled server error: %s", e, exc_info=True)
+    return render_template("500.html"), 500
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=config.FLASK_DEBUG)

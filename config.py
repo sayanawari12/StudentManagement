@@ -12,3 +12,8 @@ DB_NAME = os.environ["DB_NAME"]
 
 # Used by Flask to sign session cookies and CSRF tokens
 SECRET_KEY = os.environ["SECRET_KEY"]
+
+# Debug mode — defaults to False (safe for production).
+# Set FLASK_DEBUG=true in .env for local development to get auto-reload.
+# NEVER set this to true on a real deployment.
+FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
