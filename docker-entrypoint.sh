@@ -6,14 +6,14 @@
 set -e
 
 echo "==> Waiting for MySQL to be ready..."
-until mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" --silent 2>/dev/null; do
+until mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl --silent 2>/dev/null; do
     echo "    MySQL not yet ready — retrying in 2s"
     sleep 2
 done
 echo "==> MySQL is up."
 
 echo "==> Applying schema.sql..."
-mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" < /app/schema.sql
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl < /app/schema.sql
 echo "==> schema.sql applied."
 
 echo "==> Seeding users..."

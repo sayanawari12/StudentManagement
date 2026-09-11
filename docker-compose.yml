@@ -4,8 +4,6 @@
 # Reads secrets from .env (copy .env.example → .env and fill in values).
 # Schema and seed accounts are applied automatically on every start.
 
-version: "3.9"
-
 services:
 
   # ── MySQL 8 database ─────────────────────────────────────────────────────
@@ -19,7 +17,7 @@ services:
       - db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
-             "-u", "root", "-p${DB_PASSWORD}", "--silent"]
+             "-u", "root", "-p${DB_PASSWORD}", "--ssl-mode=DISABLED", "--silent"]
       interval: 5s
       timeout: 5s
       retries: 10
