@@ -18,7 +18,7 @@ app.secret_key = config.SECRET_KEY
 csrf = CSRFProtect(app)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-INSTITUTION_NAME = "SUSHGANGA INSTITUTE OF COMPUTER APPLICATIONS"
+INSTITUTION_NAME = "Your College Name Here"
 ATTENDANCE_TREND_DAYS = 14
 EXPECTED_CSV_HEADERS = [
     "student_id", "student_name", "email", "phone",

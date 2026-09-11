@@ -189,13 +189,12 @@ def generate_bonafide_pdf(institution_name, student):
 
     story = []
 
-    # 1. College Header (Exact Hierarchy)
-    story.append(Paragraph("SUSHGANGA INSTITUTE OF<br/>COMPUTER APPLICATIONS", college_name_style))
-    story.append(Paragraph("Wani, Maharashtra", college_location_style))
-    story.append(Paragraph("Affiliated to Sant Gadge Baba Amravati University, Amravati", college_affiliation_style))
+    # 1. College Header — driven by institution_name parameter
+    header_text = institution_name.upper() if institution_name else "YOUR COLLEGE NAME HERE"
+    story.append(Paragraph(header_text, college_name_style))
 
     # Divider line 1
-    story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=4, spaceAfter=14))
+    story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=8, spaceAfter=14))
 
     # 2. Bonafide Certificate Title
     story.append(Paragraph("BONAFIDE CERTIFICATE", cert_title_style))
@@ -244,9 +243,8 @@ def generate_bonafide_pdf(institution_name, student):
     # 6. Principal Signature Section (Bottom Right)
     sig_cell = (
         "______________________<br/><br/>"
-        f"<font fontName=\"{cursive_font}\" size=\"20\"><b>Sayan Awari</b></font><br/>"
         "Principal<br/>"
-        "Sushganga Institute of Computer Applications"
+        "(Authorised Signatory)"
     )
     sig_table = Table([
         ["", Paragraph(sig_cell, sig_style)]
