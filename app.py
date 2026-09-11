@@ -498,7 +498,8 @@ def student_details(record_id):
 
     try:
         student = database.get_student_by_id(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching student %s in student_details: %s", record_id, e)
         flash("Could not reach the database.", "error")
         return redirect(url_for("students"))
 
@@ -509,7 +510,8 @@ def student_details(record_id):
     # Attendance section data
     try:
         attendance_records = database.get_student_attendance(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching attendance for student %s in student_details: %s", record_id, e)
         attendance_records = []
 
     attendance_pct = None
@@ -523,7 +525,8 @@ def student_details(record_id):
         grade_records = database.get_student_grades(record_id)
         raw_grade_pct = database.get_grade_summary(record_id)
         grade_summary_pct = round(float(raw_grade_pct), 1) if raw_grade_pct else 0.0
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching grades for student %s in student_details: %s", record_id, e)
         grade_records = []
         grade_summary_pct = 0.0
 
@@ -537,7 +540,8 @@ def student_details(record_id):
     # Fees section data
     try:
         fee_records = database.get_student_fees(record_id)
-    except Error:
+    except Error as e:
+        app.logger.warning("DB error fetching fees for student %s in student_details: %s", record_id, e)
         fee_records = []
 
     # Compute derived status for each fee row
@@ -849,7 +853,8 @@ def _get_user_id():
     try:
         user = database.get_user_by_username(session.get("admin", ""))
         return user["id"] if user else 1
-    except Error:
+    except Error as e:
+        app.logger.error("DB error fetching user_id in _get_user_id (defaulting to user_id=1): %s", e)
         return 1
 
 
