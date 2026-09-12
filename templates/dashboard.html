@@ -64,4 +64,39 @@
       </div>
     </div>
   {% endif %}
+
+  {# ── Recent Notices — visible to ALL roles ────────────────── #}
+  <h2 class="section-title">Recent Notices</h2>
+
+  <div class="card">
+    {% if recent_notices %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Posted by</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for n in recent_notices %}
+              <tr>
+                <td><strong>{{ n.title }}</strong></td>
+                <td>{{ n.username }}</td>
+                <td>{{ n.created_at.strftime('%d %b %Y') if n.created_at else '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">No notices yet.</div>
+    {% endif %}
+
+    <div class="form-footer">
+      <a href="{{ url_for('notices') }}" class="btn btn-outline">View all notices</a>
+    </div>
+  </div>
+
 {% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Add Notice — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Add Notice</h1>
+      <p>Post an announcement visible to all users.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('notice_add') }}" id="form-notice-add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+
+        <div class="field">
+          <label for="title">Title <span style="color:var(--accent)">(max 150 chars)</span></label>
+          <input type="text"
+                 id="title"
+                 name="title"
+                 maxlength="150"
+                 value="{{ form.title or '' }}"
+                 placeholder="e.g. Mid-term exam schedule"
+                 required>
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="body">Body</label>
+          <textarea id="body"
+                    name="body"
+                    rows="6"
+                    placeholder="Write the full notice here…"
+                    required>{{ form.body or '' }}</textarea>
+        </div>
+
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary" id="btn-post-notice">Post Notice</button>
+        <a href="{{ url_for('notices') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

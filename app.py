@@ -39,6 +39,8 @@ app.config["SESSION_COOKIE_SECURE"] = not config.FLASK_DEBUG
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 INSTITUTION_NAME = "Your College Name Here"
 ATTENDANCE_TREND_DAYS = 14
+NOTICES_LIMIT_DASH = 3    # recent notices shown on dashboard
+NOTICES_LIMIT_FULL = 50   # cap for the full /notices page
 EXPECTED_CSV_HEADERS = [
     "student_id", "student_name", "email", "phone",
     "gender", "date_of_birth", "course", "semester", "address"
@@ -258,7 +260,14 @@ def dashboard():
             "attendance_today": 0,
             "total_dues":       Decimal("0"),
         }
-    return render_template("dashboard.html", stats=stats)
+
+    try:
+        recent_notices = database.get_all_notices(limit=NOTICES_LIMIT_DASH)
+    except Error as e:
+        app.logger.warning("DB error loading recent notices for dashboard: %s", e)
+        recent_notices = []
+
+    return render_template("dashboard.html", stats=stats, recent_notices=recent_notices)
 
 
 @app.route("/dashboard/export")
@@ -1019,6 +1028,68 @@ def fees_view(record_id):
         fee["remaining"] = due - paid
 
     return render_template("fees_view.html", student=student, fee_records=fee_records)
+
+
+
+# ---------------------------------------------------------------------------
+# Notices routes
+# ---------------------------------------------------------------------------
+
+
+@app.route("/notices")
+@login_required
+def notices():
+    try:
+        notice_list = database.get_all_notices(limit=NOTICES_LIMIT_FULL)
+    except Error as e:
+        app.logger.warning("DB error loading notices list: %s", e)
+        flash("Could not load notices from the database.", "error")
+        notice_list = []
+    return render_template("notices.html", notices=notice_list)
+
+
+@app.route("/notices/add", methods=["GET", "POST"])
+@role_required("admin", "teacher")
+def notice_add():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        body  = request.form.get("body", "").strip()
+        errors = []
+        if not title:
+            errors.append("Title is required.")
+        elif len(title) > 150:
+            errors.append("Title must be 150 characters or fewer.")
+        if not body:
+            errors.append("Body is required.")
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("notice_add.html", form=request.form)
+
+        posted_by = _get_user_id()
+        try:
+            database.insert_notice(title, body, posted_by)
+            flash("Notice posted successfully.", "success")
+            return redirect(url_for("notices"))
+        except Error as e:
+            app.logger.warning("DB error inserting notice (posted_by=%s): %s", posted_by, e)
+            flash(f"Database error: {e}", "error")
+            return render_template("notice_add.html", form=request.form)
+
+    return render_template("notice_add.html", form={})
+
+
+@app.route("/notices/<int:notice_id>/delete", methods=["POST"])
+@role_required("admin")
+def notice_delete(notice_id):
+    try:
+        database.delete_notice(notice_id)
+        flash("Notice deleted.", "success")
+    except Error as e:
+        app.logger.warning("DB error deleting notice %s: %s", notice_id, e)
+        flash("Could not delete the notice.", "error")
+    return redirect(url_for("notices"))
 
 
 # ---------------------------------------------------------------------------

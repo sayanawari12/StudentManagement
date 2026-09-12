@@ -45,7 +45,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ----------------------------------------------------------------
--- 3. Attendance
+-- 3. Notices  (FK -> users.id, so after users)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notices (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    title       VARCHAR(150) NOT NULL,
+    body        TEXT NOT NULL,
+    posted_by   INT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (posted_by) REFERENCES users(id)
+);
+
+-- ----------------------------------------------------------------
+-- 5. Attendance
 -- stud_id  = FK -> students.id  (INT primary key)
 --            NOT students.student_id which is a VARCHAR roll number
 -- marked_by = FK -> users.id
@@ -62,7 +74,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 );
 
 -- ----------------------------------------------------------------
--- 4. Fees
+-- 6. Fees
 -- stud_id = FK -> students.id  (INT primary key)
 -- One row per billing period. amount_paid is updated incrementally
 -- via update_fee_payment(); never insert a new row for a payment.
@@ -78,7 +90,7 @@ CREATE TABLE IF NOT EXISTS fees (
 );
 
 -- ----------------------------------------------------------------
--- 5. Grades
+-- 7. Grades
 -- stud_id = FK -> students.id (INT primary key)
 -- recorded_by = FK -> users.id
 -- ----------------------------------------------------------------

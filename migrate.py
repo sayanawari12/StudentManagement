@@ -104,6 +104,18 @@ def migrate():
         )
     """, "CREATE TABLE grades")
 
+    # 8 — notices table
+    run(cursor, """
+        CREATE TABLE IF NOT EXISTS notices (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            title       VARCHAR(150) NOT NULL,
+            body        TEXT NOT NULL,
+            posted_by   INT NOT NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (posted_by) REFERENCES users(id)
+        )
+    """, "CREATE TABLE notices")
+
     conn.commit()
     cursor.close()
     conn.close()

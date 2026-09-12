@@ -225,11 +225,11 @@ def get_all_students(search=None):
                    WHERE student_name LIKE %s
                       OR student_id   LIKE %s
                       OR email        LIKE %s
-                   ORDER BY id DESC""",
+                   ORDER BY student_id ASC""",
                 (like_term, like_term, like_term)
             )
         else:
-            cursor.execute("SELECT * FROM students ORDER BY id DESC")
+            cursor.execute("SELECT * FROM students ORDER BY student_id ASC")
         return cursor.fetchall()
     finally:
         cursor.close()
@@ -553,6 +553,63 @@ def get_grade_summary(stud_id):
         )
         row = cursor.fetchone()
         return row["overall_percentage"] if row else 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Notices queries
+# ---------------------------------------------------------------------------
+
+def insert_notice(title, body, posted_by):
+    """Insert a new notice row. Returns the new row's auto-increment id."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO notices (title, body, posted_by) VALUES (%s, %s, %s)",
+            (title, body, posted_by)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_notices(limit=10):
+    """Return the most recent notices joined with the poster's username.
+
+    Each row has: id, title, body, posted_by (user id), created_at, username.
+    Ordered newest-first and capped at `limit` rows.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT n.id, n.title, n.body, n.posted_by, n.created_at,
+                      u.username
+               FROM notices n
+               JOIN users u ON u.id = n.posted_by
+               ORDER BY n.created_at DESC
+               LIMIT %s""",
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_notice(notice_id):
+    """Delete a notice by primary key. Returns affected row count (0 = not found)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM notices WHERE id = %s", (notice_id,))
+        conn.commit()
+        return cursor.rowcount
     finally:
         cursor.close()
         conn.close()

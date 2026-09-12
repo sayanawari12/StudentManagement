@@ -48,6 +48,12 @@
           <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}"
              class="{{ 'active' if request.endpoint == 'student_details' else '' }}">My Profile</a>
         {% endif %}
+
+        {# Notices — all logged-in roles #}
+        {% if session.get('role') %}
+          <a href="{{ url_for('notices') }}"
+             class="{{ 'active' if request.endpoint in ['notices', 'notice_add'] else '' }}">Notices</a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-footer">
