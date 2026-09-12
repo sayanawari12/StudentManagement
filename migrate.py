@@ -126,6 +126,16 @@ def migrate():
         "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT FALSE",
         "ADD COLUMN users.totp_enabled")
 
+    # 11 — users.failed_login_attempts column (lockout)
+    run(cursor,
+        "ALTER TABLE users ADD COLUMN failed_login_attempts INT NOT NULL DEFAULT 0",
+        "ADD COLUMN users.failed_login_attempts")
+
+    # 12 — users.locked_until column (lockout)
+    run(cursor,
+        "ALTER TABLE users ADD COLUMN locked_until DATETIME NULL",
+        "ADD COLUMN users.locked_until")
+
     conn.commit()
     cursor.close()
     conn.close()

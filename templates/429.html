@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}429 Rate Limit Exceeded — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Rate Limit Exceeded</h1>
+      <p>Too many requests from your IP address.</p>
+    </div>
+  </div>
+  <div class="card" style="text-align: center; padding: 48px 24px;">
+    <div style="font-family: var(--font-heading); font-size: 72px; font-style: italic; color: var(--accent); line-height: 1;">429</div>
+    <p style="color: var(--text-secondary); margin-top: 12px;">
+      You have exceeded the request limit. Please wait a minute and try again.
+    </p>
+    <div style="margin-top: 24px;">
+      <a href="{{ url_for('login') }}" class="btn btn-outline">Back to Login</a>
+    </div>
+  </div>
+{% endblock %}

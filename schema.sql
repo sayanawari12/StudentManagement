@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS users (
     linked_student_id  INT NULL,
     totp_secret        VARCHAR(32)  NULL,               -- base32 secret; NULL = not configured
     totp_enabled       BOOLEAN      NOT NULL DEFAULT FALSE,
+    failed_login_attempts INT       NOT NULL DEFAULT 0,
+    locked_until       DATETIME     NULL,
     FOREIGN KEY (linked_student_id) REFERENCES students(id) ON DELETE SET NULL
 );
 

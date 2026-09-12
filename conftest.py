@@ -148,13 +148,16 @@ def db():
 @pytest.fixture(scope="function")
 def app(db):
     """Flask app configured for testing with CSRF disabled."""
-    from app import app as flask_app
+    from app import app as flask_app, limiter
     flask_app.config.update(
         TESTING=True,
         WTF_CSRF_ENABLED=False,
+        RATELIMIT_ENABLED=False,
         SECRET_KEY="test-secret-key-not-for-production",
     )
+    limiter.enabled = False
     yield flask_app
+    limiter.enabled = True
 
 
 @pytest.fixture(scope="function")

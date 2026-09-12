@@ -10,6 +10,7 @@ Column naming note:
   These are different columns; never conflate them in JOINs or queries.
 """
 
+import datetime
 import mysql.connector
 import config
 
@@ -731,3 +732,73 @@ def get_students_with_low_attendance(threshold):
     finally:
         cursor.close()
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Account Lockout queries
+# ---------------------------------------------------------------------------
+
+def increment_failed_login(user_id, max_attempts=5, lockout_minutes=15):
+    """Atomically increment failed_login_attempts by 1.
+
+    If the new count reaches max_attempts, sets locked_until = NOW() + INTERVAL lockout_minutes MINUTE
+    in the same single UPDATE statement to avoid race conditions.
+
+    Returns dict: {"failed_login_attempts": count, "locked_until": datetime_or_None}
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE users
+               SET locked_until = CASE
+                       WHEN failed_login_attempts + 1 >= %s THEN NOW() + INTERVAL %s MINUTE
+                       ELSE locked_until
+                   END,
+                   failed_login_attempts = failed_login_attempts + 1
+               WHERE id = %s""",
+            (max_attempts, lockout_minutes, user_id)
+        )
+        conn.commit()
+
+        cursor.execute(
+            "SELECT failed_login_attempts, locked_until FROM users WHERE id = %s",
+            (user_id,)
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def reset_failed_login(user_id):
+    """Reset failed_login_attempts to 0 and clear locked_until timestamp."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """UPDATE users
+               SET failed_login_attempts = 0,
+                   locked_until = NULL
+               WHERE id = %s""",
+            (user_id,)
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def is_account_locked(user):
+    """Return True if user's locked_until is set and is in the future."""
+    if not user or not user.get("locked_until"):
+        return False
+    locked_until = user["locked_until"]
+    if isinstance(locked_until, str):
+        try:
+            locked_until = datetime.datetime.fromisoformat(locked_until)
+        except ValueError:
+            return False
+    if isinstance(locked_until, datetime.datetime):
+        return locked_until > datetime.datetime.now()
+    return False

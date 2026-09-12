@@ -1,7 +1,9 @@
 import base64
 import csv
+import datetime
 import io
 import logging
+import math
 import re
 from decimal import Decimal
 from functools import wraps
@@ -9,6 +11,8 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from mysql.connector import Error
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 import pyotp
 import qrcode
@@ -23,6 +27,16 @@ from flask_mail import Mail, Message
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 csrf = CSRFProtect(app)
+
+# IP-based rate limiting (per-process in-memory storage)
+# NOTE: memory:// storage is per-process and resets on restart; it will NOT
+# be shared correctly across multiple gunicorn worker processes in Docker/production.
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    storage_uri="memory://",
+    enabled=lambda: not app.config.get("TESTING", False) and app.config.get("RATELIMIT_ENABLED", True)
+)
 
 app.config["MAIL_SERVER"] = config.MAIL_SERVER
 app.config["MAIL_PORT"] = config.MAIL_PORT
@@ -191,7 +205,12 @@ def index():
     return redirect(url_for("login"))
 
 
+MAX_FAILED_ATTEMPTS = 5    # defined near login(), easy to change
+LOCKOUT_MINUTES = 15
+
+
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -204,7 +223,21 @@ def login():
             flash("Could not reach the database. Please check MySQL is running.", "error")
             return render_template("login.html")
 
+        # 1. Account Lockout check (if account exists and is locked)
+        if user and database.is_account_locked(user):
+            locked_until = user["locked_until"]
+            diff = locked_until - datetime.datetime.now()
+            remaining_minutes = max(1, math.ceil(diff.total_seconds() / 60))
+            flash(f"Account locked. Try again in {remaining_minutes} minutes.", "error")
+            return render_template("login.html")
+
+        # 2. Check password
         if user and check_password_hash(user["password"], password):
+            try:
+                database.reset_failed_login(user["id"])
+            except Error as e:
+                app.logger.warning("DB error resetting failed login attempts for user %s: %s", user["id"], e)
+
             if user.get("totp_enabled"):
                 # 2FA is enabled — set a temporary pending marker and redirect
                 # to the code-entry step. Full session is NOT set yet.
@@ -219,8 +252,21 @@ def login():
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
             return redirect(url_for("dashboard"))
 
+        # 3. Failed password or invalid user
         app.logger.warning("Failed login attempt for user %r from %s", username, request.remote_addr)
-        flash("Invalid username or password.", "error")
+
+        if user:
+            try:
+                res = database.increment_failed_login(user["id"], MAX_FAILED_ATTEMPTS, LOCKOUT_MINUTES)
+                if res and res.get("failed_login_attempts", 0) >= MAX_FAILED_ATTEMPTS:
+                    flash(f"Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.", "error")
+                else:
+                    flash("Invalid username or password.", "error")
+            except Error as e:
+                app.logger.warning("DB error updating failed login attempts for user %s: %s", user["id"], e)
+                flash("Invalid username or password.", "error")
+        else:
+            flash("Invalid username or password.", "error")
 
     return render_template("login.html")
 
@@ -1450,6 +1496,11 @@ def forbidden(e):
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
+
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return render_template("429.html"), 429
 
 
 @app.errorhandler(500)

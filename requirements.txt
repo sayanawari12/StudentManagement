@@ -7,3 +7,4 @@ gunicorn
 pyotp
 qrcode[pil]
 Flask-Mail
+Flask-Limiter
