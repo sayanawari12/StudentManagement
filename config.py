@@ -17,3 +17,11 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 # Set FLASK_DEBUG=true in .env for local development to get auto-reload.
 # NEVER set this to true on a real deployment.
 FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+
+# Optional Email Configuration (Flask-Mail)
+MAIL_SERVER = os.environ.get("MAIL_SERVER", None)
+MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+MAIL_USERNAME = os.environ.get("MAIL_USERNAME", None)
+MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", None)
+MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", None)

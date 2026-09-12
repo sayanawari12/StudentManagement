@@ -18,10 +18,24 @@ import config
 import database
 from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf
 from flask_wtf.csrf import CSRFProtect
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 csrf = CSRFProtect(app)
+
+app.config["MAIL_SERVER"] = config.MAIL_SERVER
+app.config["MAIL_PORT"] = config.MAIL_PORT
+app.config["MAIL_USE_TLS"] = config.MAIL_USE_TLS
+app.config["MAIL_USERNAME"] = config.MAIL_USERNAME
+app.config["MAIL_PASSWORD"] = config.MAIL_PASSWORD
+app.config["MAIL_DEFAULT_SENDER"] = config.MAIL_DEFAULT_SENDER or config.MAIL_USERNAME or "noreply@institution.edu"
+mail = Mail(app)
+
+
+def _email_configured():
+    """Return True if both MAIL_SERVER and MAIL_USERNAME are configured in app.config."""
+    return bool(app.config.get("MAIL_SERVER")) and bool(app.config.get("MAIL_USERNAME"))
 
 # ---------------------------------------------------------------------------
 # Logging — only configure when not in debug mode; Flask's dev server already
@@ -1281,6 +1295,147 @@ def notice_delete(notice_id):
         app.logger.warning("DB error deleting notice %s: %s", notice_id, e)
         flash("Could not delete the notice.", "error")
     return redirect(url_for("notices"))
+
+
+# ---------------------------------------------------------------------------
+# Notifications routes
+# ---------------------------------------------------------------------------
+
+LOW_ATTENDANCE_THRESHOLD = 75.0  # Defined here for easy modification
+
+
+@app.route("/notifications", methods=["GET"])
+@role_required("admin")
+def notifications():
+    try:
+        overdue_fees = database.get_students_with_overdue_fees()
+        for fee in overdue_fees:
+            paid = fee["amount_paid"]
+            due = fee["amount_due"]
+            if paid >= due:
+                fee["status"] = "Paid"
+            elif paid > 0:
+                fee["status"] = "Partial"
+            else:
+                fee["status"] = "Due"
+            fee["remaining"] = due - paid
+    except Error as e:
+        app.logger.warning("DB error fetching overdue fees for notifications: %s", e)
+        flash("Could not load overdue fees.", "error")
+        overdue_fees = []
+
+    try:
+        low_attendance = database.get_students_with_low_attendance(LOW_ATTENDANCE_THRESHOLD)
+    except Error as e:
+        app.logger.warning("DB error fetching low attendance for notifications: %s", e)
+        flash("Could not load low attendance records.", "error")
+        low_attendance = []
+
+    return render_template(
+        "notifications.html",
+        overdue_fees=overdue_fees,
+        low_attendance=low_attendance,
+        low_attendance_threshold=LOW_ATTENDANCE_THRESHOLD,
+        email_configured=_email_configured()
+    )
+
+
+@app.route("/notifications/send-fee-reminders", methods=["POST"])
+@role_required("admin")
+def send_fee_reminders():
+    if not _email_configured():
+        flash("Email is not configured.", "error")
+        return redirect(url_for("notifications"))
+
+    try:
+        overdue_fees = database.get_students_with_overdue_fees()
+    except Error as e:
+        app.logger.warning("DB error fetching overdue fees for reminders: %s", e)
+        flash("Could not load overdue fees to send reminders.", "error")
+        return redirect(url_for("notifications"))
+
+    sent_count = 0
+    fail_count = 0
+
+    for fee in overdue_fees:
+        recipient = fee.get("email")
+        if not recipient:
+            fail_count += 1
+            continue
+
+        try:
+            remaining = fee["amount_due"] - fee["amount_paid"]
+            due_date_str = fee["due_date"].strftime("%d %b %Y") if fee.get("due_date") else "N/A"
+            body = (
+                f"Dear {fee['student_name']},\n\n"
+                f"This is a reminder from {INSTITUTION_NAME} that you have an outstanding fee balance of "
+                f"₹{remaining:.2f} (Due Date: {due_date_str}).\n\n"
+                f"Please clear your dues at the earliest.\n\n"
+                f"Regards,\n"
+                f"{INSTITUTION_NAME}"
+            )
+            msg = Message(
+                subject="Fee Payment Reminder",
+                recipients=[recipient],
+                body=body
+            )
+            mail.send(msg)
+            sent_count += 1
+        except Exception as e:
+            app.logger.warning("Failed to send fee reminder email to %s: %s", recipient, e)
+            fail_count += 1
+
+    flash(f"Sent {sent_count} reminders, {fail_count} failed.", "success" if sent_count > 0 or fail_count == 0 else "error")
+    return redirect(url_for("notifications"))
+
+
+@app.route("/notifications/send-attendance-alerts", methods=["POST"])
+@role_required("admin")
+def send_attendance_alerts():
+    if not _email_configured():
+        flash("Email is not configured.", "error")
+        return redirect(url_for("notifications"))
+
+    try:
+        low_attendance = database.get_students_with_low_attendance(LOW_ATTENDANCE_THRESHOLD)
+    except Error as e:
+        app.logger.warning("DB error fetching low attendance for alerts: %s", e)
+        flash("Could not load low attendance records to send alerts.", "error")
+        return redirect(url_for("notifications"))
+
+    sent_count = 0
+    fail_count = 0
+
+    for student in low_attendance:
+        recipient = student.get("email")
+        if not recipient:
+            fail_count += 1
+            continue
+
+        try:
+            pct = student["percentage"]
+            body = (
+                f"Dear {student['student_name']},\n\n"
+                f"This is an alert from {INSTITUTION_NAME} regarding your attendance.\n"
+                f"Your current overall attendance is {pct:.1f}%, which is below the required threshold of "
+                f"{LOW_ATTENDANCE_THRESHOLD}%.\n\n"
+                f"Please ensure regular attendance in your upcoming classes.\n\n"
+                f"Regards,\n"
+                f"{INSTITUTION_NAME}"
+            )
+            msg = Message(
+                subject="Attendance Alert",
+                recipients=[recipient],
+                body=body
+            )
+            mail.send(msg)
+            sent_count += 1
+        except Exception as e:
+            app.logger.warning("Failed to send attendance alert email to %s: %s", recipient, e)
+            fail_count += 1
+
+    flash(f"Sent {sent_count} reminders, {fail_count} failed.", "success" if sent_count > 0 or fail_count == 0 else "error")
+    return redirect(url_for("notifications"))
 
 
 # ---------------------------------------------------------------------------

@@ -6,3 +6,4 @@ reportlab
 gunicorn
 pyotp
 qrcode[pil]
+Flask-Mail

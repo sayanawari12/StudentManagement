@@ -29,6 +29,8 @@
         {% if session.get('role') == 'admin' %}
           <a href="{{ url_for('add_student') }}"
              class="{{ 'active' if request.endpoint == 'add_student' else '' }}">Add student</a>
+          <a href="{{ url_for('notifications') }}"
+             class="{{ 'active' if request.endpoint == 'notifications' else '' }}">Notifications</a>
         {% endif %}
 
         {# Attendance — admin + teacher #}

@@ -673,3 +673,61 @@ def delete_notice(notice_id):
     finally:
         cursor.close()
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Notifications queries
+# ---------------------------------------------------------------------------
+
+def get_students_with_overdue_fees():
+    """Return fee records that are overdue or partially paid and due_date <= CURDATE().
+
+    Returns a list of dicts:
+      {student_id, student_name, email, amount_due, amount_paid, due_date}
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT s.id AS student_id, s.student_name, s.email,
+                      f.amount_due, f.amount_paid, f.due_date
+               FROM fees f
+               JOIN students s ON f.stud_id = s.id
+               WHERE f.amount_paid < f.amount_due
+                 AND f.due_date <= CURDATE()
+               ORDER BY f.due_date ASC"""
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_students_with_low_attendance(threshold):
+    """Return students whose attendance percentage is strictly below threshold.
+
+    Excludes students with zero attendance records.
+    Returns a list of dicts:
+      {student_id, student_name, email, percentage}
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT s.id AS student_id, s.student_name, s.email,
+                      ROUND(COALESCE(SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0) * 100, 0), 1) AS percentage
+               FROM students s
+               JOIN attendance a ON a.stud_id = s.id
+               GROUP BY s.id, s.student_name, s.email
+               HAVING percentage < %s
+               ORDER BY percentage ASC""",
+            (threshold,)
+        )
+        rows = cursor.fetchall()
+        for row in rows:
+            if row["percentage"] is not None:
+                row["percentage"] = float(row["percentage"])
+        return rows
+    finally:
+        cursor.close()
+        conn.close()

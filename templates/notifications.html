@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Notifications — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Notifications</h1>
+      <p>Send email reminders for overdue fees and low attendance alerts.</p>
+    </div>
+  </div>
+
+  {# Card 1: Overdue Fees #}
+  <div class="card">
+    <h2 class="section-title">Students with overdue/partial fees</h2>
+    
+    {% if overdue_fees %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th>Email</th>
+              <th>Amount Due</th>
+              <th>Amount Paid</th>
+              <th>Remaining</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for fee in overdue_fees %}
+              <tr>
+                <td><strong>{{ fee.student_name }}</strong></td>
+                <td>{{ fee.email }}</td>
+                <td>₹{{ "%.2f"|format(fee.amount_due) }}</td>
+                <td>₹{{ "%.2f"|format(fee.amount_paid) }}</td>
+                <td>₹{{ "%.2f"|format(fee.remaining) }}</td>
+                <td>{{ fee.due_date.strftime('%d %b %Y') if fee.due_date else '—' }}</td>
+                <td><span class="badge badge-{{ fee.status|lower }}">{{ fee.status }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-footer" style="margin-top: 1rem;">
+        <form method="POST" action="{{ url_for('send_fee_reminders') }}" id="form-send-fee-reminders">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="btn btn-primary"
+                  id="btn-send-fee-reminders"
+                  {% if not email_configured %}disabled{% endif %}>
+            Send Fee Reminders
+          </button>
+          {% if not email_configured %}
+            <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted, #888);">
+              Configure MAIL_SERVER and MAIL_USERNAME in .env to enable sending.
+            </p>
+          {% endif %}
+        </form>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <strong>No overdue or partial fees found.</strong>
+      </div>
+    {% endif %}
+  </div>
+
+  {# Card 2: Low Attendance #}
+  <div class="card" style="margin-top: 1.5rem;">
+    <h2 class="section-title">Students below {{ low_attendance_threshold }}% attendance</h2>
+
+    {% if low_attendance %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th>Email</th>
+              <th>Attendance Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in low_attendance %}
+              <tr>
+                <td><strong>{{ student.student_name }}</strong></td>
+                <td>{{ student.email }}</td>
+                <td>
+                  <span class="badge badge-due">{{ "%.1f"|format(student.percentage) }}%</span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-footer" style="margin-top: 1rem;">
+        <form method="POST" action="{{ url_for('send_attendance_alerts') }}" id="form-send-attendance-alerts">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="btn btn-primary"
+                  id="btn-send-attendance-alerts"
+                  {% if not email_configured %}disabled{% endif %}>
+            Send Attendance Alerts
+          </button>
+          {% if not email_configured %}
+            <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted, #888);">
+              Configure MAIL_SERVER and MAIL_USERNAME in .env to enable sending.
+            </p>
+          {% endif %}
+        </form>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <strong>No students below attendance threshold.</strong>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
