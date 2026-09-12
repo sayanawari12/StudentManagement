@@ -75,6 +75,66 @@ def update_user_password(user_id, new_hashed_password):
 
 
 # ---------------------------------------------------------------------------
+# TOTP / 2FA mutators
+# NOTE: get_user_by_id already returns SELECT * so totp_secret / totp_enabled
+#       are already available through that function — no new getter needed.
+# KNOWN LIMITATION: backup/recovery codes are not implemented. If a user loses
+#   their authenticator device they must contact an admin to disable 2FA via
+#   direct DB access until a recovery-code feature is added.
+# ---------------------------------------------------------------------------
+
+def set_user_totp_secret(user_id, secret):
+    """Store a freshly generated TOTP secret for user_id (totp_enabled stays FALSE).
+
+    Called during the setup flow before the user proves they can generate codes.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET totp_secret = %s, totp_enabled = FALSE WHERE id = %s",
+            (secret, user_id)
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def enable_user_totp(user_id):
+    """Flip totp_enabled = TRUE once the user has confirmed a valid code."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET totp_enabled = TRUE WHERE id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def disable_user_totp(user_id):
+    """Clear totp_secret and set totp_enabled = FALSE (2FA removed for user)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Dashboard queries
 # ---------------------------------------------------------------------------
 

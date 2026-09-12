@@ -4,3 +4,5 @@ python-dotenv
 Flask-WTF
 reportlab
 gunicorn
+pyotp
+qrcode[pil]

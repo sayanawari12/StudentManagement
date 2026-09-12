@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Two-Factor Authentication — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Two-Factor Authentication</h1>
+      <p>Secure your account with an authenticator app (Google Authenticator, Aegis, etc.).</p>
+    </div>
+  </div>
+
+  {% if user.totp_enabled %}
+    {# ── 2FA is already active — show disable form ─────────────── #}
+    <div class="card" style="max-width: 540px;">
+      <h2 class="section-title">2FA is currently enabled</h2>
+      <p style="margin-bottom: 1.5rem;">
+        Your account is protected with time-based one-time passwords.
+        To disable 2FA, enter your current password below.
+      </p>
+
+      <form method="POST" action="{{ url_for('totp_disable') }}" id="form-2fa-disable">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="field">
+            <label for="current_password">Current Password</label>
+            <input type="password"
+                   id="current_password"
+                   name="current_password"
+                   required
+                   autofocus>
+          </div>
+        </div>
+        <div class="actions-row" style="margin-top: 24px;">
+          <button type="submit" class="btn btn-outline" id="btn-disable-2fa">Disable 2FA</button>
+          <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Cancel</a>
+        </div>
+      </form>
+    </div>
+
+  {% else %}
+    {# ── 2FA setup: show QR code + confirmation form ────────────── #}
+    <div class="card" style="max-width: 620px;">
+      <h2 class="section-title">Set up 2FA</h2>
+
+      {% if qr_data_uri %}
+        <p style="margin-bottom: 1rem;">
+          Scan this QR code with your authenticator app, then enter the
+          6-digit code it shows to confirm setup.
+        </p>
+
+        <div style="display:flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 1.5rem;">
+          <img src="{{ qr_data_uri }}"
+               alt="TOTP QR code"
+               id="totp-qr-image"
+               style="width: 180px; height: 180px; border: 1px solid var(--border, #ddd); border-radius: 4px;">
+          <div>
+            <p style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--muted, #888);">
+              Can't scan? Enter this key manually:
+            </p>
+            <code id="totp-secret-text"
+                  style="font-size: 1rem; letter-spacing: 2px; word-break: break-all;">
+              {{ user.totp_secret }}
+            </code>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('totp_setup') }}" id="form-2fa-confirm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-grid" style="grid-template-columns: 1fr;">
+            <div class="field">
+              <label for="code">Confirmation Code (6 digits from your app)</label>
+              <input type="text"
+                     id="code"
+                     name="code"
+                     inputmode="numeric"
+                     pattern="[0-9]{6}"
+                     maxlength="6"
+                     placeholder="123456"
+                     required
+                     autofocus>
+            </div>
+          </div>
+          <div class="actions-row" style="margin-top: 24px;">
+            <button type="submit" class="btn btn-primary" id="btn-enable-2fa">Enable 2FA</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+          </div>
+        </form>
+
+      {% else %}
+        <div class="empty-state">
+          Could not generate QR code. Please <a href="{{ url_for('totp_setup') }}">reload this page</a>.
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

@@ -116,6 +116,16 @@ def migrate():
         )
     """, "CREATE TABLE notices")
 
+    # 9 — users.totp_secret column (2FA)
+    run(cursor,
+        "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(32) NULL",
+        "ADD COLUMN users.totp_secret")
+
+    # 10 — users.totp_enabled column (2FA)
+    run(cursor,
+        "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+        "ADD COLUMN users.totp_enabled")
+
     conn.commit()
     cursor.close()
     conn.close()

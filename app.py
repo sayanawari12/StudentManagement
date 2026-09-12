@@ -1,3 +1,4 @@
+import base64
 import csv
 import io
 import logging
@@ -8,6 +9,10 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from mysql.connector import Error
+
+import pyotp
+import qrcode
+import qrcode.image.svg
 
 import config
 import database
@@ -186,6 +191,14 @@ def login():
             return render_template("login.html")
 
         if user and check_password_hash(user["password"], password):
+            if user.get("totp_enabled"):
+                # 2FA is enabled — set a temporary pending marker and redirect
+                # to the code-entry step. Full session is NOT set yet.
+                session.clear()
+                session["pending_2fa_user_id"] = user["id"]
+                session["pending_2fa_attempts"] = 0
+                return redirect(url_for("login_2fa"))
+            # No 2FA — proceed as normal
             session["user_id"] = user["id"]
             session["admin"]   = user["username"]          # kept for any legacy checks
             session["role"]    = user["role"]
@@ -1029,6 +1042,184 @@ def fees_view(record_id):
 
     return render_template("fees_view.html", student=student, fee_records=fee_records)
 
+
+
+# ---------------------------------------------------------------------------
+# 2FA routes  (TOTP — opt-in, all roles)
+# ---------------------------------------------------------------------------
+
+MAX_2FA_ATTEMPTS = 5  # consecutive wrong codes before the pending session is cleared
+
+
+@app.route("/login/2fa", methods=["GET", "POST"])
+def login_2fa():
+    """Second step of login for users who have TOTP enabled.
+
+    A pending_2fa_user_id in the session (set by login()) is required to
+    reach this route. The full session (role, user_id, …) is set only on
+    successful code verification.
+    """
+    pending_user_id = session.get("pending_2fa_user_id")
+    if not pending_user_id:
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+        attempts = session.get("pending_2fa_attempts", 0)
+
+        try:
+            user = database.get_user_by_id(pending_user_id)
+        except Error as e:
+            app.logger.warning("DB error fetching user %s in login_2fa: %s", pending_user_id, e)
+            flash("Could not reach the database. Please try again.", "error")
+            return render_template("2fa_verify.html")
+
+        if not user or not user.get("totp_secret"):
+            session.clear()
+            flash("2FA configuration error. Please log in again.", "error")
+            return redirect(url_for("login"))
+
+        totp = pyotp.TOTP(user["totp_secret"])
+        if totp.verify(code, valid_window=1):
+            # Success — establish the full session
+            session.pop("pending_2fa_user_id", None)
+            session.pop("pending_2fa_attempts", None)
+            session["user_id"] = user["id"]
+            session["admin"]   = user["username"]
+            session["role"]    = user["role"]
+            session["linked_student_id"] = user["linked_student_id"]
+            return redirect(url_for("dashboard"))
+
+        # Wrong code
+        attempts += 1
+        if attempts >= MAX_2FA_ATTEMPTS:
+            app.logger.warning(
+                "2FA attempt cap reached for user_id=%s — clearing pending session", pending_user_id
+            )
+            session.clear()
+            flash("Too many incorrect codes. Please log in again.", "error")
+            return redirect(url_for("login"))
+
+        session["pending_2fa_attempts"] = attempts
+        flash(f"Incorrect code. {MAX_2FA_ATTEMPTS - attempts} attempt(s) remaining.", "error")
+
+    return render_template("2fa_verify.html")
+
+
+@app.route("/2fa/setup", methods=["GET", "POST"])
+@login_required
+def totp_setup():
+    """GET/POST /2fa/setup — opt-in TOTP setup for any logged-in user.
+
+    GET:
+      - If already enabled: show "disable" state.
+      - Otherwise: generate a new secret (stored with enabled=False),
+        render a QR code + raw secret + confirmation form.
+
+    POST:
+      - Verify the submitted code against the stored (not-yet-enabled) secret.
+      - On success: enable_user_totp, flash, redirect.
+      - On failure: re-render with the same QR/secret, do NOT regenerate.
+    """
+    user_id = _get_user_id()
+
+    try:
+        user = database.get_user_by_id(user_id)
+    except Error as e:
+        app.logger.warning("DB error fetching user %s in totp_setup: %s", user_id, e)
+        flash("Could not reach the database.", "error")
+        return redirect(url_for("dashboard"))
+
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("logout"))
+
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+        secret = user.get("totp_secret")
+        if not secret:
+            flash("No pending 2FA secret found. Please reload and try again.", "error")
+            return redirect(url_for("totp_setup"))
+
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code, valid_window=1):
+            try:
+                database.enable_user_totp(user_id)
+                flash("Two-factor authentication enabled.", "success")
+                return redirect(url_for("dashboard"))
+            except Error as e:
+                app.logger.warning("DB error enabling TOTP for user %s: %s", user_id, e)
+                flash(f"Database error: {e}", "error")
+        else:
+            flash("Incorrect code — please try again with a fresh code from your app.", "error")
+
+        # Re-render with the same secret (don't regenerate on a failed attempt)
+        return render_template("2fa_setup.html", user=user, qr_data_uri=_totp_qr_uri(user))
+
+    # GET
+    if user.get("totp_enabled"):
+        # Already set up — show the "disable" state; no new QR generated
+        return render_template("2fa_setup.html", user=user, qr_data_uri=None)
+
+    # Not yet set up — generate a fresh secret, store it, show QR
+    secret = pyotp.random_base32()
+    try:
+        database.set_user_totp_secret(user_id, secret)
+    except Error as e:
+        app.logger.warning("DB error storing TOTP secret for user %s: %s", user_id, e)
+        flash("Could not save 2FA secret. Please try again.", "error")
+        return redirect(url_for("dashboard"))
+
+    # Reload user so the template sees the new secret
+    user["totp_secret"] = secret
+    return render_template("2fa_setup.html", user=user, qr_data_uri=_totp_qr_uri(user))
+
+
+def _totp_qr_uri(user):
+    """Return a data: URI (PNG, base64) of the TOTP provisioning QR code."""
+    secret = user["totp_secret"]
+    username = user.get("username", "user")
+    provisioning_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=username,
+        issuer_name="Student MS"
+    )
+    img = qrcode.make(provisioning_uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+@app.route("/2fa/disable", methods=["POST"])
+@login_required
+def totp_disable():
+    """Disable TOTP for the current user, requiring current password as confirmation."""
+    user_id = _get_user_id()
+
+    try:
+        user = database.get_user_by_id(user_id)
+    except Error as e:
+        app.logger.warning("DB error fetching user %s in totp_disable: %s", user_id, e)
+        flash("Could not reach the database.", "error")
+        return redirect(url_for("totp_setup"))
+
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("logout"))
+
+    current_password = request.form.get("current_password", "")
+    if not check_password_hash(user["password"], current_password):
+        flash("Incorrect password. 2FA was not disabled.", "error")
+        return redirect(url_for("totp_setup"))
+
+    try:
+        database.disable_user_totp(user_id)
+        flash("Two-factor authentication disabled.", "success")
+    except Error as e:
+        app.logger.warning("DB error disabling TOTP for user %s: %s", user_id, e)
+        flash(f"Database error: {e}", "error")
+
+    return redirect(url_for("dashboard"))
 
 
 # ---------------------------------------------------------------------------

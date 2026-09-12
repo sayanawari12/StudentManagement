@@ -59,6 +59,8 @@
       <div class="sidebar-footer">
         <a href="{{ url_for('change_password') }}"
            class="{{ 'active' if request.endpoint == 'change_password' else '' }}">Change Password</a>
+        <a href="{{ url_for('totp_setup') }}"
+           class="{{ 'active' if request.endpoint in ['totp_setup'] else '' }}">Two-Factor Auth</a>
         <a href="{{ url_for('logout') }}">Log out</a>
       </div>
     </aside>

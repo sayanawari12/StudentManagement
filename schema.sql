@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS users (
     password           VARCHAR(255) NOT NULL,          -- hashed, never plain text
     role               ENUM('admin','teacher','student') NOT NULL DEFAULT 'admin',
     linked_student_id  INT NULL,
+    totp_secret        VARCHAR(32)  NULL,               -- base32 secret; NULL = not configured
+    totp_enabled       BOOLEAN      NOT NULL DEFAULT FALSE,
     FOREIGN KEY (linked_student_id) REFERENCES students(id) ON DELETE SET NULL
 );
 
