@@ -962,12 +962,97 @@ def create_exam(exam_name, exam_type, course, semester, academic_year, created_b
         conn.close()
 
 
-def get_all_exams(course=None, semester=None, academic_year=None, status=None):
-    """Fetch exams with optional filtering."""
+def ensure_exam_tables_exist():
+    """
+    Ensure that subjects, exams, and exam_marks tables exist in the database.
+    Idempotent and safe to run on every app startup or on demand.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS subjects (
+                id            INT AUTO_INCREMENT PRIMARY KEY,
+                course        VARCHAR(50)  NOT NULL,
+                semester      INT          NOT NULL,
+                subject_code  VARCHAR(20)  NULL,
+                subject_name  VARCHAR(150) NOT NULL,
+                max_marks     DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+                pass_marks    DECIMAL(5,2) NOT NULL DEFAULT 40.00,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_course_sem_subject (course, semester, subject_name)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exams (
+                id            INT AUTO_INCREMENT PRIMARY KEY,
+                exam_name     VARCHAR(150) NOT NULL,
+                exam_type     ENUM('Internal 1','Internal 2','Practical','Semester Examination') NOT NULL,
+                course        VARCHAR(50)  NOT NULL,
+                semester      INT          NOT NULL,
+                academic_year VARCHAR(20)  NOT NULL,
+                status        VARCHAR(50)  NOT NULL DEFAULT 'Scheduled',
+                created_by    INT          NOT NULL,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exam_marks (
+                id             INT AUTO_INCREMENT PRIMARY KEY,
+                exam_id        INT          NOT NULL,
+                stud_id        INT          NOT NULL,
+                subject_id     INT          NOT NULL,
+                obtained_marks DECIMAL(5,2) NOT NULL,
+                max_marks      DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+                recorded_by    INT          NOT NULL,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_exam_student_subject (exam_id, stud_id, subject_id),
+                FOREIGN KEY (exam_id)    REFERENCES exams(id) ON DELETE CASCADE,
+                FOREIGN KEY (stud_id)    REFERENCES students(id) ON DELETE CASCADE,
+                FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+                FOREIGN KEY (recorded_by) REFERENCES users(id)
+            )
+        """)
+
+        sem3_subjects = [
+            ("SE301", "Software Engineering (SE)"),
+            ("DBMS302", "Database Management System (DBMS)"),
+            ("PY303", "Python"),
+            ("PS304", "Probability and Statistics"),
+            ("FE305", "Future Engineering"),
+            ("BDA306", "Basics of Data Analytics Using Spreadsheet"),
+        ]
+        for code, name in sem3_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES ('BCA', 3, %s, %s, 100.00, 40.00)
+                """,
+                (code, name)
+            )
+
+        conn.commit()
+    except Error:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def _fetch_all_exams_query(course=None, semester=None, academic_year=None, status=None):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        query = "SELECT e.*, u.username as creator_name FROM exams e JOIN users u ON u.id = e.created_by WHERE 1=1"
+        query = """
+            SELECT e.*, COALESCE(u.username, 'Admin') as creator_name
+            FROM exams e
+            LEFT JOIN users u ON u.id = e.created_by
+            WHERE 1=1
+        """
         params = []
         if course:
             query += " AND e.course = %s"
@@ -989,16 +1074,46 @@ def get_all_exams(course=None, semester=None, academic_year=None, status=None):
         conn.close()
 
 
+def get_all_exams(course=None, semester=None, academic_year=None, status=None):
+    """Fetch exams with optional filtering, auto-creating tables if missing."""
+    try:
+        return _fetch_all_exams_query(course, semester, academic_year, status)
+    except Error as e:
+        if getattr(e, 'errno', None) == 1146 or "doesn't exist" in str(e).lower():
+            ensure_exam_tables_exist()
+            return _fetch_all_exams_query(course, semester, academic_year, status)
+        raise e
+
+
 def get_exam_by_id(exam_id):
     """Fetch a single exam record by ID."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT e.*, u.username as creator_name FROM exams e JOIN users u ON u.id = e.created_by WHERE e.id = %s",
+            """
+            SELECT e.*, COALESCE(u.username, 'Admin') as creator_name
+            FROM exams e
+            LEFT JOIN users u ON u.id = e.created_by
+            WHERE e.id = %s
+            """,
             (exam_id,)
         )
         return cursor.fetchone()
+    except Error as e:
+        if getattr(e, 'errno', None) == 1146 or "doesn't exist" in str(e).lower():
+            ensure_exam_tables_exist()
+            cursor.execute(
+                """
+                SELECT e.*, COALESCE(u.username, 'Admin') as creator_name
+                FROM exams e
+                LEFT JOIN users u ON u.id = e.created_by
+                WHERE e.id = %s
+                """,
+                (exam_id,)
+            )
+            return cursor.fetchone()
+        raise e
     finally:
         cursor.close()
         conn.close()
@@ -1048,6 +1163,9 @@ def _resolve_student_pk(stud_id):
     if isinstance(stud_id, str):
         if stud_id.isdigit():
             return int(stud_id)
+        student = get_student_by_student_id(stud_id)
+        if student and "id" in student:
+            return student["id"]
         student = get_student_by_id(stud_id)
         if student and "id" in student:
             return student["id"]

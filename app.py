@@ -84,6 +84,12 @@ EXPECTED_CSV_HEADERS = [
     "gender", "date_of_birth", "course", "semester", "address"
 ]
 
+# Ensure database tables for exams & subjects exist on application load
+try:
+    database.ensure_exam_tables_exist()
+except Exception as _e:
+    pass
+
 
 # ---------------------------------------------------------------------------
 # Auth helpers
@@ -118,14 +124,11 @@ def login_required(view_func):
 
 
 def _assert_own_record(record_id):
-    """For student-role users: abort 403 if record_id is not their linked student.
-
-    Applied only to routes reachable by students:
-      student_details, attendance/<record_id>, fees/<record_id>
-    NOT applied to edit_student (already admin-only via role_required).
-    """
+    """For student-role users: abort 403 if record_id is not their linked student."""
     if str(session.get("role")).lower() == "student":
-        if str(record_id) != str(session.get("linked_student_id")):
+        linked_pk = session.get("linked_student_id")
+        record_pk = database._resolve_student_pk(record_id)
+        if str(record_pk) != str(linked_pk):
             abort(403)
 
 
