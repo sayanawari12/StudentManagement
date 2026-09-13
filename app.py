@@ -4,6 +4,7 @@ import datetime
 import io
 import logging
 import math
+import os
 import re
 from decimal import Decimal
 from functools import wraps
@@ -865,14 +866,26 @@ def _get_student_photo_url(student):
         return url_for("static", filename="images/id-card-default-male.jpg")
 
 
+def _get_verification_url(record_id):
+    """
+    Builds full, fully-qualified public verification URL for QR code scanning.
+    Uses APP_BASE_URL env var if configured (for production/Vercel deployments),
+    else defaults to url_for(..., _external=True).
+    """
+    base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    if base_url:
+        return f"{base_url}/students/{record_id}/id-card/verify"
+    return url_for("student_id_card_verify", record_id=record_id, _external=True)
+
+
 def _generate_qr_data_uri(text_data):
-    """Generate a base64 PNG data URI for embedding directly in HTML <img> tags."""
+    """Generate a high-contrast base64 PNG data URI for embedding directly in HTML <img> tags."""
     try:
         qr = qrcode.QRCode(
             version=None,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=6,
-            border=2,
+            box_size=10,
+            border=3,
         )
         qr.add_data(text_data)
         qr.make(fit=True)
@@ -898,7 +911,7 @@ def student_id_card_preview(record_id):
     curr_year = datetime.datetime.now().year
     acad_year = f"{curr_year}\u2013{str(curr_year + 1)[-2:]}"
 
-    verify_url = url_for("student_id_card_verify", record_id=record_id, _external=True)
+    verify_url = _get_verification_url(record_id)
     qr_data_uri = _generate_qr_data_uri(verify_url)
     photo_url = _get_student_photo_url(student)
 
@@ -923,11 +936,7 @@ def student_id_card_download(record_id):
     if err_redirect:
         return err_redirect
 
-    verify_url = url_for(
-        "student_id_card_verify",
-        record_id=record_id,
-        _external=True,
-    )
+    verify_url = _get_verification_url(record_id)
 
     try:
         pdf_buffer = generate_id_card_pdf(

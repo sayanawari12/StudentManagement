@@ -166,3 +166,19 @@ def test_id_card_verify_route_invalid_student(client):
     res = client.get("/students/999999/id-card/verify")
     assert res.status_code == 200
     assert b"Invalid" in res.data or b"Not Found" in res.data or b"not found" in res.data
+
+
+def test_qr_code_scannable_url_flow(admin_client, client, db):
+    pk = db["linked_pk"]
+    # 1. Fetch preview page & extract QR image data URI
+    res = admin_client.get(f"/students/{pk}/id-card")
+    assert res.status_code == 200
+    assert b"data:image/png;base64," in res.data
+
+    # 2. Access the real verification URL directly (emulating smartphone camera scan)
+    verify_res = client.get(f"/students/{pk}/id-card/verify")
+    assert verify_res.status_code == 200
+    assert b"VALID" in verify_res.data
+    assert b"ACTIVE STUDENT" in verify_res.data
+    assert b"Aarav Sharma" in verify_res.data or b"BCA2401" in verify_res.data
+

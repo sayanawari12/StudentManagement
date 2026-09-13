@@ -343,8 +343,8 @@ def _qr_image_flowable(data_str, size_pt):
     qr = qr_lib.QRCode(
         version=None,
         error_correction=qr_lib.constants.ERROR_CORRECT_M,
-        box_size=10,
-        border=2,
+        box_size=12,
+        border=3,
     )
     qr.add_data(data_str)
     qr.make(fit=True)
