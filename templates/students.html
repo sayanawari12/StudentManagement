@@ -7,12 +7,13 @@
       <h1>Students</h1>
       <p>{{ students|length }} record{{ 's' if students|length != 1 else '' }}{{ ' matching "%s"' % search if search else '' }}</p>
     </div>
-    {% if session.get('role') == 'admin' %}
-      <div class="actions-row">
+    <div class="actions-row">
+      {% if session.get('role') == 'admin' %}
         <a href="{{ url_for('add_student') }}" class="btn btn-primary">Add student</a>
         <a href="{{ url_for('students_import') }}" class="btn btn-outline">Import CSV</a>
-      </div>
-    {% endif %}
+      {% endif %}
+      <a href="{{ url_for('students_export', search=search) }}" class="btn btn-outline">Export CSV</a>
+    </div>
   </div>
 
   <form class="search-form" method="GET" action="{{ url_for('students') }}">

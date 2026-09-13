@@ -416,6 +416,47 @@ def students():
     return render_template("students.html", students=student_list, search=search)
 
 
+@app.route("/students/export")
+@role_required("admin", "teacher")
+def students_export():
+    """Download the student list (respecting the current search filter) as a CSV.
+
+    The produced file uses EXPECTED_CSV_HEADERS in the exact order required by
+    the bulk-import feature, so it can be re-imported without column changes.
+    """
+    search = request.args.get("search", "").strip()
+    try:
+        student_list = database.get_all_students(search if search else None)
+    except Error as e:
+        app.logger.warning("DB error during CSV export: %s", e)
+        flash("Could not export students: database error.", "error")
+        return redirect(url_for("students", search=search))
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=EXPECTED_CSV_HEADERS,
+        extrasaction="ignore",          # drop any extra DB columns (e.g. id)
+        lineterminator="\r\n",          # RFC 4180 line endings
+    )
+    writer.writeheader()
+    for student in student_list:
+        # Normalise date_of_birth to a plain string (MySQL returns datetime.date)
+        row = dict(student)
+        if row.get("date_of_birth") and hasattr(row["date_of_birth"], "isoformat"):
+            row["date_of_birth"] = row["date_of_birth"].isoformat()
+        writer.writerow(row)
+
+    output.seek(0)
+    filename = "students_export.csv"
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),   # BOM for Excel compat
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 @app.route("/students/add", methods=["GET", "POST"])
 @role_required("admin")                  # Fix 7: admin only
 def add_student():
