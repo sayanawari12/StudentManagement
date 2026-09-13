@@ -43,12 +43,22 @@ def _draw_certificate_border(canvas, doc):
     canvas.restoreState()
 
 
-def generate_bonafide_pdf(institution_name, student):
+def generate_bonafide_pdf(institution_name, student,
+                          institution_location="", institution_affiliation=""):
     """
     Generates a professional Bonafide Certificate PDF for a single student.
     Matches exact college certificate structure with Helvetica standard typography
     and DancingScript cursive font exclusively for Student Name and Principal Signature.
-    Returns a BytesIO buffer containing the PDF bytes.
+
+    Args:
+        institution_name (str): College / institute name shown at the top.
+        student (dict): Student record from the database (must contain student_name,
+                        student_id, course, semester; gender is optional).
+        institution_location (str): Address line, e.g. "Wani, Dist. Yavatmal…"
+        institution_affiliation (str): Affiliation line shown below the address.
+
+    Returns:
+        BytesIO: Buffer containing the generated PDF bytes.
     """
     _register_cursive_font()
 
@@ -181,7 +191,7 @@ def generate_bonafide_pdf(institution_name, student):
     curr_date    = datetime.now()
     curr_year    = curr_date.year
     next_year_short = str(curr_year + 1)[-2:]
-    academic_year = f"{curr_year}–{next_year_short}"
+    academic_year = f"{curr_year}\u2013{next_year_short}"
     issue_date   = curr_date.strftime("%d %B %Y")
 
     course_code  = "BCA" if "BCA" in str(course).upper() else "CERT"
@@ -192,6 +202,14 @@ def generate_bonafide_pdf(institution_name, student):
     # 1. College Header — driven by institution_name parameter
     header_text = institution_name.upper() if institution_name else "YOUR COLLEGE NAME HERE"
     story.append(Paragraph(header_text, college_name_style))
+
+    # 1a. Optional location sub-line
+    if institution_location:
+        story.append(Paragraph(institution_location, college_location_style))
+
+    # 1b. Optional affiliation sub-line
+    if institution_affiliation:
+        story.append(Paragraph(institution_affiliation, college_affiliation_style))
 
     # Divider line 1
     story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=8, spaceAfter=14))
@@ -261,6 +279,7 @@ def generate_bonafide_pdf(institution_name, student):
     doc.build(story, onFirstPage=_draw_certificate_border)
     buffer.seek(0)
     return buffer
+
 
 
 def generate_dashboard_pdf(institution_name, stats, today_date_str):

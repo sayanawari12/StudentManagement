@@ -113,7 +113,7 @@ class TestFeeRemindersDispatch:
             msg = sent_to_student[0]
             assert msg.subject == "Fee Payment Reminder"
             assert "outstanding fee balance" in msg.body
-            assert "Your College Name Here" in msg.body
+            assert "Sushganga Institute, Wani" in msg.body
 
 
 # ---------------------------------------------------------------------------

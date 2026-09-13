@@ -70,7 +70,9 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = not config.FLASK_DEBUG
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-INSTITUTION_NAME = "Your College Name Here"
+INSTITUTION_NAME        = "Sushganga Institute, Wani"
+INSTITUTION_LOCATION    = "Wani, Dist. Yavatmal, Maharashtra – 445304"
+INSTITUTION_AFFILIATION = "Affiliated to Sant Gadge Baba Amravati University, Amravati"
 ATTENDANCE_TREND_DAYS = 14
 NOTICES_LIMIT_DASH = 3    # recent notices shown on dashboard
 NOTICES_LIMIT_FULL = 50   # cap for the full /notices page
@@ -777,7 +779,25 @@ def student_certificate(record_id):
         flash("Student not found.", "error")
         return redirect(url_for("students"))
 
-    pdf_buffer = generate_bonafide_pdf(INSTITUTION_NAME, student)
+    # Validate that all certificate-required fields are present and non-empty.
+    missing = [
+        field for field in ("student_name", "student_id", "course", "semester")
+        if not student.get(field)
+    ]
+    if missing:
+        flash(
+            f"Cannot generate certificate: the following required fields are missing "
+            f"for this student: {', '.join(missing)}. Please update the student record first.",
+            "error",
+        )
+        return redirect(url_for("student_details", record_id=record_id))
+
+    pdf_buffer = generate_bonafide_pdf(
+        INSTITUTION_NAME,
+        student,
+        institution_location=INSTITUTION_LOCATION,
+        institution_affiliation=INSTITUTION_AFFILIATION,
+    )
     return send_file(
         pdf_buffer,
         mimetype="application/pdf",
