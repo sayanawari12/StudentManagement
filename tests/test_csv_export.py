@@ -5,9 +5,12 @@ Verifies:
 - Response Content-Type and Content-Disposition.
 - CSV header row exactly matches EXPECTED_CSV_HEADERS.
 - Each data row has exactly the right columns in the right order.
+- phone is wrapped as an Excel text-literal (=\"digits\") in the raw CSV so
+  Excel never auto-converts it to scientific notation.
 - date_of_birth is serialised as a plain ISO string (not a Python object repr).
 - The `search` query param is forwarded to the DB query.
 - A DB error flashes an error and redirects back to /students.
+- Full phone round-trip: export wraps, import unwraps, stored value is plain.
 """
 
 import csv
@@ -37,11 +40,14 @@ FAKE_STUDENT_RAW = {
     "address": "123 Main St",
 }
 
+# FAKE_STUDENT_EXPORTED reflects the raw CSV cell values as they appear in the
+# file (i.e. after export serialisation).  Phone is wrapped as an Excel
+# text-literal formula so that Excel never auto-types it as a number.
 FAKE_STUDENT_EXPORTED = {
     "student_id": "S001",
     "student_name": "Alice Sharma",
     "email": "alice@example.com",
-    "phone": "9000000001",
+    "phone": '="9000000001"',   # Excel text-literal wrapper
     "gender": "Female",
     "date_of_birth": "2000-06-15",
     "course": "B.Sc CS",
@@ -298,4 +304,95 @@ def test_export_header_compatible_with_import(client):
     assert _header_row(response.data) == EXPECTED_CSV_HEADERS, (
         "Export headers differ from EXPECTED_CSV_HEADERS — the file would be "
         "rejected by /students/import."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phone Excel text-literal wrapping
+# ---------------------------------------------------------------------------
+
+def test_export_phone_wrapped_as_excel_literal(client):
+    """The phone cell in the raw CSV must be the Excel text-literal =\"digits\".
+
+    This prevents Excel from auto-converting a purely-numeric phone number to
+    scientific notation (e.g. 9.88E+09) when the file is opened directly.
+    """
+    with patch("database.get_all_students", return_value=[FAKE_STUDENT_RAW]):
+        response = _export_as_admin(client)
+
+    rows = _parse_csv(response.data)
+    assert len(rows) == 1
+    raw_phone = rows[0]["phone"]
+    assert raw_phone == '="9000000001"', (
+        f"Expected Excel text-literal '=\"9000000001\"', got {raw_phone!r}"
+    )
+    # Other purely-alphanumeric fields must NOT be wrapped
+    assert not rows[0]["student_id"].startswith('="'), (
+        "student_id should not be wrapped — it is already alphanumeric"
+    )
+
+
+def test_phone_excel_wrapper_roundtrip(client):
+    """Full phone round-trip: export wraps as =\"digits\", import unwraps to plain string.
+
+    Steps:
+    1. Export a student with phone '9876543210' — CSV cell must be '=\"9876543210\"'.
+    2. Feed that exact exported CSV bytes back into POST /students/import.
+    3. The import must call database.add_student with the plain string '9876543210',
+       not the wrapped form.
+    """
+    import io as _io
+
+    phone_raw = "9876543210"
+    student = {
+        **FAKE_STUDENT_RAW,
+        "student_id": "S999",
+        "phone": phone_raw,
+    }
+
+    # Step 1 — export
+    with patch("database.get_all_students", return_value=[student]):
+        export_resp = _export_as_admin(client)
+
+    assert export_resp.status_code == 200
+    csv_bytes = export_resp.data
+
+    # Confirm the raw cell value in the exported file
+    rows = _parse_csv(csv_bytes)
+    assert rows[0]["phone"] == f'="{phone_raw}"', (
+        "Export did not wrap phone as Excel text-literal"
+    )
+
+    # Step 2 — re-import the exact exported bytes
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["role"] = "admin"
+
+    captured_payload = {}
+
+    def fake_add_student(payload):
+        captured_payload.update(payload)
+
+    def fake_get_by_student_id(sid):
+        return None  # no duplicate
+
+    with patch("database.insert_student", side_effect=fake_add_student), \
+         patch("database.get_student_by_student_id", side_effect=fake_get_by_student_id):
+        import_resp = client.post(
+            "/students/import",
+            data={
+                "file": (_io.BytesIO(csv_bytes), "students_export.csv"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=True,
+        )
+
+    # Step 3 — stored phone must be the plain string
+    assert "phone" in captured_payload, (
+        "database.add_student was not called — import may have failed validation"
+    )
+    assert captured_payload["phone"] == phone_raw, (
+        f"Expected stored phone {phone_raw!r}, got {captured_payload['phone']!r}. "
+        "Import did not strip the Excel text-literal wrapper."
     )

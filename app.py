@@ -445,6 +445,11 @@ def students_export():
         row = dict(student)
         if row.get("date_of_birth") and hasattr(row["date_of_birth"], "isoformat"):
             row["date_of_birth"] = row["date_of_birth"].isoformat()
+        # Wrap phone as an Excel text-literal formula so purely-numeric values
+        # are never auto-converted to scientific notation when opened in Excel.
+        # Only `phone` is affected — all other fields are alphanumeric or dates.
+        if row.get("phone"):
+            row["phone"] = f'="{row["phone"]}"'
         writer.writerow(row)
 
     output.seek(0)
@@ -562,6 +567,14 @@ def students_import():
                 k: (v.strip() if isinstance(v, str) else (v if v is not None else ""))
                 for k, v in (raw_row or {}).items()
             }
+
+            # Strip Excel text-literal wrapper from phone if present.
+            # Our export writes phone as =" digits " so that Excel doesn't
+            # auto-convert it to scientific notation.  Before validation we
+            # recover the plain digit string so the round-trip is transparent.
+            phone_val = row.get("phone", "")
+            if phone_val.startswith('="') and phone_val.endswith('"'):
+                row["phone"] = phone_val[2:-1]
 
             student_id = row.get("student_id", "").strip()
             student_name = row.get("student_name", "").strip() or f"Row {row_index}"
