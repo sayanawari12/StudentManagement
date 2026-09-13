@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Result History - {{ student.stud_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-clock-history text-primary me-2"></i>Academic Result History</h2>
+            <p class="text-muted mb-0">Showing past examination performance for <strong>{{ student.stud_name }}</strong> (ID: {{ student.stud_id }})</p>
+        </div>
+        <div>
+            {% if session.get('role') == 'Student' %}
+            <a href="{{ url_for('student_dashboard_route') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+            {% else %}
+            <a href="{{ url_for('student_detail_route', stud_id=student.stud_id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Student Profile</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Student Header Summary Card -->
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Course</small>
+                    <span class="fw-bold text-dark">{{ student.course or 'N/A' }}</span>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Current Semester</small>
+                    <span class="fw-bold text-dark">Semester {{ student.semester or 'N/A' }}</span>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Roll Number</small>
+                    <span class="fw-bold text-dark">{{ student.roll_no or 'N/A' }}</span>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Academic Year</small>
+                    <span class="fw-bold text-dark">{{ student.academic_year or 'N/A' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not semester_groups %}
+    <div class="alert alert-info text-center py-4 shadow-sm border-0">
+        <i class="bi bi-info-circle fs-3 d-block mb-2 text-info"></i>
+        <h5>No Exam Results Found</h5>
+        <p class="mb-0 text-muted">There are no recorded examination marks for this student yet.</p>
+    </div>
+    {% else %}
+        {% for sem, s_data in semester_groups.items() %}
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-journal-bookmark me-2"></i>Semester {{ sem }}</h5>
+                <span class="badge bg-secondary">Count: {{ s_data.exams|length }} Exam(s)</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0 table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Exam Name</th>
+                                <th>Type</th>
+                                <th>Academic Year</th>
+                                <th class="text-center">Total Marks</th>
+                                <th class="text-center">Percentage</th>
+                                <th class="text-center">Overall Grade</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for exam_item in s_data.exams %}
+                            <tr>
+                                <td class="fw-bold text-dark">{{ exam_item.exam.exam_name }}</td>
+                                <td><span class="badge bg-info text-dark">{{ exam_item.exam.exam_type }}</span></td>
+                                <td>{{ exam_item.exam.academic_year }}</td>
+                                <td class="text-center fw-semibold">{{ exam_item.summary.total_obtained }} / {{ exam_item.summary.total_max }}</td>
+                                <td class="text-center fw-semibold">{{ exam_item.summary.percentage }}%</td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary fw-bold fs-6">{{ exam_item.summary.overall_grade }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if exam_item.summary.overall_status == 'PASS' %}
+                                    <span class="badge bg-success">PASS</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">FAIL</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('view_exam_results_route', exam_id=exam_item.exam.exam_id, stud_id=student.stud_id) }}" class="btn btn-outline-primary btn-sm me-1">
+                                        <i class="bi bi-eye"></i> View Statement
+                                    </a>
+                                    <a href="{{ url_for('download_marksheet_pdf_route', exam_id=exam_item.exam.exam_id, stud_id=student.stud_id) }}" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-file-earmark-pdf"></i> Marksheet PDF
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

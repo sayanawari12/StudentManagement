@@ -113,6 +113,57 @@ CREATE TABLE IF NOT EXISTS grades (
 );
 
 -- ----------------------------------------------------------------
+-- 8. Subjects
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS subjects (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    course        VARCHAR(50)  NOT NULL,
+    semester      INT          NOT NULL,
+    subject_code  VARCHAR(20)  NULL,
+    subject_name  VARCHAR(150) NOT NULL,
+    max_marks     DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+    pass_marks    DECIMAL(5,2) NOT NULL DEFAULT 40.00,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_course_sem_subject (course, semester, subject_name)
+);
+
+-- ----------------------------------------------------------------
+-- 9. Exams
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exams (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    exam_name     VARCHAR(150) NOT NULL,
+    exam_type     ENUM('Internal 1','Internal 2','Practical','Semester Examination') NOT NULL,
+    course        VARCHAR(50)  NOT NULL,
+    semester      INT          NOT NULL,
+    academic_year VARCHAR(20)  NOT NULL,
+    status        ENUM('Scheduled','Completed','Published','Cancelled') NOT NULL DEFAULT 'Scheduled',
+    created_by    INT          NOT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- ----------------------------------------------------------------
+-- 10. Exam Marks / Results
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exam_marks (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    exam_id        INT          NOT NULL,
+    stud_id        INT          NOT NULL,
+    subject_id     INT          NOT NULL,
+    obtained_marks DECIMAL(5,2) NOT NULL,
+    max_marks      DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+    recorded_by    INT          NOT NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_exam_student_subject (exam_id, stud_id, subject_id),
+    FOREIGN KEY (exam_id)    REFERENCES exams(id) ON DELETE CASCADE,
+    FOREIGN KEY (stud_id)    REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id)
+);
+
+-- ----------------------------------------------------------------
 -- Sample student data (INSERT IGNORE = safe to re-run)
 -- ----------------------------------------------------------------
 INSERT IGNORE INTO students
@@ -122,3 +173,15 @@ VALUES
     ('BCA2402', 'Priya Deshmukh', 'priya.deshmukh@example.com', '9876543211', 'Female', '2005-08-23', 'BCA', 3, 'Pune, Maharashtra'),
     ('BCA2403', 'Rohan Patil',    'rohan.patil@example.com',    '9876543212', 'Male',   '2004-11-02', 'BCA', 5, 'Nashik, Maharashtra'),
     ('BCA2404', 'Sneha Kulkarni', 'sneha.kulkarni@example.com', '9876543213', 'Female', '2005-01-17', 'BCA', 1, 'Aurangabad, Maharashtra');
+
+-- ----------------------------------------------------------------
+-- Seed Semester 3 Subjects (INSERT IGNORE = safe to re-run)
+-- ----------------------------------------------------------------
+INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks) VALUES
+    ('BCA', 3, 'SE301', 'Software Engineering (SE)', 100.00, 40.00),
+    ('BCA', 3, 'DBMS302', 'Database Management System (DBMS)', 100.00, 40.00),
+    ('BCA', 3, 'PY303', 'Python', 100.00, 40.00),
+    ('BCA', 3, 'PS304', 'Probability and Statistics', 100.00, 40.00),
+    ('BCA', 3, 'FE305', 'Future Engineering', 100.00, 40.00),
+    ('BCA', 3, 'BDA306', 'Basics of Data Analytics Using Spreadsheet', 100.00, 40.00);
+

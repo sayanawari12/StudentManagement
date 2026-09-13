@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{% if exam %}Edit Exam — {{ exam.exam_name }}{% else %}Create Exam{% endif %} — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>{% if exam %}Edit Exam{% else %}Create Exam{% endif %}</h1>
+      <p>{% if exam %}Update exam details and status{% else %}Add a new exam for a course and semester{% endif %}</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Back to Exams</a>
+    </div>
+  </div>
+
+  <div class="card" style="max-width: 680px; margin: 0 auto;">
+    <form method="POST" action="{% if exam %}{{ url_for('edit_exam_route', exam_id=exam.id) }}{% else %}{{ url_for('create_exam_route') }}{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="exam_name" class="form-label">Exam Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="exam_name" name="exam_name" class="form-control" required
+               placeholder="e.g. Semester 3 - Internal 1 Examination 2026"
+               value="{{ exam.exam_name if exam else '' }}">
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label for="exam_type" class="form-label">Exam Type <span style="color: var(--danger);">*</span></label>
+          <select id="exam_type" name="exam_type" class="form-control" required>
+            {% for et in ['Internal 1', 'Internal 2', 'Practical', 'Semester Examination'] %}
+              <option value="{{ et }}" {% if exam and exam.exam_type == et %}selected{% endif %}>{{ et }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="status" class="form-label">Exam Status <span style="color: var(--danger);">*</span></label>
+          <select id="status" name="status" class="form-control" required>
+            {% for st in ['Scheduled', 'Completed', 'Published', 'Cancelled'] %}
+              <option value="{{ st }}" {% if exam and exam.status == st %}selected{% elif not exam and st == 'Scheduled' %}selected{% endif %}>{{ st }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label for="course" class="form-label">Course <span style="color: var(--danger);">*</span></label>
+          <select id="course" name="course" class="form-control" required>
+            <option value="BCA" {% if exam and exam.course == 'BCA' %}selected{% endif %}>BCA</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="semester" class="form-label">Semester <span style="color: var(--danger);">*</span></label>
+          <select id="semester" name="semester" class="form-control" required>
+            {% for s in range(1, 7) %}
+              <option value="{{ s }}" {% if exam and exam.semester == s %}selected{% elif not exam and s == 3 %}selected{% endif %}>Semester {{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="academic_year" class="form-label">Academic Year <span style="color: var(--danger);">*</span></label>
+          <input type="text" id="academic_year" name="academic_year" class="form-control" required
+                 placeholder="e.g. 2026-27"
+                 value="{{ exam.academic_year if exam else default_acad_year }}">
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+        <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Cancel</a>
+        <button type="submit" class="btn btn-primary">{% if exam %}Save Changes{% else %}Create Exam{% endif %}</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

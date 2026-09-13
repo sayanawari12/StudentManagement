@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Exams — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Exam Management</h1>
+      <p>Create, manage exams, and record student marks</p>
+    </div>
+    {% if session.get('role') in ['admin', 'teacher'] %}
+    <div class="actions-row">
+      <a href="{{ url_for('create_exam_route') }}" class="btn btn-primary">+ Create Exam</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="card" style="margin-bottom: 24px; padding: 16px 20px;">
+    <form method="GET" action="{{ url_for('list_exams_route') }}" style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 160px;">
+        <label for="course" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">Course</label>
+        <select name="course" id="course" class="form-control" style="width: 100%; padding: 8px 12px;">
+          <option value="">All Courses</option>
+          <option value="BCA" {% if selected_course == 'BCA' %}selected{% endif %}>BCA</option>
+        </select>
+      </div>
+
+      <div style="flex: 1; min-width: 140px;">
+        <label for="semester" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">Semester</label>
+        <select name="semester" id="semester" class="form-control" style="width: 100%; padding: 8px 12px;">
+          <option value="">All Semesters</option>
+          {% for s in range(1, 7) %}
+            <option value="{{ s }}" {% if selected_semester == s|string %}selected{% endif %}>Semester {{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex: 1; min-width: 140px;">
+        <label for="status" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">Status</label>
+        <select name="status" id="status" class="form-control" style="width: 100%; padding: 8px 12px;">
+          <option value="">All Statuses</option>
+          <option value="Scheduled" {% if selected_status == 'Scheduled' %}selected{% endif %}>Scheduled</option>
+          <option value="Completed" {% if selected_status == 'Completed' %}selected{% endif %}>Completed</option>
+          <option value="Published" {% if selected_status == 'Published' %}selected{% endif %}>Published</option>
+          <option value="Cancelled" {% if selected_status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+        </select>
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-outline" style="padding: 8px 20px;">Filter</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Exam Table -->
+  <div class="card">
+    {% if exams %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Exam Name</th>
+              <th>Type</th>
+              <th>Course & Sem</th>
+              <th>Acad. Year</th>
+              <th>Status</th>
+              <th>Created By</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for exam in exams %}
+              <tr>
+                <td><strong>{{ exam.exam_name }}</strong></td>
+                <td><span class="badge" style="background: rgba(169, 113, 79, 0.1); color: var(--accent);">{{ exam.exam_type }}</span></td>
+                <td>{{ exam.course }} — Sem {{ exam.semester }}</td>
+                <td>{{ exam.academic_year }}</td>
+                <td>
+                  {% if exam.status == 'Published' %}
+                    <span class="badge badge-present">Published</span>
+                  {% elif exam.status == 'Completed' %}
+                    <span class="badge" style="background: #E8F0FE; color: #1A73E8;">Completed</span>
+                  {% elif exam.status == 'Cancelled' %}
+                    <span class="badge badge-absent">Cancelled</span>
+                  {% else %}
+                    <span class="badge" style="background: #FFF0E6; color: #D96B27;">Scheduled</span>
+                  {% endif %}
+                </td>
+                <td style="color: var(--text-secondary); font-size: 13px;">{{ exam.creator_name }}</td>
+                <td style="text-align: right;">
+                  <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    {% if session.get('role') in ['admin', 'teacher'] %}
+                      <a href="{{ url_for('enter_exam_marks_route', exam_id=exam.id) }}" class="btn btn-primary btn-sm">Enter Marks</a>
+                      <a href="{{ url_for('edit_exam_route', exam_id=exam.id) }}" class="btn btn-outline btn-sm">Edit</a>
+                    {% endif %}
+                    {% if session.get('role') == 'admin' %}
+                      <form method="POST" action="{{ url_for('delete_exam_route', exam_id=exam.id) }}" style="display: inline;" class="js-confirm-delete" data-student-name="{{ exam.exam_name }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div style="text-align: center; padding: 48px 24px; color: var(--text-secondary);">
+        <p style="font-size: 15px; margin-bottom: 12px;">No exams found.</p>
+        {% if session.get('role') in ['admin', 'teacher'] %}
+          <a href="{{ url_for('create_exam_route') }}" class="btn btn-primary">+ Create First Exam</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

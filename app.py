@@ -21,7 +21,8 @@ import qrcode.image.svg
 
 import config
 import database
-from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf, generate_id_card_pdf
+import exam_service
+from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf, generate_id_card_pdf, generate_marksheet_pdf
 from flask_wtf.csrf import CSRFProtect
 from flask_mail import Mail, Message
 
@@ -123,8 +124,8 @@ def _assert_own_record(record_id):
       student_details, attendance/<record_id>, fees/<record_id>
     NOT applied to edit_student (already admin-only via role_required).
     """
-    if session.get("role") == "student":
-        if record_id != session.get("linked_student_id"):
+    if str(session.get("role")).lower() == "student":
+        if str(record_id) != str(session.get("linked_student_id")):
             abort(403)
 
 
@@ -1801,6 +1802,300 @@ def send_attendance_alerts():
 
     flash(f"Sent {sent_count} reminders, {fail_count} failed.", "success" if sent_count > 0 or fail_count == 0 else "error")
     return redirect(url_for("notifications"))
+
+
+# ---------------------------------------------------------------------------
+# Exam & Result Management Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/exams")
+@role_required("admin", "teacher")
+def list_exams_route():
+    course = request.args.get("course", "").strip() or None
+    semester = request.args.get("semester", "").strip() or None
+    academic_year = request.args.get("academic_year", "").strip() or None
+    
+    if semester and semester.isdigit():
+        semester = int(semester)
+    else:
+        semester = None
+
+    try:
+        exams = database.get_all_exams(course=course, semester=semester, academic_year=academic_year)
+    except Error as e:
+        app.logger.error("DB error listing exams: %s", e)
+        flash("Database error loading exams.", "error")
+        exams = []
+
+    return render_template("exams.html", exams=exams, selected_course=course or "", selected_semester=semester or "", selected_year=academic_year or "")
+
+
+@app.route("/exams/create", methods=["GET", "POST"])
+@role_required("admin", "teacher")
+def create_exam_route():
+    if request.method == "POST":
+        exam_name = request.form.get("exam_name", "").strip()
+        exam_type = request.form.get("exam_type", "").strip()
+        course = request.form.get("course", "").strip()
+        semester_str = request.form.get("semester", "").strip()
+        academic_year = request.form.get("academic_year", "").strip()
+        status = request.form.get("status", "Scheduled").strip()
+
+        errors = []
+        if not exam_name:
+            errors.append("Exam name is required.")
+        if not exam_type:
+            errors.append("Exam type is required.")
+        if not course:
+            errors.append("Course is required.")
+        if not semester_str or not semester_str.isdigit() or not (1 <= int(semester_str) <= 6):
+            errors.append("Semester must be between 1 and 6.")
+        if not academic_year:
+            errors.append("Academic year is required.")
+
+        if errors:
+            for err in errors:
+                flash(err, "error")
+            return render_template("exam_form.html", exam=request.form, is_edit=False)
+
+        try:
+            created_by = session.get("user_id")
+            database.create_exam(
+                exam_name=exam_name,
+                exam_type=exam_type,
+                course=course,
+                semester=int(semester_str),
+                academic_year=academic_year,
+                status=status,
+                created_by=created_by
+            )
+            flash(f"Exam '{exam_name}' created successfully.", "success")
+            return redirect(url_for("list_exams_route"))
+        except Error as e:
+            app.logger.error("DB error creating exam: %s", e)
+            flash("Failed to create exam in database.", "error")
+
+    return render_template("exam_form.html", exam={}, is_edit=False)
+
+
+@app.route("/exams/<int:exam_id>/edit", methods=["GET", "POST"])
+@role_required("admin", "teacher")
+def edit_exam_route(exam_id):
+    exam = database.get_exam_by_id(exam_id)
+    if not exam:
+        abort(404)
+
+    if request.method == "POST":
+        exam_name = request.form.get("exam_name", "").strip()
+        exam_type = request.form.get("exam_type", "").strip()
+        course = request.form.get("course", "").strip()
+        semester_str = request.form.get("semester", "").strip()
+        academic_year = request.form.get("academic_year", "").strip()
+        status = request.form.get("status", "Scheduled").strip()
+
+        errors = []
+        if not exam_name:
+            errors.append("Exam name is required.")
+        if not exam_type:
+            errors.append("Exam type is required.")
+        if not course:
+            errors.append("Course is required.")
+        if not semester_str or not semester_str.isdigit() or not (1 <= int(semester_str) <= 6):
+            errors.append("Semester must be between 1 and 6.")
+        if not academic_year:
+            errors.append("Academic year is required.")
+
+        if errors:
+            for err in errors:
+                flash(err, "error")
+            return render_template("exam_form.html", exam=request.form, is_edit=True, exam_id=exam_id)
+
+        try:
+            database.update_exam(
+                exam_id=exam_id,
+                exam_name=exam_name,
+                exam_type=exam_type,
+                course=course,
+                semester=int(semester_str),
+                academic_year=academic_year,
+                status=status
+            )
+            flash(f"Exam '{exam_name}' updated successfully.", "success")
+            return redirect(url_for("list_exams_route"))
+        except Error as e:
+            app.logger.error("DB error updating exam: %s", e)
+            flash("Failed to update exam in database.", "error")
+
+    return render_template("exam_form.html", exam=exam, is_edit=True, exam_id=exam_id)
+
+
+@app.route("/exams/<int:exam_id>/delete", methods=["POST"])
+@role_required("admin")
+def delete_exam_route(exam_id):
+    try:
+        database.delete_exam(exam_id)
+        flash("Exam deleted successfully.", "success")
+    except Error as e:
+        app.logger.error("DB error deleting exam: %s", e)
+        flash("Failed to delete exam.", "error")
+    return redirect(url_for("list_exams_route"))
+
+
+@app.route("/exams/<int:exam_id>/marks", methods=["GET", "POST"])
+@role_required("admin", "teacher")
+def enter_exam_marks_route(exam_id):
+    exam = database.get_exam_by_id(exam_id)
+    if not exam:
+        abort(404)
+
+    if exam["semester"] == 3:
+        database.ensure_semester3_subjects()
+
+    subjects = database.get_subjects_by_course_and_semester(exam["course"], exam["semester"])
+    students = database.get_all_students(course_filter=exam["course"], semester_filter=exam["semester"])
+
+    if request.method == "POST":
+        all_marks_valid = True
+        recorded_by = session.get("user_id")
+
+        for student in students:
+            stud_id = student["student_id"]
+            for sub in subjects:
+                sub_id = sub["subject_id"]
+                max_key = f"max_{stud_id}_{sub_id}"
+                obt_key = f"obt_{stud_id}_{sub_id}"
+
+                max_val = request.form.get(max_key, "").strip()
+                obt_val = request.form.get(obt_key, "").strip()
+
+                if max_val or obt_val:
+                    valid, err_msg, obt_f, max_f = exam_service.validate_marks_input(obt_val, max_val)
+                    if not valid:
+                        flash(f"Student {stud_id} - {sub['subject_name']}: {err_msg}", "error")
+                        all_marks_valid = False
+                    else:
+                        try:
+                            database.save_exam_marks(
+                                exam_id=exam_id,
+                                stud_id=stud_id,
+                                subject_id=sub_id,
+                                obtained_marks=obt_f,
+                                max_marks=max_f,
+                                recorded_by=recorded_by
+                            )
+                        except Error as e:
+                            app.logger.error("DB error saving marks: %s", e)
+                            flash(f"Database error saving marks for {stud_id}", "error")
+                            all_marks_valid = False
+
+        if all_marks_valid:
+            flash("Exam marks saved successfully.", "success")
+            return redirect(url_for("list_exams_route"))
+
+    existing_marks = database.get_all_marks_for_exam(exam_id)
+    marks_map = {}
+    for m in existing_marks:
+        marks_map[(m["stud_id"], m["subject_id"])] = m
+
+    return render_template(
+        "exam_marks_entry.html",
+        exam=exam,
+        subjects=subjects,
+        students=students,
+        marks_map=marks_map
+    )
+
+
+@app.route("/exams/<int:exam_id>/results/<student_id>")
+@role_required("admin", "teacher", "student")
+def view_exam_results_route(exam_id, student_id):
+    _assert_own_record(student_id)
+
+    exam = database.get_exam_by_id(exam_id)
+    if not exam:
+        abort(404)
+
+    student = database.get_student_by_id(student_id)
+    if not student:
+        abort(404)
+
+    raw_marks = database.get_exam_marks_for_student(exam_id, student_id)
+    result_summary = exam_service.compute_student_result_summary(raw_marks)
+
+    return render_template(
+        "student_result.html",
+        exam=exam,
+        student=student,
+        subject_results=result_summary["subject_results"],
+        total_obtained=result_summary["total_obtained"],
+        total_max=result_summary["total_max"],
+        percentage=result_summary["percentage"],
+        overall_grade=result_summary["overall_grade"],
+        overall_status=result_summary["overall_status"]
+    )
+
+
+@app.route("/students/<student_id>/result-history")
+@role_required("admin", "teacher", "student")
+def student_result_history_route(student_id):
+    _assert_own_record(student_id)
+
+    student = database.get_student_by_id(student_id)
+    if not student:
+        abort(404)
+
+    raw_history = database.get_student_exam_history(student_id)
+
+    semester_groups = {}
+    for item in raw_history:
+        sem = item["exam"]["semester"]
+        if sem not in semester_groups:
+            semester_groups[sem] = {"semester": sem, "exams": []}
+        
+        summary = exam_service.compute_student_result_summary(item["marks"])
+        semester_groups[sem]["exams"].append({
+            "exam": item["exam"],
+            "marks": item["marks"],
+            "summary": summary
+        })
+
+    return render_template(
+        "student_result_history.html",
+        student=student,
+        semester_groups=semester_groups
+    )
+
+
+@app.route("/exams/<int:exam_id>/marksheet/<student_id>/pdf")
+@role_required("admin", "teacher", "student")
+def download_marksheet_pdf_route(exam_id, student_id):
+    _assert_own_record(student_id)
+
+    exam = database.get_exam_by_id(exam_id)
+    if not exam:
+        abort(404)
+
+    student = database.get_student_by_id(student_id)
+    if not student:
+        abort(404)
+
+    raw_marks = database.get_exam_marks_for_student(exam_id, student_id)
+    result_summary = exam_service.compute_student_result_summary(raw_marks)
+
+    pdf_bytes = generate_marksheet_pdf(
+        student=student,
+        exam=exam,
+        marks=raw_marks,
+        result_summary=result_summary
+    )
+
+    filename = f"result_{student_id}_{exam_id}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 # ---------------------------------------------------------------------------

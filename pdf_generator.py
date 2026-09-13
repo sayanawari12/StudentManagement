@@ -748,3 +748,227 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
+
+def generate_marksheet_pdf(institution_name, student, exam, result_summary,
+                           institution_location="", institution_affiliation=""):
+    """
+    Generates a professional downloadable Marksheet / Result PDF for a student.
+
+    Args:
+        institution_name (str): College / institute name.
+        student (dict): Student database record.
+        exam (dict): Exam database record.
+        result_summary (dict): Computed result dict from exam_service.compute_student_result_summary().
+        institution_location (str): College address.
+        institution_affiliation (str): College affiliation text.
+
+    Returns:
+        BytesIO: Buffer containing the PDF bytes.
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'HeaderTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        leading=22,
+        alignment=TA_CENTER,
+        textColor=TERRACOTTA,
+    )
+    subtitle_style = ParagraphStyle(
+        'HeaderSub',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9,
+        leading=12,
+        alignment=TA_CENTER,
+        textColor=MUTED_TEXT,
+    )
+    doc_title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=14,
+        leading=18,
+        alignment=TA_CENTER,
+        textColor=DARK_TEXT,
+        spaceAfter=12,
+    )
+    label_style = ParagraphStyle(
+        'LabelStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=12,
+        textColor=MUTED_TEXT,
+    )
+    val_style = ParagraphStyle(
+        'ValStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=12,
+        textColor=DARK_TEXT,
+    )
+    cell_head_style = ParagraphStyle(
+        'CellHead',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=12,
+        textColor=DARK_TEXT,
+    )
+    cell_body_style = ParagraphStyle(
+        'CellBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=12,
+        textColor=DARK_TEXT,
+    )
+
+    story = []
+
+    # 1. Institution Header
+    inst_title = (institution_name or "SUSHGANGA INSTITUTE, WANI").upper()
+    story.append(Paragraph(inst_title, title_style))
+
+    sub_lines = []
+    if institution_location:
+        sub_lines.append(institution_location)
+    if institution_affiliation:
+        sub_lines.append(institution_affiliation)
+    if sub_lines:
+        story.append(Paragraph(" &bull; ".join(sub_lines), subtitle_style))
+
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceBefore=0, spaceAfter=12))
+
+    # 2. Document Title
+    exam_title = f"OFFICIAL MARKSHEET — {exam.get('exam_name', 'EXAMINATION')}"
+    story.append(Paragraph(exam_title, doc_title_style))
+
+    # 3. Student Details Block
+    curr_year = datetime.now().year
+    next_year_short = str(curr_year + 1)[-2:]
+    acad_year = exam.get("academic_year") or f"{curr_year}\u2013{next_year_short}"
+
+    details_data = [
+        [Paragraph("Student Name:", label_style), Paragraph(str(student.get("student_name", "")), val_style),
+         Paragraph("Student ID / Roll:", label_style), Paragraph(str(student.get("student_id", "")), val_style)],
+        [Paragraph("Course:", label_style), Paragraph(str(student.get("course", "")), val_style),
+         Paragraph("Semester:", label_style), Paragraph(f"Semester {student.get('semester', '')}", val_style)],
+        [Paragraph("Exam Type:", label_style), Paragraph(str(exam.get("exam_type", "")), val_style),
+         Paragraph("Academic Year:", label_style), Paragraph(str(acad_year), val_style)],
+    ]
+
+    details_table = Table(details_data, colWidths=[90, 170, 100, 160])
+    details_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('BACKGROUND', (0, 0), (-1, -1), BG_LIGHT),
+        ('BOX', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+    ]))
+    story.append(details_table)
+    story.append(Spacer(1, 14))
+
+    # 4. Subject-wise Result Table
+    table_data = [
+        [
+            Paragraph("<b>Subject Code</b>", cell_head_style),
+            Paragraph("<b>Subject Name</b>", cell_head_style),
+            Paragraph("<b>Max Marks</b>", cell_head_style),
+            Paragraph("<b>Obtained Marks</b>", cell_head_style),
+            Paragraph("<b>Percentage</b>", cell_head_style),
+            Paragraph("<b>Grade</b>", cell_head_style),
+            Paragraph("<b>Status</b>", cell_head_style),
+        ]
+    ]
+
+    for item in result_summary.get("subject_results", []):
+        status_clr = "#3A7D44" if item["status"] == "PASS" else "#9C3B2E"
+        status_p = Paragraph(f"<font color='{status_clr}'><b>{item['status']}</b></font>", cell_body_style)
+        table_data.append([
+            Paragraph(item.get("subject_code", "-"), cell_body_style),
+            Paragraph(item.get("subject_name", ""), cell_body_style),
+            Paragraph(f"{item['max_marks']:.2f}", cell_body_style),
+            Paragraph(f"{item['obtained_marks']:.2f}", cell_body_style),
+            Paragraph(f"{item['percentage']:.1f}%", cell_body_style),
+            Paragraph(item['grade'], cell_body_style),
+            status_p,
+        ])
+
+    res_table = Table(table_data, colWidths=[75, 185, 55, 65, 55, 40, 45])
+    res_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+        ('LINEBELOW', (0, 0), (-1, 0), 1.2, TERRACOTTA),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+        ('BOX', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+    ]))
+    story.append(res_table)
+    story.append(Spacer(1, 14))
+
+    # 5. Overall Summary Table
+    overall_status = result_summary.get("overall_status", "FAIL")
+    overall_clr = "#3A7D44" if overall_status == "PASS" else "#9C3B2E"
+    overall_p = Paragraph(f"<font color='{overall_clr}'><b>{overall_status}</b></font>", cell_head_style)
+
+    summary_data = [
+        [
+            Paragraph("Total Obtained", label_style),
+            Paragraph(f"<b>{result_summary.get('total_obtained', 0):.2f} / {result_summary.get('total_max', 0):.2f}</b>", val_style),
+            Paragraph("Percentage", label_style),
+            Paragraph(f"<b>{result_summary.get('overall_percentage', 0):.2f}%</b>", val_style),
+        ],
+        [
+            Paragraph("Overall Grade", label_style),
+            Paragraph(f"<b>{result_summary.get('overall_grade', 'F')}</b>", val_style),
+            Paragraph("Result Status", label_style),
+            overall_p,
+        ]
+    ]
+
+    summary_table = Table(summary_data, colWidths=[100, 160, 100, 160])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), BG_LIGHT),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BOX', (0, 0), (-1, -1), 1, TERRACOTTA),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 24))
+
+    # 6. Issue Date & Signatures Block
+    issue_date = datetime.now().strftime("%d %B %Y")
+    sig_data = [
+        [
+            Paragraph(f"<b>Date of Issue:</b> {issue_date}", val_style),
+            Paragraph("<b>Controller of Examinations</b>", ParagraphStyle('RightSig', parent=val_style, alignment=TA_RIGHT)),
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[260, 260])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+    ]))
+    story.append(sig_table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer

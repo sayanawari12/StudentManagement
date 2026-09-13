@@ -40,6 +40,8 @@
         {% if session.get('role') in ('admin', 'teacher') %}
           <a href="{{ url_for('attendance') }}"
              class="{{ 'active' if request.endpoint in ['attendance', 'attendance_history'] else '' }}">Attendance</a>
+          <a href="{{ url_for('list_exams_route') }}"
+             class="{{ 'active' if request.endpoint in ['list_exams_route', 'create_exam_route', 'edit_exam_route', 'enter_exam_marks_route'] else '' }}">Exams & Results</a>
         {% endif %}
 
         {# Analytics — admin + teacher #}
@@ -48,10 +50,12 @@
              class="{{ 'active' if request.endpoint == 'analytics' else '' }}">Analytics</a>
         {% endif %}
 
-        {# My Profile — student only (links to their own record) #}
+        {# My Profile & Results — student only (links to their own record) #}
         {% if session.get('role') == 'student' and session.get('linked_student_id') %}
           <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}"
              class="{{ 'active' if request.endpoint == 'student_details' else '' }}">My Profile</a>
+          <a href="{{ url_for('student_result_history_route', student_id=session.linked_student_id) }}"
+             class="{{ 'active' if request.endpoint in ['student_result_history_route', 'view_exam_results_route'] else '' }}">My Exam Results</a>
         {% endif %}
 
         {# Notices — all logged-in roles #}

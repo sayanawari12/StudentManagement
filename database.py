@@ -865,3 +865,264 @@ def is_account_locked(user):
     if isinstance(locked_until, datetime.datetime):
         return locked_until > datetime.datetime.now()
     return False
+
+
+# ---------------------------------------------------------------------------
+# Subject query helpers
+# ---------------------------------------------------------------------------
+
+def ensure_semester3_subjects(course="BCA"):
+    """
+    Ensure that Semester 3 has all 6 mandated subjects in the database.
+    Idempotent (uses INSERT IGNORE).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        sem3_subjects = [
+            ("SE301", "Software Engineering (SE)"),
+            ("DBMS302", "Database Management System (DBMS)"),
+            ("PY303", "Python"),
+            ("PS304", "Probability and Statistics"),
+            ("FE305", "Future Engineering"),
+            ("BDA306", "Basics of Data Analytics Using Spreadsheet"),
+        ]
+        for code, name in sem3_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES (%s, 3, %s, %s, 100.00, 40.00)
+                """,
+                (course, code, name)
+            )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_subjects_by_course_and_semester(course, semester):
+    """Fetch all subjects for a given course and semester."""
+    if str(semester) == "3":
+        ensure_semester3_subjects(course)
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT * FROM subjects WHERE course = %s AND semester = %s ORDER BY id ASC",
+            (course, semester)
+        )
+        subjects = cursor.fetchall()
+        if not subjects and str(semester) == "3":
+            ensure_semester3_subjects("BCA")
+            cursor.execute(
+                "SELECT * FROM subjects WHERE semester = 3 ORDER BY id ASC"
+            )
+            subjects = cursor.fetchall()
+        return subjects
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_subject_by_id(subject_id):
+    """Fetch a single subject by ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM subjects WHERE id = %s", (subject_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Exam query helpers
+# ---------------------------------------------------------------------------
+
+def create_exam(exam_name, exam_type, course, semester, academic_year, created_by, status="Scheduled"):
+    """Insert a new exam into the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO exams (exam_name, exam_type, course, semester, academic_year, status, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (exam_name, exam_type, course, semester, academic_year, status, created_by)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_exams(course=None, semester=None, status=None):
+    """Fetch exams with optional filtering."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query = "SELECT e.*, u.username as creator_name FROM exams e JOIN users u ON u.id = e.created_by WHERE 1=1"
+        params = []
+        if course:
+            query += " AND e.course = %s"
+            params.append(course)
+        if semester:
+            query += " AND e.semester = %s"
+            params.append(semester)
+        if status:
+            query += " AND e.status = %s"
+            params.append(status)
+        query += " ORDER BY e.created_at DESC"
+        cursor.execute(query, params)
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_exam_by_id(exam_id):
+    """Fetch a single exam record by ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT e.*, u.username as creator_name FROM exams e JOIN users u ON u.id = e.created_by WHERE e.id = %s",
+            (exam_id,)
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_exam(exam_id, exam_name, exam_type, course, semester, academic_year, status):
+    """Update an existing exam record."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE exams
+            SET exam_name = %s, exam_type = %s, course = %s, semester = %s, academic_year = %s, status = %s
+            WHERE id = %s
+            """,
+            (exam_name, exam_type, course, semester, academic_year, status, exam_id)
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_exam(exam_id):
+    """Delete an exam record and all associated marks."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM exams WHERE id = %s", (exam_id,))
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Exam Marks / Results query helpers
+# ---------------------------------------------------------------------------
+
+def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by):
+    """
+    Insert or update a student's marks for a subject in an exam.
+    Prevents duplicate entries via ON DUPLICATE KEY UPDATE.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO exam_marks (exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                obtained_marks = VALUES(obtained_marks),
+                max_marks = VALUES(max_marks),
+                recorded_by = VALUES(recorded_by)
+            """,
+            (exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by)
+        )
+        conn.commit()
+        return cursor.lastrowid or cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_exam_marks_for_student(exam_id, stud_id):
+    """Fetch all subject marks recorded for a specific student in an exam."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT m.*, sub.subject_name, sub.subject_code, sub.pass_marks
+            FROM exam_marks m
+            JOIN subjects sub ON sub.id = m.subject_id
+            WHERE m.exam_id = %s AND m.stud_id = %s
+            ORDER BY sub.id ASC
+            """,
+            (exam_id, stud_id)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_marks_for_exam(exam_id):
+    """Fetch all recorded marks for an exam grouped by student."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT m.*, s.student_name, s.student_id as roll_no, sub.subject_name, sub.subject_code
+            FROM exam_marks m
+            JOIN students s ON s.id = m.stud_id
+            JOIN subjects sub ON sub.id = m.subject_id
+            WHERE m.exam_id = %s
+            ORDER BY s.student_name ASC, sub.id ASC
+            """,
+            (exam_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_student_exam_history(stud_id):
+    """Fetch all exam results recorded for a student across all semesters."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT DISTINCT e.*
+            FROM exams e
+            JOIN exam_marks m ON m.exam_id = e.id
+            WHERE m.stud_id = %s
+            ORDER BY e.academic_year DESC, e.semester DESC, e.created_at DESC
+            """,
+            (stud_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+

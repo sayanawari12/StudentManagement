@@ -136,6 +136,68 @@ def migrate():
         "ALTER TABLE users ADD COLUMN locked_until DATETIME NULL",
         "ADD COLUMN users.locked_until")
 
+    # 13 — subjects table
+    run(cursor, """
+        CREATE TABLE IF NOT EXISTS subjects (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            course        VARCHAR(50)  NOT NULL,
+            semester      INT          NOT NULL,
+            subject_code  VARCHAR(20)  NULL,
+            subject_name  VARCHAR(150) NOT NULL,
+            max_marks     DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+            pass_marks    DECIMAL(5,2) NOT NULL DEFAULT 40.00,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_course_sem_subject (course, semester, subject_name)
+        )
+    """, "CREATE TABLE subjects")
+
+    # 14 — exams table
+    run(cursor, """
+        CREATE TABLE IF NOT EXISTS exams (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            exam_name     VARCHAR(150) NOT NULL,
+            exam_type     ENUM('Internal 1','Internal 2','Practical','Semester Examination') NOT NULL,
+            course        VARCHAR(50)  NOT NULL,
+            semester      INT          NOT NULL,
+            academic_year VARCHAR(20)  NOT NULL,
+            status        ENUM('Scheduled','Completed','Published','Cancelled') NOT NULL DEFAULT 'Scheduled',
+            created_by    INT          NOT NULL,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )
+    """, "CREATE TABLE exams")
+
+    # 15 — exam_marks table
+    run(cursor, """
+        CREATE TABLE IF NOT EXISTS exam_marks (
+            id             INT AUTO_INCREMENT PRIMARY KEY,
+            exam_id        INT          NOT NULL,
+            stud_id        INT          NOT NULL,
+            subject_id     INT          NOT NULL,
+            obtained_marks DECIMAL(5,2) NOT NULL,
+            max_marks      DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+            recorded_by    INT          NOT NULL,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_exam_student_subject (exam_id, stud_id, subject_id),
+            FOREIGN KEY (exam_id)    REFERENCES exams(id) ON DELETE CASCADE,
+            FOREIGN KEY (stud_id)    REFERENCES students(id) ON DELETE CASCADE,
+            FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+            FOREIGN KEY (recorded_by) REFERENCES users(id)
+        )
+    """, "CREATE TABLE exam_marks")
+
+    # 16 — Seed Semester 3 default subjects
+    run(cursor, """
+        INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks) VALUES
+            ('BCA', 3, 'SE301', 'Software Engineering (SE)', 100.00, 40.00),
+            ('BCA', 3, 'DBMS302', 'Database Management System (DBMS)', 100.00, 40.00),
+            ('BCA', 3, 'PY303', 'Python', 100.00, 40.00),
+            ('BCA', 3, 'PS304', 'Probability and Statistics', 100.00, 40.00),
+            ('BCA', 3, 'FE305', 'Future Engineering', 100.00, 40.00),
+            ('BCA', 3, 'BDA306', 'Basics of Data Analytics Using Spreadsheet', 100.00, 40.00)
+    """, "SEED Semester 3 subjects")
+
     conn.commit()
     cursor.close()
     conn.close()
