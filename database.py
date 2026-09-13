@@ -962,7 +962,7 @@ def create_exam(exam_name, exam_type, course, semester, academic_year, created_b
         conn.close()
 
 
-def get_all_exams(course=None, semester=None, status=None):
+def get_all_exams(course=None, semester=None, academic_year=None, status=None):
     """Fetch exams with optional filtering."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -975,6 +975,9 @@ def get_all_exams(course=None, semester=None, status=None):
         if semester:
             query += " AND e.semester = %s"
             params.append(semester)
+        if academic_year:
+            query += " AND e.academic_year = %s"
+            params.append(academic_year)
         if status:
             query += " AND e.status = %s"
             params.append(status)
@@ -1038,11 +1041,25 @@ def delete_exam(exam_id):
 # Exam Marks / Results query helpers
 # ---------------------------------------------------------------------------
 
+def _resolve_student_pk(stud_id):
+    """If stud_id is a string like 'BCA2401', lookup the integer PK 'id' from students table."""
+    if isinstance(stud_id, int):
+        return stud_id
+    if isinstance(stud_id, str):
+        if stud_id.isdigit():
+            return int(stud_id)
+        student = get_student_by_id(stud_id)
+        if student and "id" in student:
+            return student["id"]
+    return stud_id
+
+
 def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by):
     """
     Insert or update a student's marks for a subject in an exam.
     Prevents duplicate entries via ON DUPLICATE KEY UPDATE.
     """
+    pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -1055,7 +1072,7 @@ def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, rec
                 max_marks = VALUES(max_marks),
                 recorded_by = VALUES(recorded_by)
             """,
-            (exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by)
+            (exam_id, pk_id, subject_id, obtained_marks, max_marks, recorded_by)
         )
         conn.commit()
         return cursor.lastrowid or cursor.rowcount
@@ -1066,6 +1083,7 @@ def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, rec
 
 def get_exam_marks_for_student(exam_id, stud_id):
     """Fetch all subject marks recorded for a specific student in an exam."""
+    pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -1077,7 +1095,7 @@ def get_exam_marks_for_student(exam_id, stud_id):
             WHERE m.exam_id = %s AND m.stud_id = %s
             ORDER BY sub.id ASC
             """,
-            (exam_id, stud_id)
+            (exam_id, pk_id)
         )
         return cursor.fetchall()
     finally:
@@ -1109,6 +1127,7 @@ def get_all_marks_for_exam(exam_id):
 
 def get_student_exam_history(stud_id):
     """Fetch all exam results recorded for a student across all semesters."""
+    pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -1120,9 +1139,18 @@ def get_student_exam_history(stud_id):
             WHERE m.stud_id = %s
             ORDER BY e.academic_year DESC, e.semester DESC, e.created_at DESC
             """,
-            (stud_id,)
+            (pk_id,)
         )
-        return cursor.fetchall()
+        exam_list = cursor.fetchall()
+        
+        history = []
+        for exam in exam_list:
+            marks = get_exam_marks_for_student(exam["id"], pk_id)
+            history.append({
+                "exam": exam,
+                "marks": marks
+            })
+        return history
     finally:
         cursor.close()
         conn.close()
