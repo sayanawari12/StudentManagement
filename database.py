@@ -789,7 +789,70 @@ def reset_failed_login(user_id):
         conn.close()
 
 
+
+# ---------------------------------------------------------------------------
+# Audit log query
+# ---------------------------------------------------------------------------
+
+def get_audit_log(limit=100):
+    """Return the most recent combined activity across attendance, grades, and notices.
+
+    Each row has the same shape:
+        event_type  — 'attendance' | 'grade' | 'notice'
+        event_time  — datetime-like value (date for attendance, DATETIME for the rest)
+        actor       — username of the staff member who performed the action
+        description — human-readable summary of the event
+
+    Ordered newest-first and capped at `limit` rows.
+    Returns an empty list (never None, never raises) when there is no data.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT event_type, event_time, actor, description
+            FROM (
+                SELECT 'attendance' AS event_type,
+                       a.date       AS event_time,
+                       u.username   AS actor,
+                       CONCAT('Marked ', a.status, ' for ', s.student_name) AS description
+                FROM attendance a
+                JOIN users    u ON u.id = a.marked_by
+                JOIN students s ON s.id = a.stud_id
+
+                UNION ALL
+
+                SELECT 'grade'      AS event_type,
+                       g.created_at AS event_time,
+                       u.username   AS actor,
+                       CONCAT('Recorded ', g.subject, ' (', g.exam_type, ') for ', s.student_name) AS description
+                FROM grades g
+                JOIN users    u ON u.id = g.recorded_by
+                JOIN students s ON s.id = g.stud_id
+
+                UNION ALL
+
+                SELECT 'notice'     AS event_type,
+                       n.created_at AS event_time,
+                       u.username   AS actor,
+                       CONCAT('Posted notice: ', n.title) AS description
+                FROM notices n
+                JOIN users u ON u.id = n.posted_by
+            ) AS audit_union
+            ORDER BY event_time DESC
+            LIMIT %s
+            """,
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def is_account_locked(user):
+
     """Return True if user's locked_until is set and is in the future."""
     if not user or not user.get("locked_until"):
         return False

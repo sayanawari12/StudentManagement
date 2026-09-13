@@ -74,6 +74,7 @@ INSTITUTION_NAME = "Your College Name Here"
 ATTENDANCE_TREND_DAYS = 14
 NOTICES_LIMIT_DASH = 3    # recent notices shown on dashboard
 NOTICES_LIMIT_FULL = 50   # cap for the full /notices page
+AUDIT_LOG_LIMIT    = 100  # most recent combined events shown on /audit-log
 EXPECTED_CSV_HEADERS = [
     "student_id", "student_name", "email", "phone",
     "gender", "date_of_birth", "course", "semester", "address"
@@ -1395,6 +1396,28 @@ def notice_delete(notice_id):
         app.logger.warning("DB error deleting notice %s: %s", notice_id, e)
         flash("Could not delete the notice.", "error")
     return redirect(url_for("notices"))
+
+
+# ---------------------------------------------------------------------------
+# Audit Log route
+# ---------------------------------------------------------------------------
+
+
+@app.route("/audit-log")
+@role_required("admin")
+def audit_log():
+    """Display a combined, newest-first activity log across attendance, grades, and notices.
+
+    Admin-only: reveals who marked attendance, recorded grades, and posted
+    notices across the whole system.  Capped at AUDIT_LOG_LIMIT rows.
+    """
+    try:
+        events = database.get_audit_log(AUDIT_LOG_LIMIT)
+    except Error as e:
+        app.logger.warning("DB error loading audit log: %s", e)
+        flash("Could not load the audit log from the database.", "error")
+        events = []
+    return render_template("audit_log.html", events=events)
 
 
 # ---------------------------------------------------------------------------

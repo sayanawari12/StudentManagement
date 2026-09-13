@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Audit Log</h1>
+      <p>Recent activity across attendance, grades, and notices.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    {% if events %}
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Event Type</th>
+            <th>Actor</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ev in events %}
+            <tr>
+              <td style="white-space:nowrap; color:var(--muted,#888); font-size:0.85rem;">
+                {% if ev.event_time %}
+                  {% if ev.event_time is string %}
+                    {{ ev.event_time }}
+                  {% elif ev.event_time.strftime is defined %}
+                    {{ ev.event_time.strftime('%d %b %Y, %H:%M') }}
+                  {% else %}
+                    {{ ev.event_time }}
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                <span style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted,#888);">
+                  {{ ev.event_type }}
+                </span>
+              </td>
+              <td><strong>{{ ev.actor }}</strong></td>
+              <td>{{ ev.description }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <strong>No activity recorded yet.</strong>
+        Activity will appear here once attendance is marked, grades are recorded, or notices are posted.
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

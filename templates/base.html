@@ -31,7 +31,10 @@
              class="{{ 'active' if request.endpoint == 'add_student' else '' }}">Add student</a>
           <a href="{{ url_for('notifications') }}"
              class="{{ 'active' if request.endpoint == 'notifications' else '' }}">Notifications</a>
+          <a href="{{ url_for('audit_log') }}"
+             class="{{ 'active' if request.endpoint == 'audit_log' else '' }}">Audit Log</a>
         {% endif %}
+
 
         {# Attendance — admin + teacher #}
         {% if session.get('role') in ('admin', 'teacher') %}
