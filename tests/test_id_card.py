@@ -182,3 +182,40 @@ def test_qr_code_scannable_url_flow(admin_client, client, db):
     assert b"ACTIVE STUDENT" in verify_res.data
     assert b"Aarav Sharma" in verify_res.data or b"BCA2401" in verify_res.data
 
+
+def test_public_base_url_qr_generation(monkeypatch):
+    import config
+    from app import _get_verification_url
+
+    test_domain = "https://studentmanagement.vercel.app"
+    monkeypatch.setattr(config, "PUBLIC_BASE_URL", test_domain)
+
+    student = _make_student(student_id="BCA2401")
+    verify_url = _get_verification_url(student)
+
+    assert verify_url == "https://studentmanagement.vercel.app/verify/student/BCA2401"
+    assert "127.0.0.1" not in verify_url
+    assert "localhost" not in verify_url
+
+
+def test_public_student_verify_route_no_login(client):
+    # Public route /verify/student/<student_id> accessible without login
+    res = client.get("/verify/student/BCA2401")
+    assert res.status_code == 200
+    assert b"VALID" in res.data
+    assert b"ACTIVE STUDENT" in res.data
+    assert b"Aarav Sharma" in res.data
+    assert b"BCA2401" in res.data
+
+    # Verify sensitive data (passwords, tokens, address, phone) are NOT exposed on verify page
+    assert b"password" not in res.data.lower()
+    assert b"secret" not in res.data.lower()
+    assert b"9876543210" not in res.data  # Phone number excluded from public page
+
+
+def test_public_student_verify_nonexistent(client):
+    res = client.get("/verify/student/NONEXISTENT999")
+    assert res.status_code == 200
+    assert b"Student record not found" in res.data or b"error" in res.data.lower()
+
+

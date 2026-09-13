@@ -866,16 +866,24 @@ def _get_student_photo_url(student):
         return url_for("static", filename="images/id-card-default-male.jpg")
 
 
-def _get_verification_url(record_id):
+def _get_verification_url(student):
     """
-    Builds full, fully-qualified public verification URL for QR code scanning.
-    Uses APP_BASE_URL env var if configured (for production/Vercel deployments),
-    else defaults to url_for(..., _external=True).
+    Builds full public verification URL for QR code scanning.
+    Format required:
+        PUBLIC_BASE_URL + /verify/student/<student_id>
+    
+    If PUBLIC_BASE_URL is configured (e.g. "https://studentmanagement.vercel.app"),
+    returns: f"{config.PUBLIC_BASE_URL}/verify/student/{student['student_id']}"
     """
-    base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
-    if base_url:
-        return f"{base_url}/students/{record_id}/id-card/verify"
-    return url_for("student_id_card_verify", record_id=record_id, _external=True)
+    student_id_str = str(student.get("student_id") or student.get("id")).strip()
+    pub_base = (getattr(config, "PUBLIC_BASE_URL", "") or os.environ.get("PUBLIC_BASE_URL", "")).strip().rstrip("/")
+    if pub_base:
+        return f"{pub_base}/verify/student/{student_id_str}"
+
+    try:
+        return url_for("public_student_verify", student_id=student_id_str, _external=True)
+    except Exception:
+        return f"/verify/student/{student_id_str}"
 
 
 def _generate_qr_data_uri(text_data):
@@ -911,7 +919,7 @@ def student_id_card_preview(record_id):
     curr_year = datetime.datetime.now().year
     acad_year = f"{curr_year}\u2013{str(curr_year + 1)[-2:]}"
 
-    verify_url = _get_verification_url(record_id)
+    verify_url = _get_verification_url(student)
     qr_data_uri = _generate_qr_data_uri(verify_url)
     photo_url = _get_student_photo_url(student)
 
@@ -936,7 +944,7 @@ def student_id_card_download(record_id):
     if err_redirect:
         return err_redirect
 
-    verify_url = _get_verification_url(record_id)
+    verify_url = _get_verification_url(student)
 
     try:
         pdf_buffer = generate_id_card_pdf(
@@ -959,45 +967,66 @@ def student_id_card_download(record_id):
     )
 
 
-@app.route("/students/<int:record_id>/id-card/verify")
-def student_id_card_verify(record_id):
+@app.route("/verify/student/<student_id>")
+def public_student_verify(student_id):
     """
-    Public verification page (no login required) — shows only safe fields.
-    Encoded in the QR code so anyone can scan and verify.
-    Never exposes passwords, tokens, or private data.
+    Public QR code verification page (no login required).
+    Fetches student dynamically from the database using student_id (VARCHAR roll number).
+    Shows ONLY safe public details:
+    - Student Name
+    - Student ID
+    - Course
+    - Semester
+    - Academic Year
+    - Student Status
+    Does NOT expose passwords, tokens, phone numbers, email, address, or private fields.
     """
+    student = None
     try:
-        student = database.get_student_by_id(record_id)
+        student = database.get_student_by_student_id(student_id)
+        if not student and str(student_id).isdigit():
+            student = database.get_student_by_id(int(student_id))
     except Error as e:
-        app.logger.warning("DB error fetching student %s for ID card verify: %s", record_id, e)
+        app.logger.warning("DB error fetching student %s for QR verify: %s", student_id, e)
         return render_template("id_card_verify.html", student=None, error="Database unavailable.")
 
     if not student:
         return render_template("id_card_verify.html", student=None, error="Student record not found.")
 
-    # Dynamic academic year
     curr_year = datetime.datetime.now().year
     acad_year = f"{curr_year}\u2013{str(curr_year + 1)[-2:]}"
 
-    # Only expose safe, non-sensitive fields
     safe_student = {
-        "student_name": student.get("student_name", ""),
-        "student_id":   student.get("student_id", ""),
-        "course":       student.get("course", ""),
-        "semester":     student.get("semester", ""),
-        "gender":       student.get("gender", ""),
-        "acad_year":    acad_year,
-        "status":       "Active",
+        "id": student["id"],
+        "student_id": student["student_id"],
+        "student_name": student["student_name"],
+        "course": student.get("course", ""),
+        "semester": student.get("semester", ""),
+        "gender": student.get("gender", ""),
+        "acad_year": acad_year,
+        "status": "Active",
     }
 
     return render_template(
         "id_card_verify.html",
         student=safe_student,
-        institution_name=INSTITUTION_NAME,
-        institution_affiliation=INSTITUTION_AFFILIATION,
         error=None,
+        institution_name=INSTITUTION_NAME,
+        institution_location=INSTITUTION_LOCATION,
+        institution_affiliation=INSTITUTION_AFFILIATION,
     )
 
+
+@app.route("/students/<int:record_id>/id-card/verify")
+def student_id_card_verify(record_id):
+    """Alias for backwards compatibility — redirects to public verify logic."""
+    try:
+        student = database.get_student_by_id(record_id)
+        if student:
+            return public_student_verify(student["student_id"])
+    except Exception:
+        pass
+    return public_student_verify(str(record_id))
 
 # ---------------------------------------------------------------------------
 # Attendance routes

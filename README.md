@@ -165,7 +165,10 @@ DB_USER=root
 DB_PASSWORD=your_mysql_password
 DB_NAME=student_management
 SECRET_KEY=your_random_secret_key
+# Configurable public base URL for ID Card QR verification scans (e.g. https://your-app.vercel.app or http://192.168.1.100:5000)
+PUBLIC_BASE_URL=https://your-app.vercel.app
 ```
+
 
 ### 3. Install dependencies
 ```bash
