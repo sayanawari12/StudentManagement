@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}ID Card — {{ student.student_name }} — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Student ID Card</h1>
+      <p>{{ student.student_name }} &mdash; {{ student.student_id }}</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('student_id_card_download', record_id=student.id) }}"
+         class="btn btn-primary" id="btn-download-id-card">Download PDF</a>
+      <button type="button" class="btn btn-outline" id="btn-print-id-card"
+              onclick="window.print()">Print</button>
+      <a href="{{ url_for('student_details', record_id=student.id) }}"
+         class="btn btn-outline">Back to Profile</a>
+    </div>
+  </div>
+
+  <!-- Physical College ID Card Container (CR80 proportions) -->
+  <div style="max-width: 580px; margin: 32px auto;">
+    <div class="id-card-frame" style="
+      background: #FAF9F6;
+      border: 2px solid #161616;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+      font-family: var(--font-body), 'IBM Plex Sans', sans-serif;
+      position: relative;
+    ">
+      <!-- College Banner Header -->
+      <div style="background: var(--accent, #A9714F); color: #ffffff; padding: 14px 20px 10px; text-align: center; border-bottom: 2px solid #7A4E35;">
+        <div style="font-family: var(--font-heading), serif; font-size: 17px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">
+          {{ institution_name or "Sushganga Institute, Wani" }}
+        </div>
+        {% if institution_location %}
+          <div style="font-size: 10.5px; margin-top: 2px; opacity: 0.92; font-style: italic;">
+            {{ institution_location }}
+          </div>
+        {% endif %}
+        {% if institution_affiliation %}
+          <div style="font-size: 9.5px; margin-top: 1px; opacity: 0.85;">
+            {{ institution_affiliation }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Badge Bar -->
+      <div style="background: #7A4E35; color: #ffffff; text-align: center; font-size: 9.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; padding: 3px 0;">
+        Student ID Card
+      </div>
+
+      <!-- Card Body: Left Photo, Middle Details, Right QR Code -->
+      <div style="display: grid; grid-template-columns: 110px 1fr 100px; gap: 16px; padding: 18px 20px 14px; align-items: start;">
+        
+        <!-- Left: Student Photo -->
+        <div style="text-align: center;">
+          <img src="{{ photo_url }}" alt="{{ student.student_name }}" style="
+            width: 100px;
+            height: 125px;
+            object-fit: cover;
+            border: 2px solid var(--accent, #A9714F);
+            border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            background: #fff;
+            display: block;
+            margin: 0 auto;
+          " id="img-id-photo">
+          <div style="
+            margin-top: 8px;
+            display: inline-block;
+            background: #EBF5EC;
+            color: #3A7D44;
+            border: 1px solid #3A7D44;
+            border-radius: 3px;
+            padding: 2px 8px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+          ">
+            Active Student
+          </div>
+        </div>
+
+        <!-- Middle: Student Details -->
+        <div>
+          <div style="font-family: var(--font-heading), serif; font-size: 18px; font-weight: 700; color: #161616; margin-bottom: 10px; border-bottom: 1px solid rgba(22,22,22,0.12); padding-bottom: 4px;" id="val-student-name">
+            {{ student.student_name }}
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <tr>
+              <td style="color: var(--text-secondary, #6B6258); width: 36%; padding: 3px 0; font-size: 11px;">Student ID:</td>
+              <td style="font-family: monospace; font-weight: 700; color: #161616; padding: 3px 0;" id="val-student-id">{{ student.student_id }}</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-secondary, #6B6258); padding: 3px 0; font-size: 11px;">Course:</td>
+              <td style="font-weight: 600; color: #161616; padding: 3px 0;" id="val-course">{{ student.course }}</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-secondary, #6B6258); padding: 3px 0; font-size: 11px;">Semester:</td>
+              <td style="font-weight: 600; color: #161616; padding: 3px 0;" id="val-semester">Semester {{ student.semester }}</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-secondary, #6B6258); padding: 3px 0; font-size: 11px;">Acad. Year:</td>
+              <td style="font-weight: 600; color: #161616; padding: 3px 0;" id="val-acad-year">{{ acad_year }}</td>
+            </tr>
+            {% if student.gender %}
+            <tr>
+              <td style="color: var(--text-secondary, #6B6258); padding: 3px 0; font-size: 11px;">Gender:</td>
+              <td style="font-weight: 500; color: #161616; padding: 3px 0;" id="val-gender">{{ student.gender }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+
+        <!-- Right: Visible QR Code -->
+        <div style="text-align: center;">
+          {% if qr_data_uri %}
+            <div style="
+              background: #fff;
+              border: 1px solid rgba(22,22,22,0.18);
+              border-radius: 6px;
+              padding: 6px;
+              display: inline-block;
+              box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+            ">
+              <img src="{{ qr_data_uri }}" alt="Verification QR Code" style="width: 88px; height: 88px; display: block;" id="img-id-qr">
+            </div>
+            <div style="font-size: 9px; font-weight: 700; color: var(--text-secondary, #6B6258); margin-top: 5px; letter-spacing: 0.05em;">
+              SCAN TO VERIFY
+            </div>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <!-- Footer Strip -->
+      <div style="
+        background: #F2F0EB;
+        border-top: 1px solid rgba(22,22,22,0.1);
+        padding: 6px 16px;
+        font-size: 9.5px;
+        color: #7A6F62;
+        text-align: center;
+      ">
+        {{ institution_name or "Sushganga Institute, Wani" }} &bull; Official Student Identity Document
+      </div>
+
+    </div>
+  </div>
+{% endblock %}

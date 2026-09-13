@@ -281,6 +281,281 @@ def generate_bonafide_pdf(institution_name, student,
     return buffer
 
 
+# ---------------------------------------------------------------------------
+# ID Card PDF  (CR80 size: 85.6 mm × 54 mm ≈ 242.6 pt × 153.1 pt)
+# ---------------------------------------------------------------------------
+
+# CR80 dimensions in points (1 pt = 1/72 inch; 1 mm = 2.8346 pt)
+_CR80_W = 85.6 * 2.8346   # ≈ 242.6 pt
+_CR80_H = 54.0 * 2.8346   # ≈ 153.1 pt
+
+# Accent colours (reuse module-level constants where possible)
+_ID_ACCENT      = colors.HexColor("#A9714F")   # terracotta — matches CSS :root --accent
+_ID_ACCENT_DARK = colors.HexColor("#7A4E35")
+_ID_WHITE       = colors.white
+_ID_DARK        = colors.HexColor("#111111")
+_ID_MUTED       = colors.HexColor("#555555")
+_ID_LIGHT_BG    = colors.HexColor("#F8F7F4")
+_ID_BORDER      = colors.HexColor("#222222")
+
+
+def _draw_id_card_frame(canvas, doc):
+    """Draw the ID card outer double border and header accent band."""
+    w, h = _CR80_W, _CR80_H
+    margin = 3
+
+    canvas.saveState()
+
+    # Outer border
+    canvas.setLineWidth(1.0)
+    canvas.setStrokeColor(_ID_BORDER)
+    canvas.rect(margin, margin, w - 2 * margin, h - 2 * margin)
+
+    # Inner border (inset 2 pt)
+    canvas.setLineWidth(0.4)
+    canvas.setStrokeColor(_ID_MUTED)
+    canvas.rect(margin + 2, margin + 2, w - 2 * (margin + 2), h - 2 * (margin + 2))
+
+    # Header accent band (top strip)
+    band_h = 30
+    canvas.setFillColor(_ID_ACCENT)
+    canvas.setStrokeColor(_ID_ACCENT)
+    canvas.rect(margin, h - margin - band_h, w - 2 * margin, band_h, fill=1, stroke=0)
+
+    # Thin separator below header band
+    canvas.setLineWidth(0.6)
+    canvas.setStrokeColor(_ID_ACCENT_DARK)
+    canvas.line(margin, h - margin - band_h, w - margin, h - margin - band_h)
+
+    canvas.restoreState()
+
+
+def _qr_image_flowable(data_str, size_pt):
+    """
+    Generate a QR code for *data_str* and return a ReportLab Image flowable
+    sized to *size_pt* × *size_pt* points.  Requires the 'qrcode[pil]' package
+    which is already listed in requirements.txt.
+    """
+    import qrcode as qr_lib
+    from PIL import Image as PilImage
+    from reportlab.platypus import Image as RLImage
+
+    qr = qr_lib.QRCode(
+        version=None,
+        error_correction=qr_lib.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(data_str)
+    qr.make(fit=True)
+    pil_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+
+    img_buf = BytesIO()
+    pil_img.save(img_buf, format="PNG")
+    img_buf.seek(0)
+    return RLImage(img_buf, width=size_pt, height=size_pt)
+
+
+def resolve_student_photo_path(student, root_dir=None):
+    """
+    Returns absolute file path to the student's photo image:
+    1. If student has 'photo' column and file exists on disk -> return custom photo path.
+    2. Else check student's 'gender' field:
+       - If gender is 'female' / 'girl' / 'f' -> static/images/id-card-default-female.jpg
+       - Else -> static/images/id-card-default-male.jpg
+    """
+    if root_dir is None:
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+
+    custom_photo = student.get("photo")
+    if custom_photo and isinstance(custom_photo, str) and custom_photo.strip():
+        p = custom_photo.strip().lstrip("/")
+        full = os.path.join(root_dir, p) if not os.path.isabs(custom_photo) else custom_photo
+        if os.path.isfile(full):
+            return full
+
+    gender = str(student.get("gender") or "").strip().lower()
+    if gender in ("female", "girl", "f"):
+        filename = "id-card-default-female.jpg"
+    else:
+        filename = "id-card-default-male.jpg"
+
+    default_path = os.path.join(root_dir, "static", "images", filename)
+    if os.path.isfile(default_path):
+        return default_path
+    return None
+
+
+def generate_id_card_pdf(institution_name, student,
+                         verification_url="",
+                         institution_location="",
+                         institution_affiliation=""):
+    """
+    Generates a professional CR80-sized (85.6 × 54 mm) Student ID Card PDF.
+
+    Args:
+        institution_name (str): College name — printed in the header band.
+        student (dict): Student record from the database.
+        verification_url (str): URL encoded in the QR code.
+        institution_location (str): Address line shown under the college name.
+        institution_affiliation (str): Affiliation line.
+
+    Returns:
+        BytesIO: Buffer containing the PDF bytes.
+    """
+    buffer = BytesIO()
+
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.utils import ImageReader
+
+    c = rl_canvas.Canvas(buffer, pagesize=(_CR80_W, _CR80_H))
+
+    # ── 1. Structural frame & background ─────────────────────────────────
+    _draw_id_card_frame(c, None)
+
+    card_w, card_h = _CR80_W, _CR80_H
+    margin     = 5
+    band_h     = 30
+    content_y  = card_h - margin - band_h
+
+    # ── 2. Header band text ───────────────────────────────────────────────
+    c.setFillColor(_ID_WHITE)
+    inst_text = (institution_name or "SUSHGANGA INSTITUTE, WANI").upper()
+    c.setFont("Helvetica-Bold", 6.5)
+    c.drawCentredString(card_w / 2, card_h - margin - 10, inst_text)
+
+    if institution_location:
+        c.setFont("Helvetica-Oblique", 4.2)
+        c.drawCentredString(card_w / 2, card_h - margin - 17, institution_location)
+
+    c.setFont("Helvetica-Bold", 4.8)
+    c.drawCentredString(card_w / 2, card_h - margin - 25, "STUDENT  ID  CARD")
+
+    # ── 3. Left column — Student Photo & Status Badge ─────────────────────
+    photo_x = margin + 3
+    photo_w = 40
+    photo_h = 50
+    photo_y = content_y - photo_h - 6
+
+    photo_path = resolve_student_photo_path(student)
+    if photo_path and os.path.isfile(photo_path):
+        try:
+            photo_img = ImageReader(photo_path)
+            c.drawImage(photo_img, photo_x, photo_y, width=photo_w, height=photo_h, preserveAspectRatio=True, anchor='c')
+            # Outer border for photo
+            c.setLineWidth(0.6)
+            c.setStrokeColor(_ID_ACCENT)
+            c.rect(photo_x, photo_y, photo_w, photo_h, fill=0, stroke=1)
+        except Exception:
+            c.setFillColor(_ID_LIGHT_BG)
+            c.setStrokeColor(_ID_MUTED)
+            c.rect(photo_x, photo_y, photo_w, photo_h, fill=1, stroke=1)
+            c.setFillColor(_ID_MUTED)
+            c.setFont("Helvetica", 4)
+            c.drawCentredString(photo_x + photo_w / 2, photo_y + photo_h / 2, "PHOTO")
+    else:
+        c.setFillColor(_ID_LIGHT_BG)
+        c.setStrokeColor(_ID_MUTED)
+        c.rect(photo_x, photo_y, photo_w, photo_h, fill=1, stroke=1)
+        c.setFillColor(_ID_MUTED)
+        c.setFont("Helvetica", 4)
+        c.drawCentredString(photo_x + photo_w / 2, photo_y + photo_h / 2, "PHOTO")
+
+    # Status Pill Badge below Photo
+    status_w = photo_w
+    status_h = 8
+    status_y = photo_y - 10
+    c.setFillColor(colors.HexColor("#EBF5EC"))
+    c.setStrokeColor(colors.HexColor("#3A7D44"))
+    c.setLineWidth(0.4)
+    c.rect(photo_x, status_y, status_w, status_h, fill=1, stroke=1)
+    c.setFillColor(colors.HexColor("#3A7D44"))
+    c.setFont("Helvetica-Bold", 3.8)
+    c.drawCentredString(photo_x + status_w / 2, status_y + 2.5, "ACTIVE STUDENT")
+
+    # ── 4. Middle column — Student Details ────────────────────────────────
+    detail_x   = photo_x + photo_w + 6
+    detail_top = content_y - 6
+
+    student_name  = str(student.get("student_name") or "").strip()
+    student_id    = str(student.get("student_id")   or "").strip()
+    course        = str(student.get("course")        or "").strip()
+    semester      = str(student.get("semester")      or "").strip()
+    gender        = str(student.get("gender")        or "").strip()
+
+    curr_year       = datetime.now().year
+    next_year_short = str(curr_year + 1)[-2:]
+    acad_year       = f"{curr_year}\u2013{next_year_short}"
+
+    # Name
+    c.setFillColor(_ID_DARK)
+    c.setFont("Helvetica-Bold", 7.5)
+    disp_name = student_name[:24] + "\u2026" if len(student_name) > 26 else student_name
+    c.drawString(detail_x, detail_top, disp_name)
+
+    # Key-value detail rows
+    sem_str = f"Sem {semester}" if semester else ""
+    rows = [
+        ("Student ID", student_id),
+        ("Course", course),
+    ]
+    if sem_str:
+        rows.append(("Semester", sem_str))
+    rows.append(("Acad. Year", acad_year))
+    if gender:
+        rows.append(("Gender", gender))
+
+    row_y    = detail_top - 10
+    line_gap = 8.5
+    for label, value in rows:
+        c.setFillColor(_ID_MUTED)
+        c.setFont("Helvetica", 4.5)
+        c.drawString(detail_x, row_y, label + ":")
+
+        c.setFillColor(_ID_DARK)
+        c.setFont("Helvetica-Bold", 4.8)
+        disp_val = str(value)[:20] if len(str(value)) > 20 else str(value)
+        c.drawString(detail_x + 36, row_y, disp_val)
+        row_y -= line_gap
+
+    # ── 5. Right column — QR code ─────────────────────────────────────────
+    qr_size = 38
+    qr_x    = card_w - margin - qr_size - 3
+    qr_y    = content_y - qr_size - 8
+
+    if verification_url:
+        try:
+            qr_flow = _qr_image_flowable(verification_url, qr_size)
+            qr_flow.drawOn(c, qr_x, qr_y)
+            c.setLineWidth(0.4)
+            c.setStrokeColor(_ID_BORDER)
+            c.rect(qr_x - 1, qr_y - 1, qr_size + 2, qr_size + 2, fill=0, stroke=1)
+        except Exception:
+            c.setFillColor(_ID_LIGHT_BG)
+            c.setStrokeColor(_ID_MUTED)
+            c.rect(qr_x, qr_y, qr_size, qr_size, fill=1, stroke=1)
+
+    c.setFillColor(_ID_MUTED)
+    c.setFont("Helvetica-Bold", 3.6)
+    c.drawCentredString(qr_x + qr_size / 2, qr_y - 6, "SCAN TO VERIFY")
+
+    # ── 6. Footer strip ───────────────────────────────────────────────────
+    footer_y = margin + 3
+    c.setFillColor(_ID_MUTED)
+    c.setFont("Helvetica", 3.8)
+    footer_text = institution_affiliation or "Sushganga Institute, Wani • Official Student Identity Document"
+    if len(footer_text) > 65:
+        footer_text = footer_text[:63] + "\u2026"
+    c.drawCentredString(card_w / 2, footer_y, footer_text)
+
+    c.setStrokeColor(_ID_BORDER)
+    c.setLineWidth(0.3)
+    c.line(margin, footer_y + 6, card_w - margin, footer_y + 6)
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
 
 def generate_dashboard_pdf(institution_name, stats, today_date_str):
     """
@@ -288,6 +563,7 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
     Returns a BytesIO buffer containing the PDF bytes.
     """
     buffer = BytesIO()
+
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,

@@ -20,7 +20,7 @@ import qrcode.image.svg
 
 import config
 import database
-from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf
+from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf, generate_id_card_pdf
 from flask_wtf.csrf import CSRFProtect
 from flask_mail import Mail, Message
 
@@ -803,6 +803,190 @@ def student_certificate(record_id):
         mimetype="application/pdf",
         as_attachment=True,
         download_name=f"certificate_{student['student_id']}.pdf",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Student ID Card routes
+# ---------------------------------------------------------------------------
+
+def _get_id_card_student_or_abort(record_id):
+    """
+    Shared helper for ID card routes: fetch student from DB and
+    apply own-record guard for student role.  Returns the student dict
+    or redirects/aborts.  Raises TypeError if called with a bad record_id.
+    """
+    _assert_own_record(record_id)
+    try:
+        student = database.get_student_by_id(record_id)
+    except Error as e:
+        app.logger.warning("DB error fetching student %s for ID card: %s", record_id, e)
+        flash("Could not reach the database.", "error")
+        return None, redirect(url_for("students"))
+
+    if not student:
+        flash("Student not found.", "error")
+        return None, redirect(url_for("students"))
+
+    # Validate required fields
+    missing = [
+        field for field in ("student_name", "student_id", "course", "semester")
+        if not student.get(field)
+    ]
+    if missing:
+        flash(
+            f"Cannot generate ID card: the following required fields are missing "
+            f"for this student: {', '.join(missing)}. Please update the student record first.",
+            "error",
+        )
+        return None, redirect(url_for("student_details", record_id=record_id))
+
+    return student, None
+
+
+def _get_student_photo_url(student):
+    """
+    Returns static URL for the student photo:
+    1. If student has custom 'photo' column and file exists -> return photo URL
+    2. Else if gender is female/girl/f -> id-card-default-female.jpg
+    3. Else -> id-card-default-male.jpg
+    """
+    custom_photo = student.get("photo")
+    if custom_photo and isinstance(custom_photo, str) and custom_photo.strip():
+        rel_path = custom_photo.strip().lstrip("/")
+        full_path = os.path.join(app.root_path, rel_path)
+        if os.path.isfile(full_path):
+            return "/" + rel_path
+
+    gender = str(student.get("gender") or "").strip().lower()
+    if gender in ("female", "girl", "f"):
+        return url_for("static", filename="images/id-card-default-female.jpg")
+    else:
+        return url_for("static", filename="images/id-card-default-male.jpg")
+
+
+def _generate_qr_data_uri(text_data):
+    """Generate a base64 PNG data URI for embedding directly in HTML <img> tags."""
+    try:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
+            border=2,
+        )
+        qr.add_data(text_data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64}"
+    except Exception as e:
+        app.logger.warning("QR Data URI generation failed: %s", e)
+        return ""
+
+
+@app.route("/students/<int:record_id>/id-card")
+@role_required("admin", "teacher", "student")
+def student_id_card_preview(record_id):
+    """HTML preview page showing the ID card design + download/print buttons."""
+    student, err_redirect = _get_id_card_student_or_abort(record_id)
+    if err_redirect:
+        return err_redirect
+
+    # Academic year (dynamic)
+    curr_year = datetime.datetime.now().year
+    acad_year = f"{curr_year}\u2013{str(curr_year + 1)[-2:]}"
+
+    verify_url = url_for("student_id_card_verify", record_id=record_id, _external=True)
+    qr_data_uri = _generate_qr_data_uri(verify_url)
+    photo_url = _get_student_photo_url(student)
+
+    return render_template(
+        "id_card_preview.html",
+        student=student,
+        institution_name=INSTITUTION_NAME,
+        institution_location=INSTITUTION_LOCATION,
+        institution_affiliation=INSTITUTION_AFFILIATION,
+        acad_year=acad_year,
+        photo_url=photo_url,
+        qr_data_uri=qr_data_uri,
+        verify_url=verify_url,
+    )
+
+
+@app.route("/students/<int:record_id>/id-card/download")
+@role_required("admin", "teacher", "student")
+def student_id_card_download(record_id):
+    """Return the CR80 ID card PDF as a file download."""
+    student, err_redirect = _get_id_card_student_or_abort(record_id)
+    if err_redirect:
+        return err_redirect
+
+    verify_url = url_for(
+        "student_id_card_verify",
+        record_id=record_id,
+        _external=True,
+    )
+
+    try:
+        pdf_buffer = generate_id_card_pdf(
+            INSTITUTION_NAME,
+            student,
+            verification_url=verify_url,
+            institution_location=INSTITUTION_LOCATION,
+            institution_affiliation=INSTITUTION_AFFILIATION,
+        )
+    except Exception as e:
+        app.logger.warning("PDF generation error for ID card student %s: %s", record_id, e)
+        flash("Could not generate the ID card PDF. Please try again.", "error")
+        return redirect(url_for("student_id_card_preview", record_id=record_id))
+
+    return send_file(
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"student_id_card_{student['student_id']}.pdf",
+    )
+
+
+@app.route("/students/<int:record_id>/id-card/verify")
+def student_id_card_verify(record_id):
+    """
+    Public verification page (no login required) — shows only safe fields.
+    Encoded in the QR code so anyone can scan and verify.
+    Never exposes passwords, tokens, or private data.
+    """
+    try:
+        student = database.get_student_by_id(record_id)
+    except Error as e:
+        app.logger.warning("DB error fetching student %s for ID card verify: %s", record_id, e)
+        return render_template("id_card_verify.html", student=None, error="Database unavailable.")
+
+    if not student:
+        return render_template("id_card_verify.html", student=None, error="Student record not found.")
+
+    # Dynamic academic year
+    curr_year = datetime.datetime.now().year
+    acad_year = f"{curr_year}\u2013{str(curr_year + 1)[-2:]}"
+
+    # Only expose safe, non-sensitive fields
+    safe_student = {
+        "student_name": student.get("student_name", ""),
+        "student_id":   student.get("student_id", ""),
+        "course":       student.get("course", ""),
+        "semester":     student.get("semester", ""),
+        "gender":       student.get("gender", ""),
+        "acad_year":    acad_year,
+        "status":       "Active",
+    }
+
+    return render_template(
+        "id_card_verify.html",
+        student=safe_student,
+        institution_name=INSTITUTION_NAME,
+        institution_affiliation=INSTITUTION_AFFILIATION,
+        error=None,
     )
 
 

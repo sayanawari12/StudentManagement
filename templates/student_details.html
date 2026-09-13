@@ -10,6 +10,7 @@
     <div class="actions-row">
       {% if session.get('role') == 'admin' or (session.get('role') == 'student' and session.get('linked_student_id') == student.id) %}
         <a href="{{ url_for('student_certificate', record_id=student.id) }}" class="btn btn-outline">Download Certificate</a>
+        <a href="{{ url_for('student_id_card_preview', record_id=student.id) }}" class="btn btn-outline" id="btn-id-card">ID Card</a>
       {% endif %}
       {% if session.get('role') == 'admin' %}
         <a href="{{ url_for('edit_student', record_id=student.id) }}" class="btn btn-outline">Edit</a>
