@@ -750,22 +750,47 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
     return buffer
 
 
-def generate_marksheet_pdf(institution_name, student, exam, result_summary,
-                           institution_location="", institution_affiliation=""):
+def generate_marksheet_pdf(*args, **kwargs):
     """
     Generates a professional downloadable Marksheet / Result PDF for a student.
-
-    Args:
-        institution_name (str): College / institute name.
-        student (dict): Student database record.
-        exam (dict): Exam database record.
-        result_summary (dict): Computed result dict from exam_service.compute_student_result_summary().
-        institution_location (str): College address.
-        institution_affiliation (str): College affiliation text.
-
-    Returns:
-        BytesIO: Buffer containing the PDF bytes.
+    Flexible signature:
+      generate_marksheet_pdf(student, exam, marks, result_summary=...)
+      or
+      generate_marksheet_pdf(institution_name, student, exam, result_summary, ...)
     """
+    institution_name = kwargs.get("institution_name") or "SUSHGANGA INSTITUTE, WANI"
+    institution_location = kwargs.get("institution_location") or "Wani, Dist. Yavatmal, Maharashtra – 445304"
+    institution_affiliation = kwargs.get("institution_affiliation") or "Affiliated to Sant Gadge Baba Amravati University, Amravati"
+
+    student = kwargs.get("student")
+    exam = kwargs.get("exam")
+    marks = kwargs.get("marks")
+    result_summary = kwargs.get("result_summary")
+
+    if args:
+        if isinstance(args[0], dict) and ("student_id" in args[0] or "student_name" in args[0] or "id" in args[0]):
+            student = args[0]
+            if len(args) > 1: exam = args[1]
+            if len(args) > 2:
+                if isinstance(args[2], list): marks = args[2]
+                elif isinstance(args[2], dict): result_summary = args[2]
+            if len(args) > 3 and isinstance(args[3], dict): result_summary = args[3]
+        elif isinstance(args[0], str):
+            institution_name = args[0]
+            if len(args) > 1: student = args[1]
+            if len(args) > 2: exam = args[2]
+            if len(args) > 3: result_summary = args[3]
+
+    if not isinstance(institution_name, str):
+        institution_name = "SUSHGANGA INSTITUTE, WANI"
+
+    if student is None: student = {}
+    if exam is None: exam = {}
+    if result_summary is None:
+        import exam_service
+        raw_list = marks if isinstance(marks, list) else []
+        result_summary = exam_service.compute_student_result_summary(raw_list)
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -971,4 +996,4 @@ def generate_marksheet_pdf(institution_name, student, exam, result_summary,
 
     doc.build(story)
     buffer.seek(0)
-    return buffer
+    return buffer.getvalue()

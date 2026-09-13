@@ -877,7 +877,7 @@ def ensure_semester3_subjects(course="BCA"):
     Idempotent (uses INSERT IGNORE).
     """
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     try:
         sem3_subjects = [
             ("SE301", "Software Engineering (SE)"),
@@ -896,7 +896,9 @@ def ensure_semester3_subjects(course="BCA"):
                 (course, code, name)
             )
         conn.commit()
-        return get_subjects_by_course_and_semester(course, 3)
+
+        cursor.execute("SELECT * FROM subjects WHERE course = %s AND semester = 3 ORDER BY id ASC", (course,))
+        return cursor.fetchall()
     finally:
         cursor.close()
         conn.close()
@@ -904,9 +906,6 @@ def ensure_semester3_subjects(course="BCA"):
 
 def get_subjects_by_course_and_semester(course, semester):
     """Fetch all subjects for a given course and semester."""
-    if str(semester) == "3":
-        ensure_semester3_subjects(course)
-
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -916,13 +915,14 @@ def get_subjects_by_course_and_semester(course, semester):
         )
         subjects = cursor.fetchall()
         if not subjects and str(semester) == "3":
-            ensure_semester3_subjects("BCA")
-            cursor.execute(
-                "SELECT * FROM subjects WHERE semester = 3 ORDER BY id ASC"
-            )
-            subjects = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return ensure_semester3_subjects(course)
         return subjects
     finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
         cursor.close()
         conn.close()
 
