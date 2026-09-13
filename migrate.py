@@ -187,16 +187,28 @@ def migrate():
         )
     """, "CREATE TABLE exam_marks")
 
-    # 16 — Seed Semester 3 default subjects
+    # 16 — Seed default BCA subjects (Semesters 1, 2, and 3)
     run(cursor, """
         INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks) VALUES
+            ('BCA', 1, 'PSC101', 'Problem Solving Using C', 100.00, 40.00),
+            ('BCA', 1, 'MFCS102', 'Mathematics Foundation to Computer Science', 100.00, 40.00),
+            ('BCA', 1, 'CA103', 'Computer Architecture', 100.00, 40.00),
+            ('BCA', 1, 'EVS104', 'Environmental Studies (EVS)', 100.00, 40.00),
+            ('BCA', 1, 'IKS105', 'Indian Knowledge System (IKS)', 100.00, 40.00),
+            ('BCA', 1, 'ENG106', 'General English', 100.00, 40.00),
+            ('BCA', 2, 'DS201', 'Data Structures', 100.00, 40.00),
+            ('BCA', 2, 'OOPC202', 'Object Oriented Programming Using C++ (OOP C++)', 100.00, 40.00),
+            ('BCA', 2, 'OOPJ203', 'Object Oriented Programming Using Java (OOP Java)', 100.00, 40.00),
+            ('BCA', 2, 'OS204', 'Operating System', 100.00, 40.00),
+            ('BCA', 2, 'WT205', 'Web Technology', 100.00, 40.00),
+            ('BCA', 2, 'IC206', 'Indian Constitution', 100.00, 40.00),
             ('BCA', 3, 'SE301', 'Software Engineering (SE)', 100.00, 40.00),
             ('BCA', 3, 'DBMS302', 'Database Management System (DBMS)', 100.00, 40.00),
             ('BCA', 3, 'PY303', 'Python', 100.00, 40.00),
             ('BCA', 3, 'PS304', 'Probability and Statistics', 100.00, 40.00),
             ('BCA', 3, 'FE305', 'Future Engineering', 100.00, 40.00),
             ('BCA', 3, 'BDA306', 'Basics of Data Analytics Using Spreadsheet', 100.00, 40.00)
-    """, "SEED Semester 3 subjects")
+    """, "SEED Semester 1, 2, and 3 subjects")
 
     conn.commit()
     cursor.close()

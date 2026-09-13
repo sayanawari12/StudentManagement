@@ -10,7 +10,42 @@ import exam_service
 from pdf_generator import generate_marksheet_pdf
 
 
-class TestSemester3Subjects:
+class TestSemesterSubjects:
+    def test_semester1_subjects(self, db):
+        """Verify Semester 1 subjects creation and rules."""
+        subjects = database.ensure_semester1_subjects("BCA")
+        assert len(subjects) == 6
+        names = [s["subject_name"] for s in subjects]
+        expected = [
+            "Problem Solving Using C",
+            "Mathematics Foundation to Computer Science",
+            "Computer Architecture",
+            "Environmental Studies (EVS)",
+            "Indian Knowledge System (IKS)",
+            "General English",
+        ]
+        assert set(names) == set(expected)
+        assert "Indian Constitution" not in names
+        assert "Web Technology" not in names
+
+    def test_semester2_subjects(self, db):
+        """Verify Semester 2 subjects creation and rules."""
+        subjects = database.ensure_semester2_subjects("BCA")
+        assert len(subjects) == 6
+        names = [s["subject_name"] for s in subjects]
+        expected = [
+            "Data Structures",
+            "Object Oriented Programming Using C++ (OOP C++)",
+            "Object Oriented Programming Using Java (OOP Java)",
+            "Operating System",
+            "Web Technology",
+            "Indian Constitution",
+        ]
+        assert set(names) == set(expected)
+        assert "Object Oriented Programming Using Java (OOP Java)" in names
+        assert "Indian Constitution" in names
+        assert "Web Technology" in names
+
     def test_semester3_subjects_creation_and_reuse(self, db):
         """Ensure ensure_semester3_subjects creates and reuses exact 6 subjects."""
         created = database.ensure_semester3_subjects("Computer Science")
@@ -27,6 +62,30 @@ class TestSemester3Subjects:
         database.ensure_semester3_subjects("Computer Science")
         subjects_after = database.get_subjects_by_course_and_semester("Computer Science", 3)
         assert len(subjects_after) == 6
+
+
+class TestStudentFiltering:
+    def test_get_all_students_filters(self, db):
+        """Verify get_all_students works without filters, with search, and with course/semester filters."""
+        # Unfiltered
+        all_studs = database.get_all_students()
+        assert isinstance(all_studs, list)
+
+        # Search
+        search_studs = database.get_all_students(search="Aarav")
+        assert isinstance(search_studs, list)
+
+        # Course filter
+        bca_studs = database.get_all_students(course_filter="BCA")
+        assert all(s["course"] == "BCA" for s in bca_studs)
+
+        # Semester filter
+        sem3_studs = database.get_all_students(semester_filter=3)
+        assert all(int(s["semester"]) == 3 for s in sem3_studs)
+
+        # Combined filter
+        bca_sem3 = database.get_all_students(course_filter="BCA", semester_filter=3)
+        assert all(s["course"] == "BCA" and int(s["semester"]) == 3 for s in bca_sem3)
 
 
 class TestExamManagement:

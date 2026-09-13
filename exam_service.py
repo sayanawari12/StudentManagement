@@ -8,6 +8,26 @@ Handles:
   - Result summary formatting for HTML UI and PDF Marksheet generation
 """
 
+# Mandated 6 subjects for Semester 1
+SEMESTER_1_SUBJECTS = [
+    {"code": "PSC101", "name": "Problem Solving Using C"},
+    {"code": "MFCS102", "name": "Mathematics Foundation to Computer Science"},
+    {"code": "CA103", "name": "Computer Architecture"},
+    {"code": "EVS104", "name": "Environmental Studies (EVS)"},
+    {"code": "IKS105", "name": "Indian Knowledge System (IKS)"},
+    {"code": "ENG106", "name": "General English"},
+]
+
+# Mandated 6 subjects for Semester 2
+SEMESTER_2_SUBJECTS = [
+    {"code": "DS201", "name": "Data Structures"},
+    {"code": "OOPC202", "name": "Object Oriented Programming Using C++ (OOP C++)"},
+    {"code": "OOPJ203", "name": "Object Oriented Programming Using Java (OOP Java)"},
+    {"code": "OS204", "name": "Operating System"},
+    {"code": "WT205", "name": "Web Technology"},
+    {"code": "IC206", "name": "Indian Constitution"},
+]
+
 # Mandated 6 subjects for Semester 3
 SEMESTER_3_SUBJECTS = [
     {"code": "SE301", "name": "Software Engineering (SE)"},

@@ -1951,8 +1951,12 @@ def enter_exam_marks_route(exam_id):
     if not exam:
         abort(404)
 
-    if exam["semester"] == 3:
-        database.ensure_semester3_subjects()
+    if exam["semester"] == 1:
+        database.ensure_semester1_subjects(exam["course"])
+    elif exam["semester"] == 2:
+        database.ensure_semester2_subjects(exam["course"])
+    elif exam["semester"] == 3:
+        database.ensure_semester3_subjects(exam["course"])
 
     subjects = database.get_subjects_by_course_and_semester(exam["course"], exam["semester"])
     students = database.get_all_students(course_filter=exam["course"], semester_filter=exam["semester"])
@@ -2020,13 +2024,16 @@ def view_exam_results_route(exam_id, student_id):
 
     student = database.get_student_by_id(student_id)
     if not student:
+        student = database.get_student_by_student_id(student_id)
+    if not student:
         abort(404)
 
     raw_marks = database.get_exam_marks_for_student(exam_id, student_id)
-    result_summary = exam_service.compute_student_result_summary(raw_marks)
+    result_summary = exam_service.compute_student_result_summary(student=student, exam=exam, raw_marks_list=raw_marks)
 
     return render_template(
         "student_result.html",
+        summary=result_summary,
         exam=exam,
         student=student,
         subject_results=result_summary["subject_results"],
@@ -2044,6 +2051,8 @@ def student_result_history_route(student_id):
     _assert_own_record(student_id)
 
     student = database.get_student_by_id(student_id)
+    if not student:
+        student = database.get_student_by_student_id(student_id)
     if not student:
         abort(404)
 
@@ -2079,6 +2088,8 @@ def download_marksheet_pdf_route(exam_id, student_id):
         abort(404)
 
     student = database.get_student_by_id(student_id)
+    if not student:
+        student = database.get_student_by_student_id(student_id)
     if not student:
         abort(404)
 

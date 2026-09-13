@@ -275,22 +275,29 @@ def get_fee_status_breakdown():
 # Student queries
 # ---------------------------------------------------------------------------
 
-def get_all_students(search=None):
+def get_all_students(search=None, course_filter=None, semester_filter=None):
+    """Fetch all students with optional search, course_filter, and semester_filter."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        query = "SELECT * FROM students WHERE 1=1"
+        params = []
+
         if search:
             like_term = f"%{search}%"
-            cursor.execute(
-                """SELECT * FROM students
-                   WHERE student_name LIKE %s
-                      OR student_id   LIKE %s
-                      OR email        LIKE %s
-                   ORDER BY student_id ASC""",
-                (like_term, like_term, like_term)
-            )
-        else:
-            cursor.execute("SELECT * FROM students ORDER BY student_id ASC")
+            query += " AND (student_name LIKE %s OR student_id LIKE %s OR email LIKE %s)"
+            params.extend([like_term, like_term, like_term])
+
+        if course_filter:
+            query += " AND course = %s"
+            params.append(course_filter)
+
+        if semester_filter is not None and str(semester_filter).strip() != "":
+            query += " AND semester = %s"
+            params.append(int(semester_filter))
+
+        query += " ORDER BY student_id ASC"
+        cursor.execute(query, params)
         return cursor.fetchall()
     finally:
         cursor.close()
@@ -871,6 +878,72 @@ def is_account_locked(user):
 # Subject query helpers
 # ---------------------------------------------------------------------------
 
+def ensure_semester1_subjects(course="BCA"):
+    """
+    Ensure that Semester 1 has all 6 mandated subjects in the database.
+    Idempotent (uses INSERT IGNORE).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        sem1_subjects = [
+            ("PSC101", "Problem Solving Using C"),
+            ("MFCS102", "Mathematics Foundation to Computer Science"),
+            ("CA103", "Computer Architecture"),
+            ("EVS104", "Environmental Studies (EVS)"),
+            ("IKS105", "Indian Knowledge System (IKS)"),
+            ("ENG106", "General English"),
+        ]
+        for code, name in sem1_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES (%s, 1, %s, %s, 100.00, 40.00)
+                """,
+                (course, code, name)
+            )
+        conn.commit()
+
+        cursor.execute("SELECT * FROM subjects WHERE course = %s AND semester = 1 ORDER BY id ASC", (course,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def ensure_semester2_subjects(course="BCA"):
+    """
+    Ensure that Semester 2 has all 6 mandated subjects in the database.
+    Idempotent (uses INSERT IGNORE).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        sem2_subjects = [
+            ("DS201", "Data Structures"),
+            ("OOPC202", "Object Oriented Programming Using C++ (OOP C++)"),
+            ("OOPJ203", "Object Oriented Programming Using Java (OOP Java)"),
+            ("OS204", "Operating System"),
+            ("WT205", "Web Technology"),
+            ("IC206", "Indian Constitution"),
+        ]
+        for code, name in sem2_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES (%s, 2, %s, %s, 100.00, 40.00)
+                """,
+                (course, code, name)
+            )
+        conn.commit()
+
+        cursor.execute("SELECT * FROM subjects WHERE course = %s AND semester = 2 ORDER BY id ASC", (course,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def ensure_semester3_subjects(course="BCA"):
     """
     Ensure that Semester 3 has all 6 mandated subjects in the database.
@@ -906,6 +979,14 @@ def ensure_semester3_subjects(course="BCA"):
 
 def get_subjects_by_course_and_semester(course, semester):
     """Fetch all subjects for a given course and semester."""
+    sem_str = str(semester)
+    if sem_str == "1":
+        ensure_semester1_subjects(course)
+    elif sem_str == "2":
+        ensure_semester2_subjects(course)
+    elif sem_str == "3":
+        ensure_semester3_subjects(course)
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -913,16 +994,8 @@ def get_subjects_by_course_and_semester(course, semester):
             "SELECT * FROM subjects WHERE course = %s AND semester = %s ORDER BY id ASC",
             (course, semester)
         )
-        subjects = cursor.fetchall()
-        if not subjects and str(semester) == "3":
-            cursor.close()
-            conn.close()
-            return ensure_semester3_subjects(course)
-        return subjects
+        return cursor.fetchall()
     finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
         cursor.close()
         conn.close()
 
@@ -1017,6 +1090,40 @@ def ensure_exam_tables_exist():
                 FOREIGN KEY (recorded_by) REFERENCES users(id)
             )
         """)
+
+        sem1_subjects = [
+            ("PSC101", "Problem Solving Using C"),
+            ("MFCS102", "Mathematics Foundation to Computer Science"),
+            ("CA103", "Computer Architecture"),
+            ("EVS104", "Environmental Studies (EVS)"),
+            ("IKS105", "Indian Knowledge System (IKS)"),
+            ("ENG106", "General English"),
+        ]
+        for code, name in sem1_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES ('BCA', 1, %s, %s, 100.00, 40.00)
+                """,
+                (code, name)
+            )
+
+        sem2_subjects = [
+            ("DS201", "Data Structures"),
+            ("OOPC202", "Object Oriented Programming Using C++ (OOP C++)"),
+            ("OOPJ203", "Object Oriented Programming Using Java (OOP Java)"),
+            ("OS204", "Operating System"),
+            ("WT205", "Web Technology"),
+            ("IC206", "Indian Constitution"),
+        ]
+        for code, name in sem2_subjects:
+            cursor.execute(
+                """
+                INSERT IGNORE INTO subjects (course, semester, subject_code, subject_name, max_marks, pass_marks)
+                VALUES ('BCA', 2, %s, %s, 100.00, 40.00)
+                """,
+                (code, name)
+            )
 
         sem3_subjects = [
             ("SE301", "Software Engineering (SE)"),
