@@ -46,37 +46,53 @@ def calculate_subject_grade(percentage: float) -> str:
         return "F"
 
 
-def validate_marks_input(obtained_marks: float, max_marks: float) -> tuple[bool, str]:
+def validate_marks_input(obtained_marks: float, max_marks: float) -> tuple:
     """
     Validates entered marks:
       - non-negative
       - max_marks > 0
       - obtained_marks <= max_marks
-    Returns (is_valid, error_message).
+    Returns (is_valid, error_message, obtained_float, max_float).
     """
     try:
         obt = float(obtained_marks)
         mx = float(max_marks)
     except (ValueError, TypeError):
-        return False, "Marks must be valid numbers."
+        return False, "Marks must be valid numbers.", 0.0, 0.0
 
     if obt < 0:
-        return False, "Obtained marks cannot be negative."
+        return False, "Obtained marks cannot be negative.", obt, mx
     if mx <= 0:
-        return False, "Maximum marks must be greater than zero."
+        return False, "Maximum marks must be greater than zero.", obt, mx
     if obt > mx:
-        return False, f"Obtained marks ({obt:.2f}) cannot exceed maximum marks ({mx:.2f})."
+        return False, f"Obtained marks ({obt:.2f}) cannot exceed maximum marks ({mx:.2f}).", obt, mx
 
-    return True, ""
+    return True, "", obt, mx
 
 
-def compute_student_result_summary(student: dict, exam: dict, raw_marks_list: list) -> dict:
+def compute_student_result_summary(*args, **kwargs) -> dict:
     """
-    Calculates detailed result summary for a student's exam:
-      - Subject-wise percentages, grades, pass/fail status
-      - Total obtained & maximum marks
-      - Overall percentage, overall grade, and PASS/FAIL status
+    Calculates detailed result summary for a student's exam.
+    Accepts:
+      - compute_student_result_summary(raw_marks_list)
+      - compute_student_result_summary(student, exam, raw_marks_list)
+      - compute_student_result_summary(raw_marks_list=...)
     """
+    student = kwargs.get("student")
+    exam = kwargs.get("exam")
+    raw_marks_list = kwargs.get("raw_marks_list") or kwargs.get("marks")
+
+    if args:
+        if len(args) == 1:
+            raw_marks_list = args[0]
+        elif len(args) == 3:
+            student = args[0]
+            exam = args[1]
+            raw_marks_list = args[2]
+
+    if raw_marks_list is None:
+        raw_marks_list = []
+
     subject_results = []
     total_obtained = 0.0
     total_max = 0.0
@@ -119,6 +135,7 @@ def compute_student_result_summary(student: dict, exam: dict, raw_marks_list: li
         "subject_results": subject_results,
         "total_obtained": round(total_obtained, 2),
         "total_max": round(total_max, 2),
+        "percentage": round(overall_pct, 2),
         "overall_percentage": round(overall_pct, 2),
         "overall_grade": overall_grade,
         "overall_status": overall_status,

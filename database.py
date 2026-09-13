@@ -896,6 +896,7 @@ def ensure_semester3_subjects(course="BCA"):
                 (course, code, name)
             )
         conn.commit()
+        return get_subjects_by_course_and_semester(course, 3)
     finally:
         cursor.close()
         conn.close()

@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS exams (
     course        VARCHAR(50)  NOT NULL,
     semester      INT          NOT NULL,
     academic_year VARCHAR(20)  NOT NULL,
-    status        ENUM('Scheduled','Completed','Published','Cancelled') NOT NULL DEFAULT 'Scheduled',
+    status        VARCHAR(50)  NOT NULL DEFAULT 'Scheduled',
     created_by    INT          NOT NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id)
