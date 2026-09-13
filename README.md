@@ -31,10 +31,10 @@ A Flask + Jinja2 + MySQL web application for managing student records, attendanc
 
 ### 📢 Communication
 - **Notices / Announcements** — Admin and Teacher can post notices visible to all roles; Admin can delete notices
-- **Email Notifications** — Flask-Mail sends email notifications for key events (e.g. fee payment recorded, notice posted)
+- **Email Notifications** — Admin-triggered batch email sending via Flask-Mail: an admin visits the Notifications panel, reviews the lists of students with overdue fees or low attendance, and clicks a button to dispatch fee-reminder or attendance-alert emails in bulk
 
 ### 📊 Reporting & Analytics
-- **Analytics Dashboard** — visualises enrolment by course, attendance rates, fee collection summaries, and gender distribution
+- **Analytics Dashboard** — three Chart.js visualisations: Attendance Trend (last 14 days, line chart), Semester Distribution (bar chart), and Fee Status Breakdown (donut chart, admin-only)
 - **PDF Generation** — `pdf_generator.py` produces formatted PDF documents using ReportLab
 
 ### ⚙️ Operations
@@ -73,13 +73,12 @@ StudentManagement/
 ├── pdf_generator.py            # ReportLab PDF generation for certificates and reports
 ├── migrate.py                  # Schema migration script (idempotent, safe to re-run)
 ├── seed_users.py               # Seeds Admin, Teacher, and Student login accounts
-├── seed_admin.py               # Seeds or resets the admin account only
 ├── schema.sql                  # Full database schema + sample student data
 │
 ├── requirements.txt            # Production Python dependencies
 ├── requirements-dev.txt        # Dev/test dependencies (pytest, pytest-flask)
 │
-├── Dockerfile                  # Multi-stage Docker image for the Flask app
+├── Dockerfile                  # Single-stage Docker image (python:3.12-slim) for the Flask app
 ├── docker-compose.yml          # Composes Flask app + MySQL 8 service
 ├── docker-entrypoint.sh        # Container startup: migrate → seed → gunicorn
 ├── .dockerignore               # Files excluded from the Docker build context
@@ -111,7 +110,7 @@ StudentManagement/
 │   ├── fees_view.html          # View a student's fee history and outstanding dues
 │   ├── notices.html            # Notice board (all roles) with delete for admin
 │   ├── notice_add.html         # Post a new notice (admin / teacher)
-│   ├── notifications.html      # In-app notification inbox
+│   ├── notifications.html      # Admin panel to send batch fee-reminder and attendance-alert emails
 │   ├── analytics.html          # Analytics charts and summary tables
 │   ├── 403.html                # Forbidden error page
 │   ├── 404.html                # Not found error page
@@ -232,7 +231,7 @@ The test DB is created and torn down automatically. All tests run against the sa
 | `tests/test_fees.py` | `get_total_dues()` NULL safety, partial payments, overpayment rejection at DB level |
 | `tests/test_grades.py` | `get_grade_summary()` NULL safety, grade insert/query correctness, ordering |
 | `tests/test_csrf.py` | CSRF enforcement on POST — missing/empty/invalid/valid token cases |
-| `tests/test_bulk_import.py` | CSV upload validation, column-order enforcement, all-or-nothing rollback on errors |
+| `tests/test_bulk_import.py` | CSV upload validation, column-order enforcement, partial import behaviour (valid rows are inserted, invalid rows are individually skipped with a per-row reason — no rollback) |
 | `tests/test_csv_export.py` | Export headers match `EXPECTED_CSV_HEADERS`, phone Excel text-literal format, filtered export |
 | `tests/test_2fa.py` | TOTP setup/enable/disable flows, 2FA login redirect, lockout after 5 wrong codes |
 | `tests/test_analytics.py` | Analytics route access matrix, underlying DB query correctness |
