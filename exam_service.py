@@ -176,10 +176,8 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
     for row in raw_marks_list:
         obt = float(row.get("obtained_marks", 0.0))
         mx = float(row.get("max_marks", 100.0))
-        # Use the configured pass_marks stored on the mark record (from subjects JOIN).
-        # Fall back to 40.0 only when the database record truly has no value (legacy data),
-        # but do NOT use 40 as a second independent gate alongside pass_cutoff.
-        pass_cutoff = float(row.get("pass_marks") or 40.0)
+        pass_val = row.get("pass_marks")
+        pass_cutoff = float(pass_val) if pass_val is not None else 40.0
 
         pct = (obt / mx * 100.0) if mx > 0 else 0.0
         grade = calculate_subject_grade(pct)

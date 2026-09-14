@@ -231,6 +231,16 @@ class TestMarksValidationAndCalculation:
         assert res_max["subject_results"][0]["status"] == "PASS"
         assert res_max["subject_results"][0]["percentage"] == 100.0
 
+    def test_result_summary_pass_marks_zero(self):
+        """Regression Test: Configured pass_marks = 0 (or 0.0) must be evaluated as 0.0 and NOT fallback to 40.0.
+        Obtained 0.0 out of 100 with pass_marks = 0 MUST yield PASS.
+        """
+        zero_pass_marks = [{"subject_name": "Audit", "obtained_marks": 0.0, "max_marks": 100.0, "pass_marks": 0.0}]
+        res_zero = exam_service.compute_student_result_summary(zero_pass_marks)
+        assert res_zero["subject_results"][0]["pass_marks"] == 0.0
+        assert res_zero["subject_results"][0]["status"] == "PASS"
+        assert res_zero["overall_status"] == "PASS"
+
     def test_legacy_exam_historical_result_integrity(self, db):
         """Requirement 9: Historical exam with exam-level max_marks = NULL and recorded max_marks = 50.
         Obtained 25 must yield 25 / 50 * 100 = 50% (NOT 25 / 100 * 100 = 25%).

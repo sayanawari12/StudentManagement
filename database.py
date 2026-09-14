@@ -1017,7 +1017,7 @@ def get_subject_by_id(subject_id):
 # ---------------------------------------------------------------------------
 
 def create_exam(exam_name, exam_type, course, semester, academic_year, created_by,
-                status="Scheduled", max_marks=100.0, pass_marks=40.0):
+                status="Scheduled", max_marks=None, pass_marks=None):
     """Insert a new exam into the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1392,7 +1392,7 @@ def get_exam_marks_for_student(exam_id, stud_id):
                    sub.subject_name,
                    sub.subject_code,
                    COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks,
-                   COALESCE(e.pass_marks, sub.pass_marks, 40.00) AS pass_marks
+                   COALESCE(e.pass_marks, sub.pass_marks) AS pass_marks
             FROM exam_marks m
             JOIN subjects sub ON sub.id = m.subject_id
             JOIN exams    e   ON e.id  = m.exam_id
