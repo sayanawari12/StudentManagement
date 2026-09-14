@@ -1859,8 +1859,8 @@ def create_exam_route():
         semester_str = request.form.get("semester", "").strip()
         academic_year = request.form.get("academic_year", "").strip()
         status = request.form.get("status", "Scheduled").strip()
-        max_marks_str = request.form.get("max_marks", "100").strip()
-        pass_marks_str = request.form.get("pass_marks", "40").strip()
+        max_marks_str = request.form.get("max_marks", "").strip()
+        pass_marks_str = request.form.get("pass_marks", "").strip()
 
         errors = []
         if not exam_name:
@@ -1873,13 +1873,19 @@ def create_exam_route():
             errors.append("Semester must be between 1 and 6.")
         if not academic_year:
             errors.append("Academic year is required.")
+        if not max_marks_str:
+            errors.append("Maximum marks is required.")
+        if not pass_marks_str:
+            errors.append("Passing marks is required.")
 
         # Validate max_marks and pass_marks
-        cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
-            max_marks_str or "100", pass_marks_str or "40"
-        )
-        if not cfg_valid:
-            errors.append(cfg_err)
+        max_marks_f, pass_marks_f = None, None
+        if max_marks_str and pass_marks_str:
+            cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
+                max_marks_str, pass_marks_str
+            )
+            if not cfg_valid:
+                errors.append(cfg_err)
 
         if errors:
             for err in errors:
@@ -1922,10 +1928,8 @@ def edit_exam_route(exam_id):
         semester_str = request.form.get("semester", "").strip()
         academic_year = request.form.get("academic_year", "").strip()
         status = request.form.get("status", "Scheduled").strip()
-        max_marks_str = request.form.get("max_marks",
-                                          str(exam.get("max_marks", 100))).strip()
-        pass_marks_str = request.form.get("pass_marks",
-                                          str(exam.get("pass_marks", 40))).strip()
+        max_marks_str = request.form.get("max_marks", "").strip()
+        pass_marks_str = request.form.get("pass_marks", "").strip()
 
         errors = []
         if not exam_name:
@@ -1938,13 +1942,18 @@ def edit_exam_route(exam_id):
             errors.append("Semester must be between 1 and 6.")
         if not academic_year:
             errors.append("Academic year is required.")
+        if not max_marks_str:
+            errors.append("Maximum marks is required.")
+        if not pass_marks_str:
+            errors.append("Passing marks is required.")
 
-        # Validate max_marks and pass_marks
-        cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
-            max_marks_str, pass_marks_str
-        )
-        if not cfg_valid:
-            errors.append(cfg_err)
+        max_marks_f, pass_marks_f = None, None
+        if max_marks_str and pass_marks_str:
+            cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
+                max_marks_str, pass_marks_str
+            )
+            if not cfg_valid:
+                errors.append(cfg_err)
 
         if errors:
             for err in errors:
@@ -2010,16 +2019,14 @@ def enter_exam_marks_route(exam_id):
             stud_pk = student["id"]           # integer PK (used for DB saves)
             for sub in subjects:
                 sub_id = sub["id"]            # subjects.id (integer PK)
-                max_key = f"max_{roll_no}_{sub_id}"
                 obt_key = f"obt_{roll_no}_{sub_id}"
 
-                max_val = request.form.get(max_key, "").strip()
                 obt_val = request.form.get(obt_key, "").strip()
 
-                if max_val or obt_val:
-                    if not max_val:
-                        max_val = str(exam.get("max_marks", 100.0))
-                    valid, err_msg, obt_f, max_f = exam_service.validate_marks_input(obt_val, max_val)
+                if obt_val:
+                    # Ignore any max_marks submitted in form payload. Always use the unalterable exam-level max_marks!
+                    exam_max = float(exam.get("max_marks") if exam.get("max_marks") is not None else sub.get("max_marks", 100.0))
+                    valid, err_msg, obt_f, max_f = exam_service.validate_marks_input(obt_val, exam_max)
                     if not valid:
                         flash(f"Student {roll_no} - {sub['subject_name']}: {err_msg}", "error")
                         all_marks_valid = False
@@ -2030,7 +2037,7 @@ def enter_exam_marks_route(exam_id):
                                 stud_id=stud_pk,
                                 subject_id=sub_id,
                                 obtained_marks=obt_f,
-                                max_marks=max_f,
+                                max_marks=exam_max,
                                 recorded_by=recorded_by
                             )
                         except Error as e:

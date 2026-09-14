@@ -329,6 +329,59 @@ class TestMarksValidationAndCalculation:
         assert summary["subject_results"][0]["status"] == "PASS"
         assert summary["subject_results"][0]["percentage"] == 40.0
 
+    def test_form_tampering_max_marks_cannot_bypass_exam_max(self, client, db):
+        """Requirement 8: Exam max = 70. Client attempts to POST max_marks = 100 and obtained = 80.
+        Expected: Server ignores submitted max_marks and rejects obtained_marks = 80 because 80 > 70.
+        Also test obtained = 70 is accepted, obtained = 70.01 is rejected.
+        """
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        stud_id = stud_obj["student_id"]
+
+        exam_id = database.create_exam(
+            exam_name="Strict 70 Exam",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-2027",
+            status="Scheduled",
+            max_marks=70.0,
+            pass_marks=28.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        if not subjects:
+            subjects = database.ensure_semester3_subjects(stud_obj["course"])
+        sub_id = subjects[0]["id"]
+
+        client.post("/login", data={"username": "admin", "password": "admin123"})
+
+        # Attempt to bypass with max_marks = 100 and obt = 80 in form payload
+        post_tampered = {
+            f"obt_{stud_id}_{sub_id}": "80.00",
+            f"max_{stud_id}_{sub_id}": "100.00",
+        }
+        res_tampered = client.post(f"/exams/{exam_id}/marks", data=post_tampered, follow_redirects=True)
+        assert res_tampered.status_code == 200
+        html = res_tampered.data.decode("utf-8")
+        assert "exceed" in html.lower()
+
+        # Attempt obt = 70.01 -> rejected
+        post_over = {f"obt_{stud_id}_{sub_id}": "70.01"}
+        res_over = client.post(f"/exams/{exam_id}/marks", data=post_over, follow_redirects=True)
+        html_over = res_over.data.decode("utf-8")
+        assert "exceed" in html_over.lower()
+
+        # Valid obt = 70.00 -> accepted
+        post_exact = {f"obt_{stud_id}_{sub_id}": "70.00"}
+        res_exact = client.post(f"/exams/{exam_id}/marks", data=post_exact, follow_redirects=True)
+        assert res_exact.status_code == 200
+        saved = database.get_exam_marks_for_student(exam_id, stud_id)
+        assert len(saved) == 1
+        assert float(saved[0]["obtained_marks"]) == 70.0
+        assert float(saved[0]["max_marks"]) == 70.0
+
     def test_subject_grade_calculation(self):
         assert exam_service.calculate_subject_grade(92) == "A+"
         assert exam_service.calculate_subject_grade(82) == "A"
