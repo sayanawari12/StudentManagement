@@ -392,12 +392,14 @@
           {% if transcript and transcript.semesters %}
             <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
               {% for sem_key, sem_val in transcript.semesters.items() %}
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-page); border: 1px solid var(--border);">
-                  <span style="font-weight: 600; font-size: 13px;">Semester {{ sem_key }}</span>
-                  <span class="badge badge-{% if sem_val.status == 'PASS' %}pass{% else %}fail{% endif %}">
-                    {{ sem_val.status }} ({{ '%.1f'|format(sem_val.percentage) }}%)
-                  </span>
-                </div>
+                {% for ex in sem_val.exams %}
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-page); border: 1px solid var(--border);">
+                    <span style="font-weight: 600; font-size: 13px;">Semester {{ sem_key }} &bull; {{ ex.exam.exam_name }}</span>
+                    <span class="badge badge-{% if ex.summary.overall_status == 'PASS' %}pass{% else %}fail{% endif %}">
+                      {{ ex.summary.overall_status }} ({{ '%.1f'|format(ex.summary.overall_percentage) }}%)
+                    </span>
+                  </div>
+                {% endfor %}
               {% endfor %}
             </div>
           {% else %}
