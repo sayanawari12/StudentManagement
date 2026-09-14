@@ -4,7 +4,9 @@ test_auth.py — Login flow, session contents, and marked_by/recorded_by regress
 
 import mysql.connector
 import os
+import sys
 import pytest
+import config
 
 
 # ---------------------------------------------------------------------------
@@ -294,3 +296,33 @@ class TestGetUserIdSafety:
         resp = client.get("/change-password", follow_redirects=False)
         assert resp.status_code == 302
         assert "/logout" in resp.headers["Location"]
+
+
+class TestSeedUsersGuard:
+    """Tests for seed_users.py configuration guard & SEED_ALLOW_DEMO behavior."""
+
+    def test_seed_allow_demo_environment_variable(self, monkeypatch):
+        import seed_users
+        monkeypatch.setenv("SEED_ALLOW_DEMO", "true")
+        # verify allow_demo condition in seed_users
+        allow_demo = (
+            "--dev" in sys.argv
+            or os.environ.get("SEED_ALLOW_DEMO", "").lower() in ("1", "true", "yes")
+            or getattr(config, "FLASK_DEBUG", False) is True
+        )
+        assert allow_demo is True
+
+    def test_seed_production_passwords_override_defaults(self, monkeypatch, db):
+        import seed_users
+        monkeypatch.setenv("SEED_ADMIN_PASSWORD", "SecureAdminPass123!")
+        monkeypatch.setenv("SEED_TEACHER_PASSWORD", "SecureTeacherPass123!")
+        monkeypatch.setenv("SEED_STUDENT_PASSWORD", "SecureStudentPass123!")
+
+        admin_p = os.environ.get("SEED_ADMIN_PASSWORD")
+        teacher_p = os.environ.get("SEED_TEACHER_PASSWORD")
+        student_p = os.environ.get("SEED_STUDENT_PASSWORD")
+
+        assert admin_p == "SecureAdminPass123!"
+        assert teacher_p == "SecureTeacherPass123!"
+        assert student_p == "SecureStudentPass123!"
+

@@ -177,16 +177,20 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
         obt_val = row.get("obtained_marks")
         obt = float(obt_val) if obt_val is not None else 0.0
 
-        # Authoritative max_marks: check row first, then exam configuration
-        mx_val = row.get("max_marks")
-        if mx_val is None and isinstance(exam, dict):
+        # Authoritative max_marks: check exam configuration first, then mark-row record fallback
+        mx_val = None
+        if isinstance(exam, dict) and exam.get("max_marks") is not None:
             mx_val = exam.get("max_marks")
+        elif isinstance(row, dict) and row.get("max_marks") is not None:
+            mx_val = row.get("max_marks")
         mx = float(mx_val) if mx_val is not None else None
 
-        # Authoritative pass_marks: check row first, then exam configuration
-        pass_val = row.get("pass_marks")
-        if pass_val is None and isinstance(exam, dict):
+        # Authoritative pass_marks: check exam configuration first, then mark-row record fallback
+        pass_val = None
+        if isinstance(exam, dict) and exam.get("pass_marks") is not None:
             pass_val = exam.get("pass_marks")
+        elif isinstance(row, dict) and row.get("pass_marks") is not None:
+            pass_val = row.get("pass_marks")
 
         # Explicit check: respect explicit values including 0 or 0.0
         if pass_val is not None:

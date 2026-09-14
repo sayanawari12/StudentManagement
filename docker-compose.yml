@@ -34,6 +34,7 @@ services:
     environment:
       # Override DB_HOST so the app connects to the db service, not localhost
       DB_HOST: db
+      SEED_ALLOW_DEMO: "true"
     depends_on:
       db:
         condition: service_healthy

@@ -342,3 +342,27 @@ class TestAcademicRecordHardenAndOptimize:
         assert transcript["overall"]["failed_subjects"] == 1
         assert transcript["overall"]["overall_result"] == "FAIL"
 
+    def test_exam_config_overrides_conflicting_mark_row(self):
+        """Exam configuration (70 max / 28 pass) MUST override conflicting stale values on individual mark row (100 max / 40 pass)."""
+        exam = {"max_marks": 70.0, "pass_marks": 28.0}
+        conflicting_row = [{"subject_name": "DS", "obtained_marks": 28.0, "max_marks": 100.0, "pass_marks": 40.0}]
+        summary = exam_service.compute_student_result_summary(None, exam, conflicting_row)
+        sub = summary["subject_results"][0]
+
+        assert sub["max_marks"] == 70.0
+        assert sub["pass_marks"] == 28.0
+        assert sub["obtained_marks"] == 28.0
+        assert sub["percentage"] == 40.0  # 28 / 70 * 100 = 40.0%
+        assert sub["status"] == "PASS"
+
+    def test_unconfigured_exam_status_handling(self):
+        """Unconfigured custom exam (max=80, pass=None) without historical 100-mark rule remains UNCONFIGURED."""
+        exam = {"max_marks": 80.0, "pass_marks": None}
+        row = [{"subject_name": "Lab", "obtained_marks": 30.0, "max_marks": 80.0, "pass_marks": None}]
+        summary = exam_service.compute_student_result_summary(None, exam, row)
+        sub = summary["subject_results"][0]
+
+        assert sub["status"] == "UNCONFIGURED"
+        assert sub["grade"] == "N/A"
+
+
