@@ -244,7 +244,7 @@ Open your browser and navigate to `http://127.0.0.1:5000` to log in.
 
 ## Running Tests
 
-The test suite uses **pytest** (281 tests) and targets a separate `student_management_test` database — it never touches your real data.
+The test suite uses **pytest** (293 tests) and targets a separate `student_management_test` database — it never touches your real data.
 
 ### 1. Install dev dependencies
 ```bash

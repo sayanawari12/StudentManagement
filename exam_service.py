@@ -39,17 +39,29 @@ SEMESTER_3_SUBJECTS = [
 ]
 
 
-def calculate_subject_grade(percentage: float) -> str:
+def calculate_subject_grade(percentage: float, passed: bool = None) -> str:
     """
-    Calculate letter grade based on percentage:
-      90% - 100%: A+
-      80% - 89.9%: A
-      70% - 79.9%: B+
-      60% - 69.9%: B
-      50% - 59.9%: C
-      40% - 49.9%: D
-      < 40%:      F
+    Calculate letter grade based on percentage and pass/fail status:
+      - If passed is False (student failed the subject): returns "F"
+      - If passed is True (student passed the subject):
+          90% - 100%: A+
+          80% - 89.9%: A
+          70% - 79.9%: B+
+          60% - 69.9%: B
+          50% - 59.9%: C
+          otherwise:  D  (lowest passing grade for passing marks)
+      - If passed is None (standalone call without pass status):
+          90% - 100%: A+
+          80% - 89.9%: A
+          70% - 79.9%: B+
+          60% - 69.9%: B
+          50% - 59.9%: C
+          40% - 49.9%: D
+          < 40%:      F
     """
+    if passed is False:
+        return "F"
+
     if percentage >= 90.0:
         return "A+"
     elif percentage >= 80.0:
@@ -63,7 +75,7 @@ def calculate_subject_grade(percentage: float) -> str:
     elif percentage >= 40.0:
         return "D"
     else:
-        return "F"
+        return "D" if passed is True else "F"
 
 
 def validate_marks_input(obtained_marks: float, max_marks: float) -> tuple:
@@ -216,11 +228,11 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
             status = "UNCONFIGURED"
         else:
             pct = (obt / mx * 100.0)
-            grade = calculate_subject_grade(pct)
             passed = obt >= pass_cutoff
             if not passed:
                 all_passed = False
             status = "PASS" if passed else "FAIL"
+            grade = calculate_subject_grade(pct, passed=passed)
 
         total_obtained += obt
         if mx is not None:
@@ -241,7 +253,7 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
     overall_pct = (total_obtained / total_max * 100.0) if total_max > 0 else 0.0
     # Overall result: student must pass every individual subject (no hardcoded overall floor).
     overall_status = "PASS" if (all_passed and len(subject_results) > 0) else "FAIL"
-    overall_grade = calculate_subject_grade(overall_pct) if overall_status == "PASS" else "F"
+    overall_grade = calculate_subject_grade(overall_pct, passed=(overall_status == "PASS")) if len(subject_results) > 0 else "F"
 
     return {
         "student": student,
@@ -325,7 +337,7 @@ def compute_academic_transcript(student: dict, raw_history: list) -> dict:
     if has_data:
         overall_pct = (total_obtained / total_max * 100.0) if total_max > 0 else 0.0
         overall_result = "PASS" if failed_subjects == 0 else "FAIL"
-        overall_grade = calculate_subject_grade(overall_pct) if overall_result == "PASS" else "F"
+        overall_grade = calculate_subject_grade(overall_pct, passed=(overall_result == "PASS"))
     else:
         overall_pct = 0.0
         overall_result = "N/A"

@@ -366,3 +366,77 @@ class TestAcademicRecordHardenAndOptimize:
         assert sub["grade"] == "N/A"
 
 
+class TestPassMarkGradeConsistency:
+    """Regression tests for Phase 2: Dynamic pass mark and letter grade consistency."""
+
+    def test_pass_marks_below_40_percent(self):
+        """1. max=100, pass=35, obtained=36 -> PASS + D (never F)."""
+        marks = [{"subject_name": "Math", "obtained_marks": 36.0, "max_marks": 100.0, "pass_marks": 35.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "PASS"
+        assert sub["grade"] == "D"
+
+    def test_score_below_dynamic_pass_mark_with_high_percentage(self):
+        """2. max=100, pass=50, obtained=45 -> FAIL + F (not C)."""
+        marks = [{"subject_name": "Math", "obtained_marks": 45.0, "max_marks": 100.0, "pass_marks": 50.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "FAIL"
+        assert sub["grade"] == "F"
+
+    def test_score_exactly_at_pass_marks(self):
+        """3. max=100, pass=35, obtained=35 -> PASS + D."""
+        marks = [{"subject_name": "Math", "obtained_marks": 35.0, "max_marks": 100.0, "pass_marks": 35.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "PASS"
+        assert sub["grade"] == "D"
+
+    def test_score_above_pass_marks_normal_bracket(self):
+        """4. max=100, pass=35, obtained=55 -> PASS + C."""
+        marks = [{"subject_name": "Math", "obtained_marks": 55.0, "max_marks": 100.0, "pass_marks": 35.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "PASS"
+        assert sub["grade"] == "C"
+
+    def test_pass_marks_zero_evaluated_as_pass(self):
+        """5. max=100, pass=0, obtained=0 -> PASS + D (not UNCONFIGURED)."""
+        marks = [{"subject_name": "Audit", "obtained_marks": 0.0, "max_marks": 100.0, "pass_marks": 0.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "PASS"
+        assert sub["grade"] == "D"
+
+    def test_historical_100_40_compatibility(self):
+        """6. Historical 100-mark record (pass=None): 39.9 -> FAIL+F, 40 -> PASS+D."""
+        fail_marks = [{"subject_name": "Hist", "obtained_marks": 39.9, "max_marks": 100.0, "pass_marks": None}]
+        s_fail = exam_service.compute_student_result_summary(fail_marks)
+        assert s_fail["subject_results"][0]["status"] == "FAIL"
+        assert s_fail["subject_results"][0]["grade"] == "F"
+
+        pass_marks = [{"subject_name": "Hist", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": None}]
+        s_pass = exam_service.compute_student_result_summary(pass_marks)
+        assert s_pass["subject_results"][0]["status"] == "PASS"
+        assert s_pass["subject_results"][0]["grade"] == "D"
+
+    def test_custom_max_marks_and_pass_marks(self):
+        """7. max=50, pass=18, obtained=20 -> 40%, PASS, grade D."""
+        marks = [{"subject_name": "Lab", "obtained_marks": 20.0, "max_marks": 50.0, "pass_marks": 18.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["percentage"] == 40.0
+        assert sub["status"] == "PASS"
+        assert sub["grade"] == "D"
+
+    def test_unconfigured_exam_no_invented_passing_grade(self):
+        """8. UNCONFIGURED exam (max=80, pass=None) -> UNCONFIGURED status and N/A grade."""
+        marks = [{"subject_name": "Unknown", "obtained_marks": 30.0, "max_marks": 80.0, "pass_marks": None}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "UNCONFIGURED"
+        assert sub["grade"] == "N/A"
+
+
+
