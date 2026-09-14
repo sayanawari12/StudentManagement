@@ -5,94 +5,197 @@
   <div class="topbar">
     <div>
       <h1>Enter Marks</h1>
-      <p>{{ exam.exam_name }} &bull; {{ exam.course }} Sem {{ exam.semester }} &bull; {{ exam.academic_year }}</p>
+      <p>{{ exam.exam_name }} &bull; {{ exam.course }} Sem {{ exam.semester }} &bull; {{ exam.academic_year }} &bull; <em>{{ exam.exam_type }}</em></p>
     </div>
     <div class="actions-row">
       <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Back to Exams</a>
     </div>
   </div>
 
-  <!-- Student Selector & Marks Entry Form -->
-  <div class="card" style="max-width: 800px; margin: 0 auto;">
-    <form method="GET" action="{{ url_for('enter_exam_marks_route', exam_id=exam.id) }}" style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
-      <label for="stud_id" class="form-label" style="font-weight: 600;">Select Student</label>
-      <div style="display: flex; gap: 12px;">
-        <select id="stud_id" name="stud_id" class="form-control" style="flex: 1;" onchange="this.form.submit()">
-          <option value="">-- Choose a Student --</option>
-          {% for st in students %}
-            <option value="{{ st.id }}" {% if selected_student and selected_student.id == st.id %}selected{% endif %}>
-              {{ st.student_name }} ({{ st.student_id }}) — {{ st.course }} Sem {{ st.semester }}
-            </option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-outline">Load Subjects</button>
+  {% if not students %}
+    <div class="card" style="text-align:center; padding:40px 20px; color:var(--text-secondary);">
+      <p style="font-size:15px; margin-bottom:8px;">No students found for <strong>{{ exam.course }} Semester {{ exam.semester }}</strong>.</p>
+      <p style="font-size:13px;">Enrol students in this course and semester first, then return here to enter marks.</p>
+    </div>
+  {% else %}
+    <!-- Summary bar -->
+    <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+      <div class="card" style="padding:12px 20px; flex:1; min-width:140px; text-align:center;">
+        <div style="font-size:22px; font-weight:700; color:var(--accent);">{{ students|length }}</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Students</div>
       </div>
+      <div class="card" style="padding:12px 20px; flex:1; min-width:140px; text-align:center;">
+        <div style="font-size:22px; font-weight:700; color:var(--accent);">{{ subjects|length }}</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Subjects</div>
+      </div>
+      <div class="card" style="padding:12px 20px; flex:1; min-width:140px; text-align:center;">
+        <div style="font-size:22px; font-weight:700; color:var(--accent);">{{ marks_map|length }}</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Marks Saved</div>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('enter_exam_marks_route', exam_id=exam.id) }}" id="marks-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {% for student in students %}
+        {% set stud_pk = student["id"] %}
+        {% set roll_no = student["student_id"] %}
+
+        {# Count saved marks for this student #}
+        {% set saved_count = namespace(v=0) %}
+        {% for sub in subjects %}
+          {% if (stud_pk, sub["id"]) in marks_map %}
+            {% set saved_count.v = saved_count.v + 1 %}
+          {% endif %}
+        {% endfor %}
+
+        <div class="card" style="margin-bottom:20px; padding:0; overflow:hidden;"
+             id="student-card-{{ loop.index }}">
+
+          <!-- Student header (click to collapse/expand) -->
+          <div style="display:flex; align-items:center; justify-content:space-between;
+                      padding:14px 20px; background:var(--bg-card); cursor:pointer;
+                      border-bottom:1px solid var(--border);"
+               onclick="toggleSection('marks-section-{{ loop.index }}', 'chevron-{{ loop.index }}')">
+            <div style="display:flex; align-items:center; gap:14px;">
+              <div style="width:38px; height:38px; border-radius:50%; background:var(--accent);
+                          display:flex; align-items:center; justify-content:center;
+                          color:#fff; font-weight:700; font-size:14px; flex-shrink:0;">
+                {{ student.student_name[0]|upper }}
+              </div>
+              <div>
+                <div style="font-weight:700; font-size:15px; color:var(--text);">
+                  {{ student.student_name }}
+                </div>
+                <div style="font-size:12px; color:var(--text-secondary);">
+                  Roll: {{ roll_no }} &bull; {{ student.course }} Sem {{ student.semester }}
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              {% if saved_count.v == subjects|length and subjects|length > 0 %}
+                <span style="font-size:11px; background:#22c55e22; color:#16a34a;
+                             padding:3px 10px; border-radius:20px; font-weight:600;">
+                  ✓ All Saved
+                </span>
+              {% elif saved_count.v > 0 %}
+                <span style="font-size:11px; background:#f59e0b22; color:#d97706;
+                             padding:3px 10px; border-radius:20px; font-weight:600;">
+                  {{ saved_count.v }}/{{ subjects|length }} Saved
+                </span>
+              {% else %}
+                <span style="font-size:11px; background:var(--bg-page); color:var(--text-secondary);
+                             padding:3px 10px; border-radius:20px;">
+                  Not entered
+                </span>
+              {% endif %}
+              <svg id="chevron-{{ loop.index }}"
+                   style="width:18px; height:18px; color:var(--text-secondary);
+                          transition:transform 0.2s; transform:rotate(0deg);"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Marks input section -->
+          <div id="marks-section-{{ loop.index }}" style="padding:20px;">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:40%;">Subject</th>
+                    <th style="width:15%; text-align:center;">Max Marks</th>
+                    <th style="width:15%; text-align:center;">Pass Marks</th>
+                    <th style="width:30%;">Obtained Marks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for sub in subjects %}
+                    {% set sub_id = sub["id"] %}
+                    {% set existing = marks_map.get((stud_pk, sub_id)) %}
+                    <tr>
+                      <td>
+                        <strong>{{ sub.subject_name }}</strong>
+                        {% if sub.subject_code %}
+                          <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
+                            {{ sub.subject_code }}
+                          </div>
+                        {% endif %}
+                      </td>
+                      <td style="text-align:center;">
+                        <input type="number" step="0.01" min="1"
+                               name="max_{{ roll_no }}_{{ sub_id }}"
+                               id="max_{{ roll_no }}_{{ sub_id }}"
+                               class="form-control" style="text-align:center; width:90px; margin:0 auto;"
+                               placeholder="100"
+                               value="{{ '%.2f'|format(existing.max_marks|float) if existing else '%.2f'|format(sub.max_marks|float) }}">
+                      </td>
+                      <td style="text-align:center; color:var(--text-secondary); font-size:13px;">
+                        {{ '%.0f'|format(sub.pass_marks|float) }}
+                      </td>
+                      <td>
+                        <input type="number" step="0.01" min="0"
+                               name="obt_{{ roll_no }}_{{ sub_id }}"
+                               id="obt_{{ roll_no }}_{{ sub_id }}"
+                               class="form-control"
+                               placeholder="0.00"
+                               value="{{ '%.2f'|format(existing.obtained_marks|float) if existing else '' }}"
+                               oninput="highlightRow(this)">
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      {% endfor %}
+
+      <!-- Sticky save bar -->
+      <div style="position:sticky; bottom:0; background:var(--bg-card);
+                  border-top:1px solid var(--border); padding:14px 20px;
+                  display:flex; gap:12px; justify-content:flex-end;
+                  box-shadow:0 -2px 8px rgba(0,0,0,0.08); z-index:10;
+                  margin-top:8px;">
+        <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Cancel</a>
+        <button type="submit" class="btn btn-primary" id="btn-save-marks">
+          Save All Marks
+        </button>
+      </div>
+
     </form>
+  {% endif %}
 
-    {% if selected_student %}
-      <div style="background: var(--bg-page); padding: 14px 18px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 24px;">
-        <div style="font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px;">
-          {{ selected_student.student_name }}
-        </div>
-        <div style="font-size: 12px; color: var(--text-secondary); display: flex; gap: 16px;">
-          <span><strong>ID / Roll:</strong> {{ selected_student.student_id }}</span>
-          <span><strong>Course:</strong> {{ selected_student.course }}</span>
-          <span><strong>Semester:</strong> Sem {{ selected_student.semester }}</span>
-        </div>
-      </div>
+  <script>
+    function toggleSection(sectionId, chevronId) {
+      const section = document.getElementById(sectionId);
+      const chevron = document.getElementById(chevronId);
+      const isHidden = section.style.display === 'none';
+      section.style.display = isHidden ? '' : 'none';
+      chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    }
 
-      <form method="POST" action="{{ url_for('enter_exam_marks_route', exam_id=exam.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="stud_id" value="{{ selected_student.id }}">
+    function highlightRow(input) {
+      const row = input.closest('tr');
+      if (input.value !== '') {
+        row.style.background = 'var(--bg-page)';
+      } else {
+        row.style.background = '';
+      }
+    }
 
-        <h3 style="font-size: 16px; margin-bottom: 14px; border-left: 4px solid var(--accent); padding-left: 10px;">Subject Marks ({{ subjects|length }} Subjects)</h3>
-
-        <div class="table-wrap" style="margin-bottom: 20px;">
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 45%;">Subject</th>
-                <th style="width: 25%;">Obtained Marks</th>
-                <th style="width: 25%;">Max Marks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for sub in subjects %}
-                {% set existing = existing_marks_map.get(sub.id) %}
-                <tr>
-                  <td>
-                    <strong>{{ sub.subject_name }}</strong>
-                    {% if sub.subject_code %}
-                      <div style="font-size: 11px; color: var(--text-muted);">{{ sub.subject_code }}</div>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <input type="number" step="0.01" min="0" max="{{ sub.max_marks }}"
-                           name="obtained_{{ sub.id }}" class="form-control" required
-                           placeholder="0.00"
-                           value="{% if existing %}{{ '%.2f'|format(existing.obtained_marks) }}{% endif %}">
-                  </td>
-                  <td>
-                    <input type="number" step="0.01" min="1"
-                           name="max_{{ sub.id }}" class="form-control" required
-                           placeholder="100.00"
-                           value="{% if existing %}{{ '%.2f'|format(existing.max_marks) }}{% else %}{{ '%.2f'|format(sub.max_marks) }}{% endif %}">
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-          <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Cancel</a>
-          <button type="submit" class="btn btn-primary">Save Result Marks</button>
-        </div>
-      </form>
-    {% else %}
-      <div style="text-align: center; padding: 36px 20px; color: var(--text-secondary);">
-        Please select a student from the dropdown above to enter or update subject marks.
-      </div>
-    {% endif %}
-  </div>
+    // Confirm before leaving with unsaved changes
+    let formDirty = false;
+    document.getElementById('marks-form')?.addEventListener('input', () => { formDirty = true; });
+    document.getElementById('marks-form')?.addEventListener('submit', () => { formDirty = false; });
+    window.addEventListener('beforeunload', (e) => {
+      if (formDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  </script>
 {% endblock %}

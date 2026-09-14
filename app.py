@@ -1966,11 +1966,12 @@ def enter_exam_marks_route(exam_id):
         recorded_by = session.get("user_id")
 
         for student in students:
-            stud_id = student["student_id"]
+            roll_no = student["student_id"]   # varchar roll number (used in field names)
+            stud_pk = student["id"]           # integer PK (used for DB saves)
             for sub in subjects:
-                sub_id = sub["subject_id"]
-                max_key = f"max_{stud_id}_{sub_id}"
-                obt_key = f"obt_{stud_id}_{sub_id}"
+                sub_id = sub["id"]            # subjects.id (integer PK)
+                max_key = f"max_{roll_no}_{sub_id}"
+                obt_key = f"obt_{roll_no}_{sub_id}"
 
                 max_val = request.form.get(max_key, "").strip()
                 obt_val = request.form.get(obt_key, "").strip()
@@ -1978,13 +1979,13 @@ def enter_exam_marks_route(exam_id):
                 if max_val or obt_val:
                     valid, err_msg, obt_f, max_f = exam_service.validate_marks_input(obt_val, max_val)
                     if not valid:
-                        flash(f"Student {stud_id} - {sub['subject_name']}: {err_msg}", "error")
+                        flash(f"Student {roll_no} - {sub['subject_name']}: {err_msg}", "error")
                         all_marks_valid = False
                     else:
                         try:
                             database.save_exam_marks(
                                 exam_id=exam_id,
-                                stud_id=stud_id,
+                                stud_id=stud_pk,
                                 subject_id=sub_id,
                                 obtained_marks=obt_f,
                                 max_marks=max_f,
@@ -1992,7 +1993,7 @@ def enter_exam_marks_route(exam_id):
                             )
                         except Error as e:
                             app.logger.error("DB error saving marks: %s", e)
-                            flash(f"Database error saving marks for {stud_id}", "error")
+                            flash(f"Database error saving marks for {roll_no}", "error")
                             all_marks_valid = False
 
         if all_marks_valid:
@@ -2000,6 +2001,7 @@ def enter_exam_marks_route(exam_id):
             return redirect(url_for("list_exams_route"))
 
     existing_marks = database.get_all_marks_for_exam(exam_id)
+    # Key: (student_pk: int, subject_id: int) → mark row
     marks_map = {}
     for m in existing_marks:
         marks_map[(m["stud_id"], m["subject_id"])] = m
