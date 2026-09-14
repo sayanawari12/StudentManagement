@@ -8,6 +8,7 @@
       <p>Student ID {{ student.student_id }}</p>
     </div>
     <div class="actions-row">
+      <a href="{{ url_for('student_academic_record_route', student_id=student.student_id or student.id) }}" class="btn btn-outline">Academic Transcript</a>
       <a href="{{ url_for('student_result_history_route', student_id=student.student_id) }}" class="btn btn-outline">Exam Results</a>
       {% if session.get('role') == 'admin' or (session.get('role') == 'student' and session.get('linked_student_id') == student.id) %}
         <a href="{{ url_for('student_certificate', record_id=student.id) }}" class="btn btn-outline">Download Certificate</a>

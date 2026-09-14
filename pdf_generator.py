@@ -997,3 +997,297 @@ def generate_marksheet_pdf(*args, **kwargs):
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def generate_academic_transcript_pdf(student, transcript_data, institution_name=None, institution_location=None, institution_affiliation=None):
+    """
+    Generates a professional downloadable Academic Transcript / Cumulative Record PDF for a student.
+    Returns bytes of PDF.
+    """
+    if institution_name is None: institution_name = "SUSHGANGA INSTITUTE, WANI"
+    if institution_location is None: institution_location = "Wani, Dist. Yavatmal, Maharashtra – 445304"
+    if institution_affiliation is None: institution_affiliation = "Affiliated to Sant Gadge Baba Amravati University, Amravati"
+
+    if student is None: student = {}
+    if transcript_data is None: transcript_data = {}
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'TranscriptInstTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        leading=22,
+        alignment=TA_CENTER,
+        textColor=TERRACOTTA,
+    )
+    subtitle_style = ParagraphStyle(
+        'TranscriptSub',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9,
+        leading=12,
+        alignment=TA_CENTER,
+        textColor=MUTED_TEXT,
+    )
+    doc_title_style = ParagraphStyle(
+        'TranscriptDocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=14,
+        leading=18,
+        alignment=TA_CENTER,
+        textColor=DARK_TEXT,
+        spaceAfter=12,
+    )
+    section_head_style = ParagraphStyle(
+        'TranscriptSectionHead',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=14,
+        textColor=TERRACOTTA,
+        spaceBefore=10,
+        spaceAfter=6,
+    )
+    sub_head_style = ParagraphStyle(
+        'TranscriptSubHead',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9.5,
+        leading=13,
+        textColor=DARK_TEXT,
+        spaceBefore=6,
+        spaceAfter=4,
+    )
+    label_style = ParagraphStyle(
+        'TLabelStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=12,
+        textColor=MUTED_TEXT,
+    )
+    val_style = ParagraphStyle(
+        'TValStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=12,
+        textColor=DARK_TEXT,
+    )
+    tbl_hdr_style = ParagraphStyle(
+        'TTblHdr',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8.5,
+        leading=11,
+        textColor=DARK_TEXT,
+        alignment=TA_CENTER,
+    )
+    tbl_body_style = ParagraphStyle(
+        'TTblBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=DARK_TEXT,
+    )
+    tbl_body_center = ParagraphStyle(
+        'TTblBodyCenter',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=DARK_TEXT,
+        alignment=TA_CENTER,
+    )
+
+    story = []
+
+    # 1. Institution Header
+    inst_title = str(institution_name).upper()
+    story.append(Paragraph(inst_title, title_style))
+
+    sub_lines = []
+    if institution_location: sub_lines.append(institution_location)
+    if institution_affiliation: sub_lines.append(institution_affiliation)
+    if sub_lines:
+        story.append(Paragraph(" &bull; ".join(sub_lines), subtitle_style))
+
+    story.append(Spacer(1, 8))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceBefore=0, spaceAfter=10))
+
+    # 2. Document Title
+    story.append(Paragraph("OFFICIAL ACADEMIC TRANSCRIPT", doc_title_style))
+
+    # 3. Student Information Block
+    curr_year = datetime.now().year
+    next_year_short = str(curr_year + 1)[-2:]
+    acad_year = student.get("academic_year") or f"{curr_year}\u2013{next_year_short}"
+
+    details_data = [
+        [Paragraph("Student Name:", label_style), Paragraph(str(student.get("student_name", "")), val_style),
+         Paragraph("Student ID / Roll:", label_style), Paragraph(str(student.get("student_id", "")), val_style)],
+        [Paragraph("Course:", label_style), Paragraph(str(student.get("course", "")), val_style),
+         Paragraph("Current Semester:", label_style), Paragraph(f"Semester {student.get('semester', '')}", val_style)],
+        [Paragraph("Academic Year:", label_style), Paragraph(str(acad_year), val_style),
+         Paragraph("Date of Issue:", label_style), Paragraph(datetime.now().strftime("%d %B %Y"), val_style)],
+    ]
+    details_table = Table(details_data, colWidths=[90, 170, 90, 170])
+    details_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), BG_LIGHT),
+        ('BOX', (0, 0), (-1, -1), 1, TERRACOTTA),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(details_table)
+    story.append(Spacer(1, 10))
+
+    overall = transcript_data.get("overall", {})
+    semesters = transcript_data.get("semesters", {})
+    ordered_semesters = transcript_data.get("ordered_semesters", [])
+
+    # 4. Overall Academic Summary Card Table (if data exists)
+    if overall.get("has_data"):
+        story.append(Paragraph("CUMULATIVE ACADEMIC SUMMARY", section_head_style))
+        ov_status = overall.get("overall_result", "N/A")
+        ov_clr = "#3A7D44" if ov_status == "PASS" else ("#9C3B2E" if ov_status == "FAIL" else "#111111")
+        ov_status_p = Paragraph(f"<font color='{ov_clr}'><b>{ov_status}</b></font>", val_style)
+
+        summary_data = [
+            [
+                Paragraph("Total Semesters", label_style), Paragraph(str(overall.get("total_semesters", 0)), val_style),
+                Paragraph("Total Exams", label_style), Paragraph(str(overall.get("total_exams", 0)), val_style),
+            ],
+            [
+                Paragraph("Total Subjects", label_style), Paragraph(f"{overall.get('passed_subjects', 0)} Passed / {overall.get('total_subjects', 0)} Total", val_style),
+                Paragraph("Marks Obtained", label_style), Paragraph(f"<b>{overall.get('total_obtained', 0):.2f} / {overall.get('total_max', 0):.2f}</b>", val_style),
+            ],
+            [
+                Paragraph("Overall Percentage", label_style), Paragraph(f"<b>{overall.get('overall_percentage', 0):.2f}%</b>", val_style),
+                Paragraph("Overall Grade", label_style), Paragraph(f"<b>{overall.get('overall_grade', 'N/A')}</b>", val_style),
+            ],
+            [
+                Paragraph("Cumulative Status", label_style), ov_status_p,
+                Paragraph("", label_style), Paragraph("", val_style),
+            ]
+        ]
+        summary_table = Table(summary_data, colWidths=[100, 160, 100, 160])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), BG_LIGHT),
+            ('BOX', (0, 0), (-1, -1), 1, TERRACOTTA),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 10))
+
+    if not overall.get("has_data") or not ordered_semesters:
+        no_data_p = Paragraph("<i>No academic records available yet.</i>", val_style)
+        story.append(no_data_p)
+    else:
+        # 5. Semester-wise & Exam-wise Breakdown
+        for sem_key in ordered_semesters:
+            sem_data = semesters.get(sem_key, {})
+            story.append(Paragraph(f"SEMESTER {sem_key}", section_head_style))
+
+            exams_list = sem_data.get("exams", [])
+            for ex_item in exams_list:
+                ex = ex_item.get("exam", {})
+                ex_summary = ex_item.get("summary", {})
+                ex_name = ex.get("exam_name", "Examination")
+                ex_year = ex.get("academic_year", "")
+                ex_date = ex.get("created_at", "")
+                if hasattr(ex_date, "strftime"):
+                    ex_date = ex_date.strftime("%Y-%m-%d")
+
+                sub_info = f"Exam: <b>{ex_name}</b>"
+                if ex_year: sub_info += f" &bull; Academic Year: {ex_year}"
+                if ex_date: sub_info += f" &bull; Date: {ex_date}"
+
+                story.append(Paragraph(sub_info, sub_head_style))
+
+                table_data = [
+                    [
+                        Paragraph("Subject Code", tbl_hdr_style),
+                        Paragraph("Subject Name", tbl_hdr_style),
+                        Paragraph("Max Marks", tbl_hdr_style),
+                        Paragraph("Pass Marks", tbl_hdr_style),
+                        Paragraph("Obtained", tbl_hdr_style),
+                        Paragraph("%", tbl_hdr_style),
+                        Paragraph("Grade", tbl_hdr_style),
+                        Paragraph("Result", tbl_hdr_style),
+                    ]
+                ]
+
+                for sub in ex_summary.get("subject_results", []):
+                    st = sub.get("status", "FAIL")
+                    st_clr = "#3A7D44" if st == "PASS" else "#9C3B2E"
+                    res_p = Paragraph(f"<font color='{st_clr}'><b>{st}</b></font>", tbl_body_center)
+                    code_val = sub.get("subject_code") or "--"
+
+                    table_data.append([
+                        Paragraph(str(code_val), tbl_body_style),
+                        Paragraph(str(sub.get("subject_name", "")), tbl_body_style),
+                        Paragraph(f"{sub.get('max_marks', 0):.2f}", tbl_body_center),
+                        Paragraph(f"{sub.get('pass_marks', 0):.2f}", tbl_body_center),
+                        Paragraph(f"{sub.get('obtained_marks', 0):.2f}", tbl_body_center),
+                        Paragraph(f"{sub.get('percentage', 0):.2f}%", tbl_body_center),
+                        Paragraph(str(sub.get("grade", "F")), tbl_body_center),
+                        res_p,
+                    ])
+
+                col_widths = [65, 175, 45, 45, 45, 45, 40, 60]
+                marks_table = Table(table_data, colWidths=col_widths)
+                marks_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, BORDER_CLR),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ]))
+                story.append(marks_table)
+
+                ex_tot_obt = ex_summary.get("total_obtained", 0)
+                ex_tot_mx = ex_summary.get("total_max", 0)
+                ex_pct = ex_summary.get("percentage", 0)
+                ex_status = ex_summary.get("overall_status", "FAIL")
+                ex_grade = ex_summary.get("overall_grade", "F")
+
+                summary_str = f"Exam Summary: Total <b>{ex_tot_obt:.2f} / {ex_tot_mx:.2f}</b> &bull; Percentage: <b>{ex_pct:.2f}%</b> &bull; Grade: <b>{ex_grade}</b> &bull; Result: <b>{ex_status}</b>"
+                story.append(Paragraph(summary_str, val_style))
+                story.append(Spacer(1, 8))
+
+    story.append(Spacer(1, 14))
+
+    sig_data = [
+        [
+            Paragraph(f"<b>Date:</b> {datetime.now().strftime('%d %B %Y')}", val_style),
+            Paragraph("<b>Controller of Examinations</b>", ParagraphStyle('RightSig', parent=val_style, alignment=TA_RIGHT)),
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[260, 260])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+    ]))
+    story.append(sig_table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+

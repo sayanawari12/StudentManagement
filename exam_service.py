@@ -220,3 +220,98 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
         "overall_status": overall_status,
         "total_subjects": len(subject_results),
     }
+
+
+def compute_academic_transcript(student: dict, raw_history: list) -> dict:
+    """
+    Calculates full academic transcript data for a student structured
+    semester-wise and exam-wise.
+
+    Reuses existing exam calculation logic without duplicating marks rules.
+    """
+    if raw_history is None:
+        raw_history = []
+
+    semesters = {}
+    total_exams = 0
+    total_subjects = 0
+    total_obtained = 0.0
+    total_max = 0.0
+    passed_subjects = 0
+    failed_subjects = 0
+
+    for item in raw_history:
+        exam = item.get("exam", {})
+        marks = item.get("marks", [])
+        
+        # Calculate summary for this exam
+        summary = compute_student_result_summary(student, exam, marks)
+        
+        sem_val = exam.get("semester", 1)
+        try:
+            sem_key = int(sem_val)
+        except (ValueError, TypeError):
+            sem_key = sem_val
+
+        if sem_key not in semesters:
+            semesters[sem_key] = {
+                "semester": sem_key,
+                "exams": []
+            }
+
+        semesters[sem_key]["exams"].append({
+            "exam": exam,
+            "marks": marks,
+            "summary": summary
+        })
+
+        total_exams += 1
+        for sub in summary.get("subject_results", []):
+            total_subjects += 1
+            total_obtained += sub.get("obtained_marks", 0.0)
+            total_max += sub.get("max_marks", 0.0)
+            if sub.get("status") == "PASS":
+                passed_subjects += 1
+            else:
+                failed_subjects += 1
+
+    # Sort semester keys numerically if possible, otherwise string sort
+    def sem_sort_key(k):
+        try:
+            return (0, int(k))
+        except (ValueError, TypeError):
+            return (1, str(k))
+
+    ordered_semesters = sorted(list(semesters.keys()), key=sem_sort_key)
+
+    has_data = total_subjects > 0
+    if has_data:
+        overall_pct = (total_obtained / total_max * 100.0) if total_max > 0 else 0.0
+        overall_result = "PASS" if failed_subjects == 0 else "FAIL"
+        overall_grade = calculate_subject_grade(overall_pct) if overall_result == "PASS" else "F"
+    else:
+        overall_pct = 0.0
+        overall_result = "N/A"
+        overall_grade = "N/A"
+
+    overall_summary = {
+        "total_semesters": len(semesters),
+        "total_exams": total_exams,
+        "total_subjects": total_subjects,
+        "total_obtained": round(total_obtained, 2),
+        "total_max": round(total_max, 2),
+        "overall_percentage": round(overall_pct, 2),
+        "passed_subjects": passed_subjects,
+        "failed_subjects": failed_subjects,
+        "overall_result": overall_result,
+        "overall_grade": overall_grade,
+        "has_data": has_data
+    }
+
+    return {
+        "student": student or {},
+        "semesters": semesters,
+        "ordered_semesters": ordered_semesters,
+        "overall": overall_summary
+    }
+

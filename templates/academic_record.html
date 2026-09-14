@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Academic Transcript — {{ student.student_name or student.stud_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <div>
+        <h1>Student Academic Transcript</h1>
+        <p>Complete Academic Record for <strong>{{ student.student_name or student.stud_name }}</strong> (ID: {{ student.student_id or student.stud_id }})</p>
+    </div>
+    <div class="actions-row">
+        <a href="{{ url_for('download_academic_record_pdf_route', student_id=student.student_id or student.id) }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-pdf"></i> Download PDF Transcript
+        </a>
+        {% if session.get('role') == 'student' %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Dashboard</a>
+        {% else %}
+        <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Student Profile</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Student Information Card -->
+<div class="card mb-4">
+    <div class="detail-grid">
+        <div class="detail-item">
+            <div class="label">Student Name</div>
+            <div class="value">{{ student.student_name or student.stud_name }}</div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Student ID / Roll</div>
+            <div class="value">{{ student.student_id or student.stud_id or student.roll_no }}</div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Course</div>
+            <div class="value">{{ student.course or 'N/A' }}</div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Current Semester</div>
+            <div class="value"><span class="badge">Semester {{ student.semester or 'N/A' }}</span></div>
+        </div>
+    </div>
+</div>
+
+{% if not transcript.overall.has_data %}
+<div class="card mb-4 text-center py-4">
+    <div class="empty-state">
+        <i class="bi bi-journal-x fs-1 text-muted d-block mb-2"></i>
+        <h3>No Academic Records Available</h3>
+        <p class="text-muted mb-0">No academic records available yet.</p>
+    </div>
+</div>
+{% else %}
+
+<!-- Cumulative Academic Summary Card -->
+<div class="card mb-4">
+    <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--primary-color, #333);">Cumulative Academic Summary</h3>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <div class="label">Total Semesters</div>
+            <div class="value"><strong>{{ transcript.overall.total_semesters }}</strong></div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Total Exams</div>
+            <div class="value"><strong>{{ transcript.overall.total_exams }}</strong></div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Total Subjects</div>
+            <div class="value">{{ transcript.overall.passed_subjects }} Passed / {{ transcript.overall.total_subjects }} Total</div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Marks Obtained</div>
+            <div class="value"><strong>{{ "%.2f"|format(transcript.overall.total_obtained) }} / {{ "%.2f"|format(transcript.overall.total_max) }}</strong></div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Overall Percentage</div>
+            <div class="value"><strong>{{ "%.2f"|format(transcript.overall.overall_percentage) }}%</strong></div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Overall Grade</div>
+            <div class="value"><span class="badge" style="font-size: 1rem; background-color: var(--color-gray-700, #495057); color: white;">{{ transcript.overall.overall_grade }}</span></div>
+        </div>
+        <div class="detail-item">
+            <div class="label">Cumulative Result</div>
+            <div class="value">
+                {% if transcript.overall.overall_result == 'PASS' %}
+                <span class="badge badge-success" style="background-color: #28a745; color: white; padding: 4px 10px; border-radius: 4px;">PASS</span>
+                {% else %}
+                <span class="badge badge-danger" style="background-color: #dc3545; color: white; padding: 4px 10px; border-radius: 4px;">FAIL</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Semester-wise Breakdown -->
+{% for sem_key in transcript.ordered_semesters %}
+{% set sem_data = transcript.semesters[sem_key] %}
+<div class="card mb-4">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <h3 style="margin: 0; color: var(--primary-color, #2b3a4a);">Semester {{ sem_key }}</h3>
+        <span class="badge" style="background-color: #6c757d; color: white;">{{ sem_data.exams|length }} Exam(s)</span>
+    </div>
+
+    {% for ex_item in sem_data.exams %}
+    <div class="exam-block" style="margin-bottom: 1.5rem; background: var(--bg-surface-alt, #fafafa); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color, #e0e0e0);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <h4 style="margin: 0; font-size: 1.1rem; color: #111;">{{ ex_item.exam.exam_name }}</h4>
+                <small class="text-muted">
+                    Type: {{ ex_item.exam.exam_type or 'Regular' }}
+                    {% if ex_item.exam.academic_year %} | Academic Year: {{ ex_item.exam.academic_year }}{% endif %}
+                </small>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <span class="badge" style="background-color: #17a2b8; color: white;">Total: {{ "%.2f"|format(ex_item.summary.total_obtained) }} / {{ "%.2f"|format(ex_item.summary.total_max) }}</span>
+                {% if ex_item.summary.overall_status == 'PASS' %}
+                <span class="badge" style="background-color: #28a745; color: white;">PASS</span>
+                {% else %}
+                <span class="badge" style="background-color: #dc3545; color: white;">FAIL</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="table-responsive" style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                <thead>
+                    <tr style="background-color: #f1f3f5; text-align: left;">
+                        <th style="padding: 8px; border: 1px solid #dee2e6;">Subject Code</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6;">Subject Name</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">Max Marks</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">Pass Marks</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">Obtained</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">%</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">Grade</th>
+                        <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in ex_item.summary.subject_results %}
+                    <tr style="border-bottom: 1px solid #e9ecef;">
+                        <td style="padding: 8px; border: 1px solid #dee2e6;">{{ sub.subject_code or '--' }}</td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6;"><strong>{{ sub.subject_name }}</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">{{ "%.2f"|format(sub.max_marks) }}</td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">{{ "%.2f"|format(sub.pass_marks) }}</td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;"><strong>{{ "%.2f"|format(sub.obtained_marks) }}</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">{{ "%.2f"|format(sub.percentage) }}%</td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;"><strong>{{ sub.grade }}</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dee2e6; text-align: center;">
+                            {% if sub.status == 'PASS' %}
+                            <span class="badge" style="background-color: #28a745; color: white; padding: 2px 8px; font-size: 0.8rem; border-radius: 4px;">PASS</span>
+                            {% else %}
+                            <span class="badge" style="background-color: #dc3545; color: white; padding: 2px 8px; font-size: 0.8rem; border-radius: 4px;">FAIL</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

@@ -22,7 +22,13 @@ import qrcode.image.svg
 import config
 import database
 import exam_service
-from pdf_generator import generate_bonafide_pdf, generate_dashboard_pdf, generate_id_card_pdf, generate_marksheet_pdf
+from pdf_generator import (
+    generate_bonafide_pdf,
+    generate_dashboard_pdf,
+    generate_id_card_pdf,
+    generate_marksheet_pdf,
+    generate_academic_transcript_pdf,
+)
 from flask_wtf.csrf import CSRFProtect
 from flask_mail import Mail, Message
 
@@ -2127,6 +2133,56 @@ def student_result_history_route(student_id):
         student=student,
         semester_groups=semester_groups
     )
+
+
+@app.route("/students/<student_id>/academic-record")
+@role_required("admin", "teacher", "student")
+def student_academic_record_route(student_id):
+    _assert_own_record(student_id)
+
+    student = database.get_student_by_id(student_id)
+    if not student:
+        student = database.get_student_by_student_id(student_id)
+    if not student:
+        abort(404)
+
+    raw_history = database.get_student_exam_history(student_id)
+    transcript = exam_service.compute_academic_transcript(student, raw_history)
+
+    return render_template(
+        "academic_record.html",
+        student=student,
+        transcript=transcript
+    )
+
+
+@app.route("/students/<student_id>/academic-record/pdf")
+@role_required("admin", "teacher", "student")
+def download_academic_record_pdf_route(student_id):
+    _assert_own_record(student_id)
+
+    student = database.get_student_by_id(student_id)
+    if not student:
+        student = database.get_student_by_student_id(student_id)
+    if not student:
+        abort(404)
+
+    raw_history = database.get_student_exam_history(student_id)
+    transcript = exam_service.compute_academic_transcript(student, raw_history)
+
+    pdf_bytes = generate_academic_transcript_pdf(
+        student=student,
+        transcript_data=transcript
+    )
+
+    filename = f"Academic_Transcript_{student.get('student_id', student_id)}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename
+    )
+
 
 
 @app.route("/exams/<int:exam_id>/marksheet/<student_id>/pdf")
