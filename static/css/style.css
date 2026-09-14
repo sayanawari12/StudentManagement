@@ -978,7 +978,7 @@ body.drawer-open {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Mobile Students View (Matching S2.png Reference Image)                 */
+/* Mobile Students View (S1 Visual Theme + S2 Content Layout)             */
 /* ---------------------------------------------------------------------- */
 
 .desktop-only {
@@ -1013,51 +1013,43 @@ body.drawer-open {
     font-family: var(--font-heading);
     font-size: 32px;
     font-style: italic;
-    font-weight: 500;
+    font-weight: 400;
     margin: 0;
     color: var(--text-primary);
   }
 
   .badge-record-count {
-    background: var(--accent-soft, #F3E9E1);
-    color: var(--accent, #A9714F);
+    background: var(--accent-soft);
+    color: var(--accent);
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 20px;
+    padding: 3px 10px;
+    letter-spacing: 0.04em;
+    border-radius: 0px;
   }
 
   .mobile-students-actions {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     margin-bottom: 20px;
   }
 
   .btn-mobile-primary {
     width: 100%;
     justify-content: center;
-    padding: 12px 20px;
-    font-size: 15px;
-    font-weight: 600;
-    border-radius: 8px;
   }
 
   .mobile-csv-row {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
   }
 
   .btn-mobile-csv {
     flex: 1;
     justify-content: center;
-    padding: 11px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    border-radius: 8px;
-    background: var(--bg-surface);
   }
 
   .mobile-search-wrap {
@@ -1068,14 +1060,13 @@ body.drawer-open {
 
   .mobile-search-wrap input {
     width: 100%;
-    padding: 14px 16px 14px 44px;
-    border-radius: 10px;
+    padding: 10px 12px 10px 38px;
     border: 1px solid var(--border);
+    border-radius: 0;
     background: var(--bg-surface);
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--text-primary);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.02);
   }
 
   .mobile-search-wrap input:focus {
@@ -1086,7 +1077,7 @@ body.drawer-open {
 
   .mobile-search-wrap svg {
     position: absolute;
-    left: 15px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
@@ -1101,32 +1092,32 @@ body.drawer-open {
   }
 
   .mobile-student-card {
-    background: var(--bg-surface, #ffffff);
-    border: 1px solid var(--border, rgba(22, 22, 22, 0.14));
-    border-radius: 12px;
-    padding: 20px 18px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-dark);
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 14px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    box-shadow: none;
   }
 
   .mobile-card-header {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
   .mobile-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--accent, #A9714F);
-    color: #ffffff;
+    width: 42px;
+    height: 42px;
+    border-radius: 0;
+    background: var(--accent-soft);
+    color: var(--accent);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    border: 1px solid var(--border);
   }
 
   .mobile-card-info {
@@ -1137,54 +1128,50 @@ body.drawer-open {
   .mobile-card-name {
     font-family: var(--font-body);
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-primary);
     line-height: 1.25;
   }
 
   .mobile-card-id {
     font-family: monospace;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--text-secondary);
-    margin-top: 3px;
+    margin-top: 2px;
   }
 
   .mobile-card-body {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border, rgba(22, 22, 22, 0.1));
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
   }
 
   .mobile-card-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     font-size: 13px;
     color: var(--text-secondary);
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .mobile-card-row svg {
-    color: var(--accent);
+    color: var(--text-muted);
     flex-shrink: 0;
   }
 
   .mobile-card-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     margin-top: 4px;
   }
 
   .mobile-card-btn {
     flex: 1;
     justify-content: center;
-    padding: 10px 16px;
-    font-size: 13px;
-    font-weight: 600;
-    border-radius: 8px;
   }
 
   .mobile-cards-footer {
@@ -1195,6 +1182,7 @@ body.drawer-open {
     font-style: italic;
   }
 }
+
 
 
 

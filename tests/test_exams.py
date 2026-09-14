@@ -440,6 +440,19 @@ class TestExamRoutesAndPermissions:
         admin_id = db["users"]["admin"]["id"]
         stud_obj = database.get_student_by_id(db["linked_pk"])
         other_stud_obj = database.get_student_by_id(db["other_pk"])
+        if not other_stud_obj:
+            all_students = database.get_all_students()
+            other_stud_obj = next((s for s in all_students if s["id"] != db["linked_pk"]), None)
+            if not other_stud_obj:
+                other_pk = database.insert_student({
+                    "student_id": "TEMP_OTHER_999",
+                    "student_name": "Other Temp Student",
+                    "course": "BCA",
+                    "semester": 1,
+                    "phone": "9999999999",
+                    "email": "other_temp@test.com"
+                })
+                other_stud_obj = database.get_student_by_id(other_pk)
 
         stud_id = stud_obj["student_id"]
         other_stud_id = other_stud_obj["student_id"]
