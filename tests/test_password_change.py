@@ -159,7 +159,10 @@ class TestPasswordChangeSuccess:
                 follow_redirects=False,
             )
             assert new_login_resp.status_code == 302
-            assert "/dashboard" in new_login_resp.headers["Location"]
+            if username == "student":
+                assert "/students/" in new_login_resp.headers["Location"]
+            else:
+                assert "/dashboard" in new_login_resp.headers["Location"]
         finally:
             conn = mysql.connector.connect(
                 host=os.environ["DB_HOST"],

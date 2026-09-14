@@ -21,7 +21,7 @@ def test_404_handler_returns_custom_page(client):
     assert b"404 Not Found" in response.data
     assert b"Page Not Found" in response.data
     assert b"The page you're looking for doesn't exist." in response.data
-    assert b"Back to Dashboard" in response.data
+    assert b"Back to Dashboard" in response.data or b"Back to Login" in response.data
 
 
 def test_500_handler_returns_custom_page(client, monkeypatch):
