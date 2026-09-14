@@ -103,6 +103,7 @@
       </div>
     </div>
 
+    {% if session.get('role') != 'teacher' %}
     <div class="overview-stat-card">
       <div class="overview-stat-label">Pending Fees</div>
       <div class="overview-stat-val">
@@ -124,6 +125,7 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
 
     <div class="overview-stat-card">
       <div class="overview-stat-label">Current Academic</div>

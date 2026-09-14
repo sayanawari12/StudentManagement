@@ -23,11 +23,47 @@ class TestAdvancedStudentDashboard:
         assert "Student Overview" in html
         assert "Attendance Overview" in html
 
-    def test_dashboard_renders_for_student(self, student_client):
+    def test_dashboard_forbidden_for_student(self, student_client):
+        """STUDENT role must NOT have access to /dashboard (returns 403 Forbidden)."""
         res = student_client.get("/dashboard")
+        assert res.status_code == 403
+
+    def test_dashboard_analytics_not_executed_for_student(self, student_client, monkeypatch):
+        """Dashboard backend database analytics must NOT execute for student requests."""
+        called = False
+        def mock_get_stats():
+            nonlocal called
+            called = True
+            raise RuntimeError("Database analytics should not be called for student request!")
+
+        monkeypatch.setattr(database, "get_dashboard_stats", mock_get_stats)
+        res = student_client.get("/dashboard")
+        assert res.status_code == 403
+        assert not called, "database.get_dashboard_stats() was executed for student request!"
+
+    def test_dashboard_navigation_visibility_by_role(self, admin_client, teacher_client, student_client, db):
+        """Dashboard menu item must be visible to Admin and Teacher, but hidden for Student."""
+        admin_res = admin_client.get("/dashboard")
+        assert admin_res.status_code == 200
+        assert "Dashboard" in admin_res.data.decode("utf-8")
+
+        teacher_res = teacher_client.get("/dashboard")
+        assert teacher_res.status_code == 200
+        assert "Dashboard" in teacher_res.data.decode("utf-8")
+
+        # Student page — check navigation menu in app shell
+        student_pk = db["linked_pk"]
+        student_res = student_client.get(f"/students/{student_pk}")
+        assert student_res.status_code == 200
+        student_html = student_res.data.decode("utf-8")
+        # Sidebar/drawer links: 'Dashboard' nav link should NOT be rendered
+        assert 'href="/dashboard"' not in student_html
+
+    def test_student_360_profile_access_remains_working(self, student_client, db):
+        """Existing Student 360 Profile access must continue working for authorized student."""
+        student_pk = db["linked_pk"]
+        res = student_client.get(f"/students/{student_pk}")
         assert res.status_code == 200
-        html = res.data.decode("utf-8")
-        assert "Student Overview" in html
 
     def test_unauthenticated_dashboard_redirects_to_login(self, client):
         res = client.get("/dashboard")

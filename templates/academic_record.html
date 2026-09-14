@@ -12,11 +12,7 @@
         <a href="{{ url_for('download_academic_record_pdf_route', student_id=student.student_id or student.id) }}" class="btn btn-primary">
             <i class="bi bi-file-earmark-pdf"></i> Download PDF Transcript
         </a>
-        {% if session.get('role') == 'student' %}
-        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Dashboard</a>
-        {% else %}
-        <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">Student Profile</a>
-        {% endif %}
+        <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline">{% if session.get('role') == 'student' %}My Profile{% else %}Student Profile{% endif %}</a>
     </div>
 </div>
 

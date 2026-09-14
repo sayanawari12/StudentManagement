@@ -129,6 +129,14 @@ def login_required(view_func):
     return role_required("admin", "teacher", "student")(view_func)
 
 
+def _get_default_home_url():
+    """Return default home URL based on session role (Student Profile for student, Dashboard for admin/teacher)."""
+    if session.get("role") == "student" and session.get("linked_student_id"):
+        return url_for("student_details", record_id=session["linked_student_id"])
+    return url_for("dashboard")
+
+
+
 def _assert_own_record(record_id):
     """For student-role users: abort 403 if record_id is not their linked student."""
     if str(session.get("role")).lower() == "student":
@@ -215,7 +223,7 @@ def student_payload(form):
 @app.route("/")
 def index():
     if "role" in session:
-        return redirect(url_for("dashboard"))
+        return redirect(_get_default_home_url())
     return redirect(url_for("login"))
 
 
@@ -264,7 +272,7 @@ def login():
             session["admin"]   = user["username"]          # kept for any legacy checks
             session["role"]    = user["role"]
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
-            return redirect(url_for("dashboard"))
+            return redirect(_get_default_home_url())
 
         # 3. Failed password or invalid user
         app.logger.warning("Failed login attempt for user %r from %s", username, request.remote_addr)
@@ -336,7 +344,7 @@ def change_password():
 # ---------------------------------------------------------------------------
 
 @app.route("/dashboard")
-@login_required
+@role_required("admin", "teacher")
 def dashboard():
     try:
         stats = database.get_dashboard_stats()
@@ -762,6 +770,8 @@ def student_details(record_id):
     activity_logs = []
     try:
         activity_logs = database.get_student_audit_log(record_id, limit=5)
+        if session.get("role") == "teacher" and activity_logs:
+            activity_logs = [log for log in activity_logs if "fee" not in log.get("description", "").lower()]
     except Exception as e:
         app.logger.warning("DB error fetching audit log for student %s: %s", record_id, e)
 

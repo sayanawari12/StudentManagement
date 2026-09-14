@@ -45,10 +45,12 @@
       <div class="drawer-section">
         <div class="drawer-section-heading">MAIN</div>
 
-        <a href="{{ url_for('dashboard') }}" class="drawer-item {{ 'active' if request.endpoint == 'dashboard' else '' }}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          Dashboard
-        </a>
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('dashboard') }}" class="drawer-item {{ 'active' if request.endpoint == 'dashboard' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Dashboard
+          </a>
+        {% endif %}
 
         {% if session.get('role') in ('admin', 'teacher') %}
           <a href="{{ url_for('students') }}" class="drawer-item {{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student', 'grades_add', 'fees_create', 'fees_pay'] else '' }}">
@@ -152,9 +154,11 @@
       </div>
 
       <nav class="sidebar-nav">
-        {# Dashboard — all roles #}
-        <a href="{{ url_for('dashboard') }}"
-           class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">Dashboard</a>
+        {# Dashboard — admin & teacher only #}
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('dashboard') }}"
+             class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">Dashboard</a>
+        {% endif %}
 
         {# Students list — admin + teacher only #}
         {% if session.get('role') in ('admin', 'teacher') %}

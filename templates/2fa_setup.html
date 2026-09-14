@@ -32,7 +32,11 @@
         </div>
         <div class="actions-row" style="margin-top: 24px;">
           <button type="submit" class="btn btn-outline" id="btn-disable-2fa">Disable 2FA</button>
-          <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Cancel</a>
+          {% if session.get('role') == 'student' and session.get('linked_student_id') %}
+            <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}" class="btn btn-primary">Cancel</a>
+          {% else %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Cancel</a>
+          {% endif %}
         </div>
       </form>
     </div>
@@ -82,7 +86,11 @@
           </div>
           <div class="actions-row" style="margin-top: 24px;">
             <button type="submit" class="btn btn-primary" id="btn-enable-2fa">Enable 2FA</button>
-            <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+            {% if session.get('role') == 'student' and session.get('linked_student_id') %}
+              <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}" class="btn btn-outline">Cancel</a>
+            {% else %}
+              <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+            {% endif %}
           </div>
         </form>
 

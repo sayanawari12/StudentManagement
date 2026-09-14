@@ -270,7 +270,8 @@ class TestNon2FALoginRegression:
         database.disable_user_totp(student_id)   # idempotent
 
         c, resp = _fresh_authed_client(app, "student", "student123")
-        assert_redirected_to(resp, "/dashboard")
+        assert resp.status_code in (301, 302)
+        assert f"/students/{db['linked_pk']}" in resp.headers.get("Location", "")
 
         with c.session_transaction() as sess:
             assert sess.get("role") == "student"

@@ -213,16 +213,13 @@ class TestNoticeDelete:
 
 class TestDashboardNoticesCard:
 
-    def test_student_sees_notices_section_on_dashboard(self, student_client, db):
-        """The 'Recent Notices' card must appear for student role — it is NOT role-gated."""
-        # Seed a notice so the card has content to render
+    def test_student_sees_notices_page(self, student_client, db):
+        """Notices page is accessible to student role."""
         _seed_notice(title="Visible To Student", body="All roles see this.", db_info=db)
-
-        resp = get(student_client, "/dashboard")
+        resp = get(student_client, "/notices")
         assert resp.status_code == 200
         body = resp.data.decode("utf-8")
-        # The section heading should appear regardless of role
-        assert "Recent Notices" in body
+        assert "Notice Board" in body or "Visible To Student" in body
 
     def test_admin_sees_notices_section_on_dashboard(self, admin_client, db):
         _seed_notice(title="Admin Dashboard Notice", db_info=db)
@@ -236,8 +233,8 @@ class TestDashboardNoticesCard:
         assert resp.status_code == 200
         assert "Recent Notices" in resp.data.decode("utf-8")
 
-    def test_dashboard_has_view_all_link(self, student_client):
-        resp = get(student_client, "/dashboard")
+    def test_dashboard_has_view_all_link(self, admin_client):
+        resp = get(admin_client, "/dashboard")
         assert resp.status_code == 200
         assert "/notices" in resp.data.decode("utf-8")
 

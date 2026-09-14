@@ -44,6 +44,19 @@ class TestRoutePermissions:
       - forbidden roles → exactly 403
     """
 
+    # /dashboard
+    def test_dashboard_admin_allowed(self, admin_client):
+        assert_allowed(get(admin_client, "/dashboard"), "/dashboard as admin")
+
+    def test_dashboard_teacher_allowed(self, teacher_client):
+        assert_allowed(get(teacher_client, "/dashboard"), "/dashboard as teacher")
+
+    def test_dashboard_student_forbidden(self, student_client):
+        assert_forbidden(get(student_client, "/dashboard"), "/dashboard as student")
+
+    def test_dashboard_anon_redirects(self, client):
+        assert_redirected_to_login(get(client, "/dashboard"))
+
     def test_students_list_admin_allowed(self, admin_client):
         assert_allowed(get(admin_client, "/students"), "/students as admin")
 
