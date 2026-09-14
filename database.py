@@ -288,9 +288,11 @@ def get_all_students(search=None, course_filter=None, semester_filter=None):
         params = []
 
         if search:
-            like_term = f"%{search}%"
-            query += " AND (student_name LIKE %s OR student_id LIKE %s OR email LIKE %s)"
-            params.extend([like_term, like_term, like_term])
+            search_str = str(search).strip()
+            if search_str:
+                like_term = f"%{search_str}%"
+                query += " AND (student_name LIKE %s OR student_id LIKE %s OR email LIKE %s OR phone LIKE %s)"
+                params.extend([like_term, like_term, like_term, like_term])
 
         if course_filter:
             query += " AND course = %s"

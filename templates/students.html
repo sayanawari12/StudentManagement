@@ -51,7 +51,7 @@
 
   {# ── SEARCH FORM (Desktop) ──────────── #}
   <form class="search-form desktop-only" method="GET" action="{{ url_for('students') }}">
-    <input type="text" name="search" placeholder="Search by name, student ID or email" value="{{ search }}">
+    <input type="text" name="search" id="desktop-search-input" placeholder="Search by name, student ID or email" value="{{ search }}" autocomplete="off">
     <button type="submit" class="btn btn-outline">Search</button>
     {% if search %}
       <a href="{{ url_for('students') }}" class="btn btn-outline">Clear</a>
@@ -62,7 +62,7 @@
   <form class="mobile-search-form mobile-only" method="GET" action="{{ url_for('students') }}">
     <div class="mobile-search-wrap">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" name="search" placeholder="Search students by name, ID or email..." value="{{ search }}">
+      <input type="text" name="search" id="mobile-search-input" placeholder="Search students by name, ID or email..." value="{{ search }}" autocomplete="off">
     </div>
     {% if search %}
       <div style="margin-bottom: 16px; text-align: right;">
@@ -89,7 +89,7 @@
         </thead>
         <tbody>
           {% for student in students %}
-            <tr>
+            <tr data-search-text="{{ student.student_name }} {{ student.student_id }} {{ student.email }} {{ student.phone or '' }} {{ student.course }} Semester {{ student.semester }}">
               <td style="text-align:center;color:var(--muted,#888);font-size:0.85rem;">{{ loop.index }}</td>
               <td>{{ student.student_id }}</td>
               <td>{{ student.student_name }}</td>
@@ -126,7 +126,7 @@
   <div class="mobile-student-cards mobile-only">
     {% if students %}
       {% for student in students %}
-        <div class="mobile-student-card">
+        <div class="mobile-student-card" data-search-text="{{ student.student_name }} {{ student.student_id }} {{ student.email }} {{ student.phone or '' }} {{ student.course }} Semester {{ student.semester }}">
           <div class="mobile-card-header">
             <div class="mobile-avatar">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -170,4 +170,116 @@
       </div>
     {% endif %}
   </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const desktopInput = document.getElementById('desktop-search-input');
+      const mobileInput = document.getElementById('mobile-search-input');
+      const mobileCards = document.querySelectorAll('.mobile-student-card');
+      const tableRows = document.querySelectorAll('.table-wrap table tbody tr');
+      const recordBadge = document.querySelector('.badge-record-count');
+      const desktopSubHeader = document.querySelector('.topbar.desktop-only p');
+      const mobileFooter = document.querySelector('.mobile-cards-footer');
+      const totalCount = {{ students|length }};
+
+      const mobileContainer = document.querySelector('.mobile-student-cards');
+      let mobileEmptyState = document.querySelector('.mobile-student-cards .empty-state');
+      if (!mobileEmptyState && mobileContainer) {
+        mobileEmptyState = document.createElement('div');
+        mobileEmptyState.className = 'card empty-state mobile-empty-js';
+        mobileEmptyState.style.display = 'none';
+        mobileEmptyState.innerHTML = '<strong>No students found</strong><br>Try a different search term.';
+        mobileContainer.appendChild(mobileEmptyState);
+      }
+
+      const tableWrap = document.querySelector('.table-wrap');
+      let desktopEmptyState = document.querySelector('.table-wrap .empty-state');
+      if (!desktopEmptyState && tableWrap) {
+        desktopEmptyState = document.createElement('div');
+        desktopEmptyState.className = 'empty-state desktop-empty-js';
+        desktopEmptyState.style.display = 'none';
+        desktopEmptyState.innerHTML = '<strong>No students found</strong><br>Try a different search term.';
+        tableWrap.appendChild(desktopEmptyState);
+      }
+
+      function performLiveSearch(rawQuery) {
+        const query = (rawQuery || '').trim().toLowerCase();
+
+        if (desktopInput && desktopInput.value !== rawQuery) desktopInput.value = rawQuery;
+        if (mobileInput && mobileInput.value !== rawQuery) mobileInput.value = rawQuery;
+
+        let visibleMobileCount = 0;
+        mobileCards.forEach(card => {
+          const text = (card.getAttribute('data-search-text') || card.textContent).toLowerCase();
+          if (!query || text.includes(query)) {
+            card.style.display = '';
+            visibleMobileCount++;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        let visibleDesktopCount = 0;
+        tableRows.forEach(row => {
+          const text = (row.getAttribute('data-search-text') || row.textContent).toLowerCase();
+          if (!query || text.includes(query)) {
+            row.style.display = '';
+            visibleDesktopCount++;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        if (recordBadge) {
+          recordBadge.textContent = query ? `${visibleMobileCount} Records` : `${totalCount} Records`;
+        }
+
+        if (desktopSubHeader) {
+          if (query) {
+            desktopSubHeader.textContent = `${visibleDesktopCount} record${visibleDesktopCount !== 1 ? 's' : ''} matching "${rawQuery.trim()}"`;
+          } else {
+            desktopSubHeader.textContent = `${totalCount} record${totalCount !== 1 ? 's' : ''}`;
+          }
+        }
+
+        if (mobileFooter) {
+          if (query) {
+            mobileFooter.textContent = `… ${visibleMobileCount} matching search …`;
+          } else {
+            mobileFooter.textContent = `… ${totalCount} students total …`;
+          }
+        }
+
+        if (mobileEmptyState) {
+          mobileEmptyState.style.display = (visibleMobileCount === 0 && mobileCards.length > 0) ? '' : 'none';
+        }
+        if (desktopEmptyState) {
+          desktopEmptyState.style.display = (visibleDesktopCount === 0 && tableRows.length > 0) ? '' : 'none';
+        }
+      }
+
+      if (mobileInput) {
+        mobileInput.addEventListener('input', function(e) {
+          performLiveSearch(e.target.value);
+        });
+      }
+      if (desktopInput) {
+        desktopInput.addEventListener('input', function(e) {
+          performLiveSearch(e.target.value);
+        });
+      }
+
+      const mobileForm = document.querySelector('.mobile-search-form');
+      if (mobileForm) {
+        mobileForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          performLiveSearch(mobileInput ? mobileInput.value : '');
+        });
+      }
+
+      if (mobileInput && mobileInput.value.trim() !== '') {
+        performLiveSearch(mobileInput.value);
+      }
+    });
+  </script>
 {% endblock %}

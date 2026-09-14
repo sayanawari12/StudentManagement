@@ -87,6 +87,79 @@ class TestStudentFiltering:
         bca_sem3 = database.get_all_students(course_filter="BCA", semester_filter=3)
         assert all(s["course"] == "BCA" and int(s["semester"]) == 3 for s in bca_sem3)
 
+    def test_get_all_students_partial_substring_and_phone_search(self, db):
+        """Verify partial/substring matching, phone search, case-insensitivity, and whitespace trimming."""
+        pk1 = database.insert_student({
+            "student_id": "TEST_SAY_01",
+            "student_name": "Sayan Awari",
+            "course": "BCA",
+            "semester": 1,
+            "phone": "9876543210",
+            "email": "sayan@example.com",
+            "gender": "Male",
+            "date_of_birth": "2002-05-10",
+            "address": "Pune, MH"
+        })
+        pk2 = database.insert_student({
+            "student_id": "TEST_SAY_02",
+            "student_name": "Anjali Sanjay Kulmethe",
+            "course": "BCA",
+            "semester": 1,
+            "phone": "9876543211",
+            "email": "anjali@example.com",
+            "gender": "Female",
+            "date_of_birth": "2003-08-15",
+            "address": "Nagpur, MH"
+        })
+        pk3 = database.insert_student({
+            "student_id": "TEST_OTHER_03",
+            "student_name": "Rahul Sharma",
+            "course": "BCA",
+            "semester": 1,
+            "phone": "1234567890",
+            "email": "rahul@example.com",
+            "gender": "Male",
+            "date_of_birth": "2001-11-20",
+            "address": "Mumbai, MH"
+        })
+
+        try:
+            # 1. Partial/substring search "say" matches "Sayan Awari" and "Anjali Sanjay", but NOT "Rahul Sharma"
+            results_say = database.get_all_students(search="say")
+            matched_ids = [s["student_id"] for s in results_say]
+            assert "TEST_SAY_01" in matched_ids
+            assert "TEST_SAY_02" in matched_ids
+            assert "TEST_OTHER_03" not in matched_ids
+
+            # 2. Case insensitivity ("SAY" vs "say")
+            results_upper = database.get_all_students(search="SAY")
+            matched_upper_ids = [s["student_id"] for s in results_upper]
+            assert "TEST_SAY_01" in matched_upper_ids
+            assert "TEST_SAY_02" in matched_upper_ids
+            assert "TEST_OTHER_03" not in matched_upper_ids
+
+            # 3. Whitespace trimming ("  say  ")
+            results_padded = database.get_all_students(search="  say  ")
+            assert len(results_padded) == len(results_say)
+
+            # 4. Search by phone number ("9876543211")
+            results_phone = database.get_all_students(search="9876543211")
+            phone_matched_ids = [s["student_id"] for s in results_phone]
+            assert "TEST_SAY_02" in phone_matched_ids
+            assert "TEST_SAY_01" not in phone_matched_ids
+
+            # 5. Empty search returns all records
+            all_recs = database.get_all_students(search="   ")
+            all_rec_ids = [s["student_id"] for s in all_recs]
+            assert "TEST_SAY_01" in all_rec_ids
+            assert "TEST_SAY_02" in all_rec_ids
+            assert "TEST_OTHER_03" in all_rec_ids
+
+        finally:
+            database.delete_student(pk1)
+            database.delete_student(pk2)
+            database.delete_student(pk3)
+
 
 class TestExamManagement:
     def test_create_and_get_exam(self, db):
