@@ -155,17 +155,37 @@ def test_unauthorized_student_cannot_access_other_id_card(student_client, db):
 
 def test_id_card_verify_route_public_access(client, db):
     pk = db["linked_pk"]
-    # Verify endpoint must be accessible without logging in
-    res = client.get(f"/students/{pk}/id-card/verify")
+    # Alias route /students/<pk>/id-card/verify must redirect (301) to canonical roll-number URL,
+    # and following that redirect must show the valid student page.
+    res = client.get(f"/students/{pk}/id-card/verify", follow_redirects=True)
     assert res.status_code == 200
     assert b"VALID" in res.data
     assert b"ACTIVE STUDENT" in res.data
 
 
 def test_id_card_verify_route_invalid_student(client):
+    # Non-existent PK — should render not-found page (no redirect target)
     res = client.get("/students/999999/id-card/verify")
     assert res.status_code == 200
     assert b"Invalid" in res.data or b"Not Found" in res.data or b"not found" in res.data
+
+
+def test_integer_enumeration_blocked_on_public_verify(client):
+    """Security: /verify/student/1, /2, /3 must return not-found, never real data."""
+    for i in ["1", "2", "3", "4", "17", "18"]:
+        res = client.get(f"/verify/student/{i}")
+        assert res.status_code == 200, f"Expected 200 for /verify/student/{i}"
+        assert b"Student record not found" in res.data, (
+            f"/verify/student/{i} exposed real data instead of not-found page"
+        )
+        assert b"VALID" not in res.data, f"/verify/student/{i} shows VALID badge"
+
+
+def test_integer_enumeration_blocked_on_alias_route(client):
+    """Security: /students/<int>/id-card/verify must NOT expose data for non-existent PKs."""
+    res = client.get("/students/999999/id-card/verify")
+    assert res.status_code == 200
+    assert b"VALID" not in res.data
 
 
 def test_qr_code_scannable_url_flow(admin_client, client, db):
@@ -176,7 +196,8 @@ def test_qr_code_scannable_url_flow(admin_client, client, db):
     assert b"data:image/png;base64," in res.data
 
     # 2. Access the real verification URL directly (emulating smartphone camera scan)
-    verify_res = client.get(f"/students/{pk}/id-card/verify")
+    # Alias route redirects → follow redirect → should show student data
+    verify_res = client.get(f"/students/{pk}/id-card/verify", follow_redirects=True)
     assert verify_res.status_code == 200
     assert b"VALID" in verify_res.data
     assert b"ACTIVE STUDENT" in verify_res.data

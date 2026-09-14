@@ -975,21 +975,27 @@ def student_id_card_download(record_id):
 def public_student_verify(student_id):
     """
     Public QR code verification page (no login required).
-    Fetches student dynamically from the database using student_id (VARCHAR roll number).
+    Accepts ONLY the VARCHAR roll number (student_id) — NEVER a raw integer PK.
+    Sequential integer enumeration (1, 2, 3...) is blocked by design:
+    get_student_by_student_id() only matches the VARCHAR roll column, which is
+    non-sequential and institution-specific (e.g. 'BCA2401').
     Shows ONLY safe public details:
     - Student Name
-    - Student ID
+    - Student ID / Roll Number
     - Course
     - Semester
     - Academic Year
     - Student Status
     Does NOT expose passwords, tokens, phone numbers, email, address, or private fields.
     """
+    # SECURITY: reject bare integers immediately — do NOT fall back to get_student_by_id().
+    # This closes the enumeration vector where /verify/student/1, /2, /3... revealed real data.
+    if str(student_id).isdigit():
+        return render_template("id_card_verify.html", student=None, error="Student record not found.")
+
     student = None
     try:
         student = database.get_student_by_student_id(student_id)
-        if not student and str(student_id).isdigit():
-            student = database.get_student_by_id(int(student_id))
     except Error as e:
         app.logger.warning("DB error fetching student %s for QR verify: %s", student_id, e)
         return render_template("id_card_verify.html", student=None, error="Database unavailable.")
@@ -1023,14 +1029,24 @@ def public_student_verify(student_id):
 
 @app.route("/students/<int:record_id>/id-card/verify")
 def student_id_card_verify(record_id):
-    """Alias for backwards compatibility — redirects to public verify logic."""
+    """
+    Backwards-compatibility alias — always redirects to the canonical
+    /verify/student/<roll_number> URL using the REAL roll number.
+    SECURITY: never echoes the raw integer PK back to public_student_verify.
+    If the record doesn't exist, renders the not-found page directly.
+    """
     try:
         student = database.get_student_by_id(record_id)
         if student:
-            return public_student_verify(student["student_id"])
-    except Exception:
-        pass
-    return public_student_verify(str(record_id))
+            # Redirect to the canonical roll-number URL (not the raw PK)
+            return redirect(
+                url_for("public_student_verify", student_id=student["student_id"]),
+                code=301
+            )
+    except Exception as e:
+        app.logger.warning("DB error in id-card/verify alias for pk=%s: %s", record_id, e)
+    # Student not found — render not-found page, do NOT forward the integer to public_student_verify
+    return render_template("id_card_verify.html", student=None, error="Student record not found.")
 
 # ---------------------------------------------------------------------------
 # Attendance routes
