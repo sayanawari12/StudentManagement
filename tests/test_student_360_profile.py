@@ -69,17 +69,39 @@ class TestStudent360Profile:
         assert "Present" in html
 
     def test_fee_summary_real_data(self, admin_client, db):
-        stud = get_first_student()
-        database.insert_fee_due({
-            "stud_id": stud['id'],
-            "amount_due": 5000.00,
-            "due_date": "2026-10-01"
+        stud_code = "STU_360_FEE"
+        database.insert_student({
+            "student_id": stud_code,
+            "student_name": "360 Fee Student",
+            "email": "360fee@example.com",
+            "phone": "9876543210",
+            "course": "BCA",
+            "semester": 1,
+            "gender": "Female",
+            "date_of_birth": "2002-02-02",
+            "address": "360 Address"
         })
-        res = admin_client.get(f"/students/{stud['id']}")
-        assert res.status_code == 200
-        html = res.data.decode("utf-8")
-        assert "Fee Summary" in html
-        assert "5000" in html or "Fee" in html
+        s = database.get_student_by_student_id(stud_code)
+        if s:
+            database.insert_fee_due({
+                "stud_id": s['id'],
+                "amount_due": 5000.00,
+                "due_date": "2026-10-01"
+            })
+            res = admin_client.get(f"/students/{s['id']}")
+            assert res.status_code == 200
+            html = res.data.decode("utf-8")
+            assert "Fee Summary" in html
+            assert "5000" in html or "Fee" in html
+
+            # Cleanup
+            conn = database.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM fees WHERE stud_id = %s", (s["id"],))
+            cursor.execute("DELETE FROM students WHERE id = %s", (s["id"],))
+            conn.commit()
+            cursor.close()
+            conn.close()
 
     def test_action_links_present(self, admin_client, db):
         stud = get_first_student()

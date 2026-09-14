@@ -58,11 +58,22 @@ class TestAdvancedStudentDashboard:
         assert "Overall Attendance" in html
 
     def test_fee_collection_dynamic_calculation(self, admin_client, db):
-        students = database.get_all_students()
-        if students:
-            s_id = students[0]["id"]
+        stud_code = "STU_DASH_FEE"
+        database.insert_student({
+            "student_id": stud_code,
+            "student_name": "Dash Fee Student",
+            "email": "dashfee@example.com",
+            "phone": "9876543210",
+            "course": "BCA",
+            "semester": 1,
+            "gender": "Male",
+            "date_of_birth": "2001-01-01",
+            "address": "Dash Address"
+        })
+        s = database.get_student_by_student_id(stud_code)
+        if s:
             database.insert_fee_due({
-                "stud_id": s_id,
+                "stud_id": s["id"],
                 "amount_due": 10000.00,
                 "due_date": "2026-10-01"
             })
@@ -72,6 +83,16 @@ class TestAdvancedStudentDashboard:
         html = res.data.decode("utf-8")
         assert "Fee Collection" in html
         assert "Billed" in html or "Billed:" in html
+
+        # Cleanup
+        if s:
+            conn = database.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM fees WHERE stud_id = %s", (s["id"],))
+            cursor.execute("DELETE FROM students WHERE id = %s", (s["id"],))
+            conn.commit()
+            cursor.close()
+            conn.close()
 
     def test_academic_performance_semesters_rendered(self, admin_client):
         res = admin_client.get("/dashboard")
