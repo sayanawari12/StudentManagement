@@ -11,10 +11,11 @@
 
   {# Card 1: Overdue Fees #}
   <div class="card">
-    <h2 class="section-title">Students with overdue/partial fees</h2>
+    <h2 class="section-title">STUDENTS WITH OVERDUE/PARTIAL FEES</h2>
     
     {% if overdue_fees %}
-      <div class="table-wrap">
+      {# Desktop Table View (>860px) #}
+      <div class="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -43,13 +44,42 @@
         </table>
       </div>
 
-      <div class="form-footer" style="margin-top: 1rem;">
+      {# Mobile Cards View (<=860px) #}
+      <div class="mobile-notification-cards mobile-only">
+        {% for fee in overdue_fees %}
+          <div class="mobile-notification-card">
+            <div class="mobile-card-header">
+              <div class="mobile-avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div class="mobile-card-info">
+                <div class="mobile-card-name">{{ fee.student_name }}</div>
+                <div class="mobile-card-email">{{ fee.email }}</div>
+              </div>
+            </div>
+
+            <div class="mobile-card-body">
+              <div class="mobile-notif-row">
+                <span class="notif-label">Amount Due</span>
+                <span class="notif-val amount-due">₹{{ "%.0f"|format(fee.amount_due) if fee.amount_due == fee.amount_due|int else "%.2f"|format(fee.amount_due) }}</span>
+              </div>
+              <div class="mobile-notif-row">
+                <span class="notif-label">Amount Paid</span>
+                <span class="notif-val amount-paid">₹{{ "%.0f"|format(fee.amount_paid) if fee.amount_paid == fee.amount_paid|int else "%.2f"|format(fee.amount_paid) }}</span>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="form-footer" style="margin-top: 1.25rem;">
         <form method="POST" action="{{ url_for('send_fee_reminders') }}" id="form-send-fee-reminders">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit"
-                  class="btn btn-primary"
+                  class="btn btn-primary btn-full-mobile"
                   id="btn-send-fee-reminders"
                   {% if not email_configured %}disabled{% endif %}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Send Fee Reminders
           </button>
           {% if not email_configured %}
@@ -61,17 +91,18 @@
       </div>
     {% else %}
       <div class="empty-state">
-        <strong>No overdue or partial fees found.</strong>
+        <strong>No students with overdue or partial fees.</strong>
       </div>
     {% endif %}
   </div>
 
   {# Card 2: Low Attendance #}
   <div class="card" style="margin-top: 1.5rem;">
-    <h2 class="section-title">Students below {{ low_attendance_threshold }}% attendance</h2>
+    <h2 class="section-title">STUDENTS BELOW {{ low_attendance_threshold }}% ATTENDANCE</h2>
 
     {% if low_attendance %}
-      <div class="table-wrap">
+      {# Desktop Table View (>860px) #}
+      <div class="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -94,13 +125,38 @@
         </table>
       </div>
 
-      <div class="form-footer" style="margin-top: 1rem;">
+      {# Mobile Cards View (<=860px) #}
+      <div class="mobile-notification-cards mobile-only">
+        {% for student in low_attendance %}
+          <div class="mobile-notification-card">
+            <div class="mobile-card-header">
+              <div class="mobile-avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div class="mobile-card-info">
+                <div class="mobile-card-name">{{ student.student_name }}</div>
+                <div class="mobile-card-email">{{ student.email }}</div>
+              </div>
+            </div>
+
+            <div class="mobile-card-body">
+              <div class="mobile-notif-row">
+                <span class="notif-label">Attendance</span>
+                <span class="badge badge-due" style="border-radius: 0px; font-weight: 600;">{{ "%.1f"|format(student.percentage) }}%</span>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="form-footer" style="margin-top: 1.25rem;">
         <form method="POST" action="{{ url_for('send_attendance_alerts') }}" id="form-send-attendance-alerts">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit"
-                  class="btn btn-primary"
+                  class="btn btn-primary btn-full-mobile"
                   id="btn-send-attendance-alerts"
                   {% if not email_configured %}disabled{% endif %}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Send Attendance Alerts
           </button>
           {% if not email_configured %}
@@ -112,7 +168,7 @@
       </div>
     {% else %}
       <div class="empty-state">
-        <strong>No students below attendance threshold.</strong>
+        <strong>No students below {{ low_attendance_threshold }}% attendance.</strong>
       </div>
     {% endif %}
   </div>
