@@ -20,8 +20,11 @@
 
     <!-- Student Header Summary Card -->
     <div class="card shadow-sm border-0 mb-4 bg-light">
-        <div class="card-body">
-            <div class="row g-3">
+        <div class="card-body" style="display: flex; align-items: center; gap: 20px;">
+            <div style="width: 48px; height: 58px; border: 1px solid var(--border-dark); overflow: hidden; flex-shrink: 0; background: var(--bg-surface);">
+                <img src="{{ get_student_photo_url(student) }}" alt="{{ student.student_name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;">
+            </div>
+            <div class="row g-3 flex-grow-1">
                 <div class="col-md-3 col-6">
                     <small class="text-muted d-block text-uppercase fw-semibold">Course</small>
                     <span class="fw-bold text-dark">{{ student.course or 'N/A' }}</span>

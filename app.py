@@ -886,6 +886,9 @@ def _get_student_photo_url(student):
     2. Else if gender is female/girl/f -> id-card-default-female.jpg
     3. Else -> id-card-default-male.jpg
     """
+    if not student or not isinstance(student, dict):
+        return url_for("static", filename="images/id-card-default-male.jpg")
+
     custom_photo = student.get("photo")
     if custom_photo and isinstance(custom_photo, str) and custom_photo.strip():
         rel_path = custom_photo.strip().lstrip("/")
@@ -898,6 +901,18 @@ def _get_student_photo_url(student):
         return url_for("static", filename="images/id-card-default-female.jpg")
     else:
         return url_for("static", filename="images/id-card-default-male.jpg")
+
+
+@app.context_processor
+def inject_student_photo_helper():
+    return {
+        "get_student_photo_url": _get_student_photo_url
+    }
+
+
+@app.template_filter("student_photo_url")
+def student_photo_url_filter(student):
+    return _get_student_photo_url(student)
 
 
 def _get_verification_url(student):

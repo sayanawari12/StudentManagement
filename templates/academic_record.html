@@ -22,6 +22,15 @@
 
 <!-- Student Information Card -->
 <div class="card mb-4">
+    <div style="display: flex; align-items: center; gap: 20px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-dark);">
+        <div style="width: 54px; height: 65px; border: 1px solid var(--border-dark); overflow: hidden; flex-shrink: 0; background: var(--bg-surface);">
+            <img src="{{ get_student_photo_url(student) }}" alt="{{ student.student_name or student.stud_name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;">
+        </div>
+        <div>
+            <h2 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 600; color: var(--text-primary);">{{ student.student_name or student.stud_name }}</h2>
+            <p style="margin: 0; color: var(--text-secondary); font-family: monospace; font-size: 13px;">ID: {{ student.student_id or student.stud_id or student.roll_no }}</p>
+        </div>
+    </div>
     <div class="detail-grid">
         <div class="detail-item">
             <div class="label">Student Name</div>

@@ -3,9 +3,14 @@
 
 {% block content %}
   <div class="topbar">
-    <div>
-      <h1>Attendance History</h1>
-      <p>{{ student.student_name }} — {{ student.student_id }}</p>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div style="width: 48px; height: 58px; border: 1px solid var(--border-dark); overflow: hidden; flex-shrink: 0; background: var(--bg-surface);">
+        <img src="{{ get_student_photo_url(student) }}" alt="{{ student.student_name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;">
+      </div>
+      <div>
+        <h1 style="margin: 0;">Attendance History</h1>
+        <p style="margin: 0; margin-top: 4px;">{{ student.student_name }} &bull; {{ student.student_id }}</p>
+      </div>
     </div>
   </div>
 

@@ -50,7 +50,7 @@
           <div class="mobile-notification-card">
             <div class="mobile-card-header">
               <div class="mobile-avatar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <img src="{{ get_student_photo_url(fee) }}" alt="{{ fee.student_name }}" class="student-avatar-img">
               </div>
               <div class="mobile-card-info">
                 <div class="mobile-card-name">{{ fee.student_name }}</div>
@@ -131,7 +131,7 @@
           <div class="mobile-notification-card">
             <div class="mobile-card-header">
               <div class="mobile-avatar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <img src="{{ get_student_photo_url(student) }}" alt="{{ student.student_name }}" class="student-avatar-img">
               </div>
               <div class="mobile-card-info">
                 <div class="mobile-card-name">{{ student.student_name }}</div>
