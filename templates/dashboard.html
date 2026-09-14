@@ -5,7 +5,7 @@
   <div class="topbar">
     <div>
       <h1>Dashboard</h1>
-      <p>An overview of everyone currently on record.</p>
+      <p>Student overview, attendance, academic performance, and fee collection analytics.</p>
     </div>
     {% if session.get('role') in ('admin', 'teacher') %}
       <div class="actions-row">
@@ -18,25 +18,18 @@
     {% endif %}
   </div>
 
-  {# ── Top-level stat cards ─────────────────────────────────── #}
-  <div class="stat-grid">
+  {# ── 1. Student Overview / Summary Stat Cards ─────────────── #}
+  <div style="margin-bottom: 8px;">
+    <h2 class="section-title" style="margin-bottom: 12px;">Student Overview</h2>
+  </div>
+  <div class="stat-grid" style="margin-bottom: 24px;">
     <div class="stat-card">
       <div class="stat-card-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </div>
       <div class="stat-card-details">
         <div class="value">{{ stats.total_students }}</div>
         <div class="label">TOTAL STUDENTS</div>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-card-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>
-      </div>
-      <div class="stat-card-details">
-        <div class="value">{{ stats.total_bca }}</div>
-        <div class="label">TOTAL BCA STUDENTS</div>
       </div>
     </div>
 
@@ -55,17 +48,145 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       </div>
       <div class="stat-card-details">
-        <div class="value">₹{{ stats.total_dues }}</div>
-        <div class="label">PENDING FEES</div>
+        <div class="value">{{ stats.pending_fee_students_count }}</div>
+        <div class="label">PENDING FEE STUDENTS</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-card-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>
+      </div>
+      <div class="stat-card-details">
+        <div class="value">{{ stats.total_bca }}</div>
+        <div class="label">TOTAL BCA STUDENTS</div>
       </div>
     </div>
   </div>
 
-  {# ── Semester breakdown ───────────────────────────────────── #}
-  <h2 class="section-title">By Semester</h2>
+  {# ── 2. Advanced Analytics Grid (Desktop 2-Col / Mobile Stacked) ── #}
+  <div class="dashboard-advanced-grid">
 
+    {# ── Left Column: Attendance Overview & Fee Collection ── #}
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+
+      {# Attendance Overview #}
+      <div class="dashboard-card">
+        <div class="dashboard-card-title">
+          <span>Attendance Overview</span>
+          {% if session.get('role') in ('admin', 'teacher') %}
+            <a href="{{ url_for('attendance') }}" style="font-size: 12px; font-weight: 500; color: var(--accent);">View Attendance &rarr;</a>
+          {% endif %}
+        </div>
+
+        {% if stats.attendance_overview and stats.attendance_overview.percentage is not none %}
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <div style="font-size: 32px; font-weight: 700; color: var(--accent); font-family: var(--font-body);">
+              {{ stats.attendance_overview.percentage }}%
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">
+              Overall Attendance
+            </div>
+          </div>
+
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill {% if stats.attendance_overview.percentage >= 75 %}success{% else %}warning{% endif %}"
+                 style="width: {{ stats.attendance_overview.percentage }}%;"></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 10px;">
+            <div>Present: <strong style="color: var(--text-primary);">{{ stats.attendance_overview.total_present }}</strong></div>
+            <div>Absent: <strong style="color: var(--text-primary);">{{ stats.attendance_overview.total_absent }}</strong></div>
+            <div>Total Classes: <strong style="color: var(--text-primary);">{{ stats.attendance_overview.total_marked }}</strong></div>
+          </div>
+        {% else %}
+          <div class="empty-state" style="padding: 24px 16px;">
+            <strong>No attendance records available</strong><br>
+            Attendance statistics will calculate automatically once marked.
+          </div>
+        {% endif %}
+      </div>
+
+      {# Fee Collection #}
+      <div class="dashboard-card">
+        <div class="dashboard-card-title">
+          <span>Fee Collection</span>
+          {% if session.get('role') == 'admin' %}
+            <a href="{{ url_for('students') }}" style="font-size: 12px; font-weight: 500; color: var(--accent);">View Students &rarr;</a>
+          {% endif %}
+        </div>
+
+        {% if stats.fee_overview and stats.fee_overview.record_count > 0 %}
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <div style="font-size: 24px; font-weight: 700; color: var(--text-primary); font-family: var(--font-body);">
+              ₹{{ '%.0f'|format(stats.fee_overview.total_collected) }}
+              <span style="font-size: 14px; font-weight: 400; color: var(--text-secondary);">/ ₹{{ '%.0f'|format(stats.fee_overview.total_billed) }}</span>
+            </div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--accent);">
+              {{ stats.fee_overview.percentage or '0.0' }}%
+            </div>
+          </div>
+
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width: {{ stats.fee_overview.percentage or 0 }}%;"></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 10px; flex-wrap: wrap; gap: 8px;">
+            <div>Collected: <strong style="color: #16a34a;">₹{{ '%.0f'|format(stats.fee_overview.total_collected) }}</strong></div>
+            <div>Pending: <strong style="color: var(--accent);">₹{{ '%.0f'|format(stats.fee_overview.total_pending) }}</strong></div>
+            <div>Total Billed: <strong style="color: var(--text-primary);">₹{{ '%.0f'|format(stats.fee_overview.total_billed) }}</strong></div>
+          </div>
+        {% else %}
+          <div class="empty-state" style="padding: 24px 16px;">
+            <strong>No fee records available</strong><br>
+            Collection analytics appear here once fee dues are billed.
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    {# ── Right Column: Academic Performance & Semester Numbers ── #}
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+
+      {# Academic Performance #}
+      <div class="dashboard-card">
+        <div class="dashboard-card-title">
+          <span>Academic Performance</span>
+          {% if session.get('role') in ('admin', 'teacher') %}
+            <a href="{{ url_for('list_exams_route') }}" style="font-size: 12px; font-weight: 500; color: var(--accent);">Manage Exams &rarr;</a>
+          {% endif %}
+        </div>
+
+        <div class="sem-perf-list">
+          {% for row in stats.academic_performance %}
+            <div class="sem-perf-row">
+              <div class="sem-perf-label">Sem {{ row.semester }}</div>
+              <div class="sem-perf-bar-bg">
+                {% if row.percentage is not none %}
+                  <div class="sem-perf-bar-fill" style="width: {{ row.percentage }}%;"></div>
+                {% endif %}
+              </div>
+              <div class="sem-perf-val">
+                {% if row.percentage is not none %}
+                  {{ row.percentage }}%
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  {# ── Semester Breakdown Grid ───────────────────────────────── #}
+  <h2 class="section-title">Students by Semester</h2>
   {% if stats.semester_counts %}
-    <div class="stat-grid">
+    <div class="stat-grid" style="margin-bottom: 24px;">
       {% for row in stats.semester_counts %}
         <div class="stat-card">
           <div class="stat-card-icon">
@@ -79,17 +200,16 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="table-wrap">
+    <div class="table-wrap" style="margin-bottom: 24px;">
       <div class="empty-state">
-        <strong>No students yet</strong>
-        Add your first record to see semester-wise numbers here.
+        <strong>No students yet</strong><br>
+        Add your first student record to see semester-wise breakdown here.
       </div>
     </div>
   {% endif %}
 
-  {# ── Recent Notices — visible to ALL roles ────────────────── #}
+  {# ── Recent Notices ───────────────────────────────────────── #}
   <h2 class="section-title">Recent Notices</h2>
-
   <div class="card">
     {% if recent_notices %}
       <div class="table-wrap">

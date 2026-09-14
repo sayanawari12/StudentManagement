@@ -147,40 +147,146 @@ def get_dashboard_stats():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # 1. Total Students
         cursor.execute("SELECT COUNT(*) AS total FROM students")
         total_students = cursor.fetchone()["total"]
 
+        # 2. Total BCA Students
         cursor.execute(
             "SELECT COUNT(*) AS total FROM students WHERE course = %s", ("BCA",)
         )
         total_bca = cursor.fetchone()["total"]
 
+        # 3. Semester Breakdown
         cursor.execute(
             "SELECT semester, COUNT(*) AS total "
             "FROM students GROUP BY semester ORDER BY semester"
         )
         semester_counts = cursor.fetchall()
 
-        # Attendance today (Present count only)
+        # 4. Attendance today (Present count)
         cursor.execute(
             "SELECT COUNT(*) AS total FROM attendance "
             "WHERE date = CURDATE() AND status = 'Present'"
         )
         attendance_today = cursor.fetchone()["total"]
 
-        # Total outstanding dues — COALESCE prevents NULL on empty table (Fix 8)
+        # 5. Students with Pending/Overdue Fees Count
+        cursor.execute(
+            "SELECT COUNT(DISTINCT stud_id) AS total FROM fees WHERE amount_paid < amount_due"
+        )
+        pending_fee_students_count = cursor.fetchone()["total"]
+
+        # 6. Total Outstanding Dues Amount
         cursor.execute(
             "SELECT COALESCE(SUM(amount_due - amount_paid), 0) AS total_dues "
             "FROM fees WHERE amount_paid < amount_due"
         )
-        total_dues = cursor.fetchone()["total_dues"]  # Decimal >= 0, never None
+        total_dues = cursor.fetchone()["total_dues"]
+
+        # 7. Overall Attendance Overview stats
+        cursor.execute(
+            "SELECT "
+            "COALESCE(SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END), 0) AS total_present, "
+            "COALESCE(SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END), 0) AS total_absent, "
+            "COUNT(*) AS total_marked "
+            "FROM attendance"
+        )
+        att_row = cursor.fetchone()
+        tot_present = int(att_row["total_present"] or 0)
+        tot_absent = int(att_row["total_absent"] or 0)
+        tot_marked = int(att_row["total_marked"] or 0)
+        att_pct = round((tot_present / tot_marked * 100.0), 1) if tot_marked > 0 else None
+
+        attendance_overview = {
+            "total_present": tot_present,
+            "total_absent": tot_absent,
+            "total_marked": tot_marked,
+            "percentage": att_pct
+        }
+
+        # 8. Fee Collection Overview stats
+        cursor.execute(
+            "SELECT "
+            "COALESCE(SUM(amount_due), 0) AS total_billed, "
+            "COALESCE(SUM(amount_paid), 0) AS total_collected, "
+            "COALESCE(SUM(CASE WHEN amount_paid < amount_due THEN (amount_due - amount_paid) ELSE 0 END), 0) AS total_pending, "
+            "COUNT(*) AS record_count "
+            "FROM fees"
+        )
+        fee_row = cursor.fetchone()
+        total_billed = float(fee_row["total_billed"] or 0)
+        total_collected = float(fee_row["total_collected"] or 0)
+        total_pending = float(fee_row["total_pending"] or 0)
+        fee_count = int(fee_row["record_count"] or 0)
+        fee_pct = round((total_collected / total_billed * 100.0), 1) if total_billed > 0 else (0.0 if fee_count > 0 else None)
+
+        fee_overview = {
+            "total_billed": total_billed,
+            "total_collected": total_collected,
+            "total_pending": total_pending,
+            "record_count": fee_count,
+            "percentage": fee_pct
+        }
+
+        # 9. Semester-Wise Academic Performance (Semesters 1-6)
+        cursor.execute(
+            """
+            SELECT e.semester,
+                   SUM(em.obtained_marks) AS total_obtained,
+                   SUM(COALESCE(e.max_marks, 100.0)) AS total_max,
+                   COUNT(em.id) AS marks_count
+            FROM exam_marks em
+            JOIN exams e ON e.id = em.exam_id
+            GROUP BY e.semester
+            """
+        )
+        exam_rows = cursor.fetchall()
+        sem_map = {}
+        for r in exam_rows:
+            sem = r["semester"]
+            obtained = float(r["total_obtained"] or 0)
+            maximum = float(r["total_max"] or 0)
+            if maximum > 0:
+                sem_map[sem] = round((obtained / maximum * 100.0), 1)
+
+        # Fallback/supplement with grades table if any semester missing in exam_marks
+        cursor.execute(
+            """
+            SELECT g.semester,
+                   SUM(g.marks_obtained) AS total_obtained,
+                   SUM(COALESCE(g.max_marks, 100.0)) AS total_max,
+                   COUNT(g.id) AS grade_count
+            FROM grades g
+            GROUP BY g.semester
+            """
+        )
+        grade_rows = cursor.fetchall()
+        for r in grade_rows:
+            sem = r["semester"]
+            if sem not in sem_map:
+                obtained = float(r["total_obtained"] or 0)
+                maximum = float(r["total_max"] or 0)
+                if maximum > 0:
+                    sem_map[sem] = round((obtained / maximum * 100.0), 1)
+
+        academic_performance = []
+        for s in range(1, 7):
+            academic_performance.append({
+                "semester": s,
+                "percentage": sem_map.get(s, None)
+            })
 
         return {
-            "total_students":   total_students,
-            "total_bca":        total_bca,
-            "semester_counts":  semester_counts,
-            "attendance_today": attendance_today,
-            "total_dues":       total_dues,
+            "total_students":             total_students,
+            "total_bca":                  total_bca,
+            "semester_counts":            semester_counts,
+            "attendance_today":           attendance_today,
+            "pending_fee_students_count": pending_fee_students_count,
+            "total_dues":                 total_dues,
+            "attendance_overview":        attendance_overview,
+            "fee_overview":               fee_overview,
+            "academic_performance":       academic_performance,
         }
     finally:
         cursor.close()
