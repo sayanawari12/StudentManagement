@@ -11,8 +11,6 @@ document.querySelectorAll(".js-confirm-delete").forEach(function (form) {
 });
 
 // Basic client-side validation for the add/edit student form.
-// This is a convenience layer only — app.py validates everything again
-// on the server, since JS can always be disabled or bypassed.
 var studentForm = document.getElementById("student-form");
 if (studentForm) {
   studentForm.addEventListener("submit", function (event) {
@@ -71,4 +69,48 @@ document.querySelectorAll(".flash-success").forEach(function (el) {
       el.remove();
     }, 400);
   }, 4000);
+});
+
+// Mobile Sidebar Drawer Controller
+document.addEventListener("DOMContentLoaded", function () {
+  var mobileMenuBtn = document.getElementById("mobileMenuBtn");
+  var drawerCloseBtn = document.getElementById("drawerCloseBtn");
+  var mobileDrawer = document.getElementById("mobileDrawer");
+  var mobileOverlay = document.getElementById("mobileOverlay");
+
+  function openDrawer() {
+    if (mobileDrawer) mobileDrawer.classList.add("is-active");
+    if (mobileOverlay) mobileOverlay.classList.add("is-active");
+    document.body.classList.add("drawer-open");
+  }
+
+  function closeDrawer() {
+    if (mobileDrawer) mobileDrawer.classList.remove("is-active");
+    if (mobileOverlay) mobileOverlay.classList.remove("is-active");
+    document.body.classList.remove("drawer-open");
+  }
+
+  if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener("click", openDrawer);
+  }
+
+  if (drawerCloseBtn) {
+    drawerCloseBtn.addEventListener("click", closeDrawer);
+  }
+
+  if (mobileOverlay) {
+    mobileOverlay.addEventListener("click", closeDrawer);
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeDrawer();
+    }
+  });
+
+  if (mobileDrawer) {
+    mobileDrawer.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", closeDrawer);
+    });
+  }
 });

@@ -7,7 +7,144 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+  <!-- Mobile Top Header Bar (Visible <= 860px) -->
+  <header class="mobile-header">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open navigation menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="mobile-brand">Student MS</div>
+    <div class="mobile-role">{{ session.role | upper if session.role else 'PANEL' }}</div>
+  </header>
+
+  <!-- Mobile Drawer Overlay Backdrop -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
+  <!-- Mobile Slide-out Drawer Navigation -->
+  <aside class="mobile-drawer" id="mobileDrawer">
+    <div class="drawer-header">
+      <div>
+        <div class="drawer-brand">Student MS</div>
+        <div class="drawer-subtitle">
+          {{ 'Administration' if session.get('role') == 'admin' else ('Faculty Panel' if session.get('role') == 'teacher' else 'Student Portal') }}
+        </div>
+      </div>
+      <button class="drawer-close-btn" id="drawerCloseBtn" aria-label="Close navigation menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      {# --- SECTION: MAIN --- #}
+      <div class="drawer-section">
+        <div class="drawer-section-heading">MAIN</div>
+
+        <a href="{{ url_for('dashboard') }}" class="drawer-item {{ 'active' if request.endpoint == 'dashboard' else '' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dashboard
+        </a>
+
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('students') }}" class="drawer-item {{ 'active' if request.endpoint in ['students', 'student_details', 'edit_student', 'grades_add', 'fees_create', 'fees_pay'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Students
+          </a>
+        {% endif %}
+
+        {% if session.get('role') == 'admin' %}
+          <a href="{{ url_for('add_student') }}" class="drawer-item {{ 'active' if request.endpoint == 'add_student' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Student
+          </a>
+          <a href="{{ url_for('notifications') }}" class="drawer-item {{ 'active' if request.endpoint == 'notifications' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notifications
+          </a>
+          <a href="{{ url_for('audit_log') }}" class="drawer-item {{ 'active' if request.endpoint == 'audit_log' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Audit Log
+          </a>
+        {% endif %}
+      </div>
+
+      {# --- SECTION: ACADEMICS --- #}
+      <div class="drawer-section">
+        <div class="drawer-section-heading">ACADEMICS</div>
+
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('attendance') }}" class="drawer-item {{ 'active' if request.endpoint in ['attendance', 'attendance_history'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            Attendance
+          </a>
+          <a href="{{ url_for('list_exams_route') }}" class="drawer-item {{ 'active' if request.endpoint in ['list_exams_route', 'create_exam_route', 'edit_exam_route', 'enter_exam_marks_route'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Exams & Results
+          </a>
+        {% endif %}
+
+        {% if session.get('role') == 'student' and session.get('linked_student_id') %}
+          <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}" class="drawer-item {{ 'active' if request.endpoint == 'student_details' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            My Profile
+          </a>
+          <a href="{{ url_for('student_academic_record_route', student_id=session.linked_student_id) }}" class="drawer-item {{ 'active' if request.endpoint == 'student_academic_record_route' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Academic Record
+          </a>
+          <a href="{{ url_for('student_result_history_route', student_id=session.linked_student_id) }}" class="drawer-item {{ 'active' if request.endpoint in ['student_result_history_route', 'view_exam_results_route'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            My Exam Results
+          </a>
+        {% endif %}
+      </div>
+
+      {# --- SECTION: MANAGEMENT --- #}
+      <div class="drawer-section">
+        <div class="drawer-section-heading">MANAGEMENT</div>
+
+        {% if session.get('role') in ('admin', 'teacher') %}
+          <a href="{{ url_for('analytics') }}" class="drawer-item {{ 'active' if request.endpoint == 'analytics' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+            Analytics
+          </a>
+        {% endif %}
+
+        {% if session.get('role') %}
+          <a href="{{ url_for('notices') }}" class="drawer-item {{ 'active' if request.endpoint in ['notices', 'notice_add'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Notices
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="drawer-divider"></div>
+
+      {# --- SECTION: ACCOUNT --- #}
+      <div class="drawer-section">
+        <a href="{{ url_for('change_password') }}" class="drawer-item {{ 'active' if request.endpoint == 'change_password' else '' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Change Password
+        </a>
+        <a href="{{ url_for('totp_setup') }}" class="drawer-item {{ 'active' if request.endpoint in ['totp_setup'] else '' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Two-Factor Auth
+        </a>
+        <a href="{{ url_for('logout') }}" class="drawer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Log out
+        </a>
+      </div>
+    </div>
+  </aside>
+
   <div class="app-shell">
+    {# Desktop Sidebar (Visible > 860px) #}
     <aside class="sidebar">
       <div class="sidebar-brand">
         Student MS
