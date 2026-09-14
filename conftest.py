@@ -136,9 +136,11 @@ def db():
 
     yield {
         "users":      user_rows,
-        "linked_pk":  linked_pk,   # students.id that "student" account is linked to
+        "linked_pk": linked_pk,   # student user's linked students.id
         "other_pk":   other_pk,    # a DIFFERENT student's students.id
     }
+
+    database.ensure_exam_tables_exist()
 
 
 # ---------------------------------------------------------------------------

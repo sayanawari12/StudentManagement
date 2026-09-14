@@ -1859,6 +1859,8 @@ def create_exam_route():
         semester_str = request.form.get("semester", "").strip()
         academic_year = request.form.get("academic_year", "").strip()
         status = request.form.get("status", "Scheduled").strip()
+        max_marks_str = request.form.get("max_marks", "100").strip()
+        pass_marks_str = request.form.get("pass_marks", "40").strip()
 
         errors = []
         if not exam_name:
@@ -1871,6 +1873,13 @@ def create_exam_route():
             errors.append("Semester must be between 1 and 6.")
         if not academic_year:
             errors.append("Academic year is required.")
+
+        # Validate max_marks and pass_marks
+        cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
+            max_marks_str or "100", pass_marks_str or "40"
+        )
+        if not cfg_valid:
+            errors.append(cfg_err)
 
         if errors:
             for err in errors:
@@ -1886,6 +1895,8 @@ def create_exam_route():
                 semester=int(semester_str),
                 academic_year=academic_year,
                 status=status,
+                max_marks=max_marks_f,
+                pass_marks=pass_marks_f,
                 created_by=created_by
             )
             flash(f"Exam '{exam_name}' created successfully.", "success")
@@ -1911,6 +1922,10 @@ def edit_exam_route(exam_id):
         semester_str = request.form.get("semester", "").strip()
         academic_year = request.form.get("academic_year", "").strip()
         status = request.form.get("status", "Scheduled").strip()
+        max_marks_str = request.form.get("max_marks",
+                                          str(exam.get("max_marks", 100))).strip()
+        pass_marks_str = request.form.get("pass_marks",
+                                          str(exam.get("pass_marks", 40))).strip()
 
         errors = []
         if not exam_name:
@@ -1923,6 +1938,13 @@ def edit_exam_route(exam_id):
             errors.append("Semester must be between 1 and 6.")
         if not academic_year:
             errors.append("Academic year is required.")
+
+        # Validate max_marks and pass_marks
+        cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
+            max_marks_str, pass_marks_str
+        )
+        if not cfg_valid:
+            errors.append(cfg_err)
 
         if errors:
             for err in errors:
@@ -1937,7 +1959,9 @@ def edit_exam_route(exam_id):
                 course=course,
                 semester=int(semester_str),
                 academic_year=academic_year,
-                status=status
+                status=status,
+                max_marks=max_marks_f,
+                pass_marks=pass_marks_f
             )
             flash(f"Exam '{exam_name}' updated successfully.", "success")
             return redirect(url_for("list_exams_route"))
@@ -1993,6 +2017,8 @@ def enter_exam_marks_route(exam_id):
                 obt_val = request.form.get(obt_key, "").strip()
 
                 if max_val or obt_val:
+                    if not max_val:
+                        max_val = str(exam.get("max_marks", 100.0))
                     valid, err_msg, obt_f, max_f = exam_service.validate_marks_input(obt_val, max_val)
                     if not valid:
                         flash(f"Student {roll_no} - {sub['subject_name']}: {err_msg}", "error")

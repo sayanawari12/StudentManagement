@@ -92,73 +92,242 @@ class TestExamManagement:
     def test_create_and_get_exam(self, db):
         admin_id = db["users"]["admin"]["id"]
         exam_id = database.create_exam(
-            exam_name="Sem 3 Midterm",
+            exam_name="Midterm 2026",
             exam_type="Internal 1",
-            course="Computer Science",
+            course="BCA",
             semester=3,
             academic_year="2026-2027",
             status="Scheduled",
+            max_marks=70.0,
+            pass_marks=28.0,
             created_by=admin_id
         )
-        assert exam_id > 0
+        assert exam_id is not None
 
         exam = database.get_exam_by_id(exam_id)
         assert exam is not None
-        assert exam["exam_name"] == "Sem 3 Midterm"
-        assert exam["exam_type"] == "Internal 1"
-        assert exam["course"] == "Computer Science"
-        assert exam["semester"] == 3
-        assert exam["academic_year"] == "2026-2027"
+        assert exam["exam_name"] == "Midterm 2026"
+        assert float(exam["max_marks"]) == 70.0
+        assert float(exam["pass_marks"]) == 28.0
 
     def test_update_and_delete_exam(self, db):
         admin_id = db["users"]["admin"]["id"]
         exam_id = database.create_exam(
             exam_name="Temp Exam",
-            exam_type="Practical",
-            course="Computer Science",
+            exam_type="Internal 2",
+            course="BCA",
             semester=3,
             academic_year="2026-2027",
             status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
             created_by=admin_id
         )
+
         database.update_exam(
-            exam_id=exam_id,
-            exam_name="Updated Temp Exam",
-            exam_type="Practical",
-            course="Computer Science",
+            exam_id,
+            exam_name="Updated Exam Name",
+            exam_type="Internal 2",
+            course="BCA",
             semester=3,
             academic_year="2026-2027",
-            status="Completed"
+            status="Completed",
+            max_marks=100.0,
+            pass_marks=17.99
         )
-        updated = database.get_exam_by_id(exam_id)
-        assert updated["exam_name"] == "Updated Temp Exam"
-        assert updated["status"] == "Completed"
 
-        database.delete_exam(exam_id)
+        exam = database.get_exam_by_id(exam_id)
+        assert exam["exam_name"] == "Updated Exam Name"
+        assert float(exam["pass_marks"]) == 17.99
+
+        deleted_rows = database.delete_exam(exam_id)
+        assert deleted_rows == 1
         assert database.get_exam_by_id(exam_id) is None
 
 
 class TestMarksValidationAndCalculation:
     def test_marks_input_validation(self):
         # Negative marks
-        valid, msg, _, _ = exam_service.validate_marks_input("-5", "100")
+        valid, msg, _, _ = exam_service.validate_marks_input("-5", "70")
         assert not valid
         assert "negative" in msg.lower()
 
-        # Obtained > Max
-        valid, msg, _, _ = exam_service.validate_marks_input("105", "100")
+        # Obtained > Max (Max 70, Obt 70.01 -> INVALID)
+        valid, msg, _, _ = exam_service.validate_marks_input("70.01", "70")
         assert not valid
         assert "exceed" in msg.lower()
 
+        # Obtained == Max (Max 70, Obt 70 -> ACCEPT)
+        valid, msg, obt, max_m = exam_service.validate_marks_input("70", "70")
+        assert valid
+        assert obt == 70.0
+        assert max_m == 70.0
+
         # Non-numeric
-        valid, msg, _, _ = exam_service.validate_marks_input("abc", "100")
+        valid, msg, _, _ = exam_service.validate_marks_input("abc", "70")
         assert not valid
 
-        # Valid marks
-        valid, msg, obt, max_m = exam_service.validate_marks_input("85", "100")
+    def test_exam_marks_config_validation(self):
+        """Requirement 11.D: Invalid configuration rules."""
+        # Max 70 / Pass 28 -> Valid
+        valid, msg, mx, pm = exam_service.validate_exam_marks_config("70", "28")
         assert valid
-        assert obt == 85.0
-        assert max_m == 100.0
+        assert mx == 70.0 and pm == 28.0
+
+        # Max 100 / Pass 17.99 -> Valid decimal
+        valid, msg, mx, pm = exam_service.validate_exam_marks_config("100", "17.99")
+        assert valid
+        assert mx == 100.0 and pm == 17.99
+
+        # Max <= 0 -> Reject
+        valid, msg, mx, pm = exam_service.validate_exam_marks_config("0", "0")
+        assert not valid
+        assert "greater than zero" in msg.lower()
+
+        # Pass < 0 -> Reject
+        valid, msg, mx, pm = exam_service.validate_exam_marks_config("70", "-1")
+        assert not valid
+        assert "negative" in msg.lower()
+
+        # Pass > Max -> Reject
+        valid, msg, mx, pm = exam_service.validate_exam_marks_config("70", "70.01")
+        assert not valid
+        assert "exceed" in msg.lower()
+
+    def test_result_summary_max100_pass40(self):
+        """Requirement 11.A: Max 100 / Pass 40 (39.99 = FAIL, 40 = PASS)."""
+        fail_marks = [{"subject_name": "Math", "obtained_marks": 39.99, "max_marks": 100, "pass_marks": 40}]
+        res_fail = exam_service.compute_student_result_summary(fail_marks)
+        assert res_fail["subject_results"][0]["status"] == "FAIL"
+
+        pass_marks = [{"subject_name": "Math", "obtained_marks": 40.0, "max_marks": 100, "pass_marks": 40}]
+        res_pass = exam_service.compute_student_result_summary(pass_marks)
+        assert res_pass["subject_results"][0]["status"] == "PASS"
+
+    def test_result_summary_max100_pass17_99(self):
+        """Requirement 11.B: Max 100 / Pass 17.99 (17.98 = FAIL, 17.99 = PASS)."""
+        fail_marks = [{"subject_name": "CS", "obtained_marks": 17.98, "max_marks": 100, "pass_marks": 17.99}]
+        res_fail = exam_service.compute_student_result_summary(fail_marks)
+        assert res_fail["subject_results"][0]["status"] == "FAIL"
+
+        pass_marks = [{"subject_name": "CS", "obtained_marks": 17.99, "max_marks": 100, "pass_marks": 17.99}]
+        res_pass = exam_service.compute_student_result_summary(pass_marks)
+        assert res_pass["subject_results"][0]["status"] == "PASS"
+        assert res_pass["subject_results"][0]["percentage"] == 17.99
+
+    def test_result_summary_max70_pass28(self):
+        """Requirement 11.C: Max 70 / Pass 28 (27.99 = FAIL, 28 = PASS, 70 = PASS)."""
+        fail_marks = [{"subject_name": "DS", "obtained_marks": 27.99, "max_marks": 70, "pass_marks": 28}]
+        res_fail = exam_service.compute_student_result_summary(fail_marks)
+        assert res_fail["subject_results"][0]["status"] == "FAIL"
+
+        pass_marks = [{"subject_name": "DS", "obtained_marks": 28.0, "max_marks": 70, "pass_marks": 28}]
+        res_pass = exam_service.compute_student_result_summary(pass_marks)
+        assert res_pass["subject_results"][0]["status"] == "PASS"
+        assert res_pass["subject_results"][0]["percentage"] == 40.0  # 28 / 70 * 100 = 40%
+
+        max_pass = [{"subject_name": "DS", "obtained_marks": 70.0, "max_marks": 70, "pass_marks": 28}]
+        res_max = exam_service.compute_student_result_summary(max_pass)
+        assert res_max["subject_results"][0]["status"] == "PASS"
+        assert res_max["subject_results"][0]["percentage"] == 100.0
+
+    def test_legacy_exam_historical_result_integrity(self, db):
+        """Requirement 9: Historical exam with exam-level max_marks = NULL and recorded max_marks = 50.
+        Obtained 25 must yield 25 / 50 * 100 = 50% (NOT 25 / 100 * 100 = 25%).
+        """
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        stud_id = stud_obj["student_id"]
+
+        # Create exam with max_marks = None, pass_marks = None (simulating legacy exam)
+        exam_id = database.create_exam(
+            exam_name="Legacy 50-Mark Exam",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2024-2025",
+            status="Completed",
+            max_marks=None,
+            pass_marks=None,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        if not subjects:
+            subjects = database.ensure_semester3_subjects(stud_obj["course"])
+        sub_id = subjects[0]["id"]
+
+        # Save historical mark with max_marks = 50.0
+        database.save_exam_marks(
+            exam_id=exam_id,
+            stud_id=stud_id,
+            subject_id=sub_id,
+            obtained_marks=25.0,
+            max_marks=50.0,
+            recorded_by=admin_id
+        )
+
+        raw_marks = database.get_exam_marks_for_student(exam_id, stud_id)
+        assert len(raw_marks) == 1
+        assert float(raw_marks[0]["max_marks"]) == 50.0
+
+        summary = exam_service.compute_student_result_summary(raw_marks)
+        assert summary["subject_results"][0]["obtained_marks"] == 25.0
+        assert summary["subject_results"][0]["max_marks"] == 50.0
+        assert summary["subject_results"][0]["percentage"] == 50.0  # 25 / 50 * 100 = 50%
+
+    def test_new_exam_configured_marks_flow(self, client, db):
+        """Requirement 10: New exam configured with max_marks = 70, pass_marks = 28.
+        Enter Marks displays Max = 70, Pass = 28, and saved exam_marks.max_marks = 70.
+        """
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        stud_id = stud_obj["student_id"]
+
+        exam_id = database.create_exam(
+            exam_name="Sem 3 Internal 70-28",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-2027",
+            status="Scheduled",
+            max_marks=70.0,
+            pass_marks=28.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        if not subjects:
+            subjects = database.ensure_semester3_subjects(stud_obj["course"])
+        sub_id = subjects[0]["id"]
+
+        # Authenticate as admin
+        client.post("/login", data={"username": "admin", "password": "admin123"})
+
+        # GET Enter Marks page
+        res = client.get(f"/exams/{exam_id}/marks")
+        assert res.status_code == 200
+        html = res.data.decode("utf-8")
+        assert "70.00" in html or "70" in html
+        assert "28" in html
+
+        # POST Enter Marks with 28 obtained out of 70
+        post_data = {
+            f"obt_{stud_id}_{sub_id}": "28.00",
+            f"max_{stud_id}_{sub_id}": "70.00",
+        }
+        res_post = client.post(f"/exams/{exam_id}/marks", data=post_data, follow_redirects=True)
+        assert res_post.status_code == 200
+
+        # Verify database record
+        saved_marks = database.get_exam_marks_for_student(exam_id, stud_id)
+        assert len(saved_marks) == 1
+        assert float(saved_marks[0]["max_marks"]) == 70.0
+        assert float(saved_marks[0]["pass_marks"]) == 28.0
+
+        summary = exam_service.compute_student_result_summary(saved_marks)
+        assert summary["subject_results"][0]["status"] == "PASS"
+        assert summary["subject_results"][0]["percentage"] == 40.0
 
     def test_subject_grade_calculation(self):
         assert exam_service.calculate_subject_grade(92) == "A+"

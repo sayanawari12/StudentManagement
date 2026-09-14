@@ -1016,17 +1016,20 @@ def get_subject_by_id(subject_id):
 # Exam query helpers
 # ---------------------------------------------------------------------------
 
-def create_exam(exam_name, exam_type, course, semester, academic_year, created_by, status="Scheduled"):
+def create_exam(exam_name, exam_type, course, semester, academic_year, created_by,
+                status="Scheduled", max_marks=100.0, pass_marks=40.0):
     """Insert a new exam into the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
+    mx = float(max_marks) if max_marks is not None else None
+    pm = float(pass_marks) if pass_marks is not None else None
     try:
         cursor.execute(
             """
-            INSERT INTO exams (exam_name, exam_type, course, semester, academic_year, status, created_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO exams (exam_name, exam_type, course, semester, academic_year, status, max_marks, pass_marks, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (exam_name, exam_type, course, semester, academic_year, status, created_by)
+            (exam_name, exam_type, course, semester, academic_year, status, mx, pm, created_by)
         )
         conn.commit()
         return cursor.lastrowid
@@ -1066,6 +1069,8 @@ def ensure_exam_tables_exist():
                 semester      INT          NOT NULL,
                 academic_year VARCHAR(20)  NOT NULL,
                 status        VARCHAR(50)  NOT NULL DEFAULT 'Scheduled',
+                max_marks     DECIMAL(5,2) NULL,
+                pass_marks    DECIMAL(5,2) NULL,
                 created_by    INT          NOT NULL,
                 created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (created_by) REFERENCES users(id)
@@ -1149,6 +1154,67 @@ def ensure_exam_tables_exist():
         cursor.close()
         conn.close()
 
+    # Idempotent migrations: add max_marks and pass_marks to exams if missing
+    _migrate_add_exam_max_marks()
+    _migrate_add_exam_pass_marks()
+
+
+def _migrate_add_exam_max_marks():
+    """
+    Idempotent ALTER TABLE: adds max_marks column to the exams table if it does not yet exist.
+    Safe to run multiple times. Existing data is not affected.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = 'exams'
+              AND column_name = 'max_marks'
+            """
+        )
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                "ALTER TABLE exams ADD COLUMN max_marks DECIMAL(5,2) NULL"
+            )
+            conn.commit()
+    except Error:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def _migrate_add_exam_pass_marks():
+    """
+    Idempotent ALTER TABLE: adds pass_marks column to the exams table if it does not yet exist.
+    Safe to run multiple times. Existing data is not affected.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if column already exists
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = 'exams'
+              AND column_name = 'pass_marks'
+            """
+        )
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                "ALTER TABLE exams ADD COLUMN pass_marks DECIMAL(5,2) NULL"
+            )
+            conn.commit()
+    except Error:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
+
 
 def _fetch_all_exams_query(course=None, semester=None, academic_year=None, status=None):
     conn = get_db_connection()
@@ -1226,19 +1292,24 @@ def get_exam_by_id(exam_id):
         conn.close()
 
 
-def update_exam(exam_id, exam_name, exam_type, course, semester, academic_year, status):
+def update_exam(exam_id, exam_name, exam_type, course, semester, academic_year, status,
+                max_marks=None, pass_marks=None):
     """Update an existing exam record."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """
-            UPDATE exams
-            SET exam_name = %s, exam_type = %s, course = %s, semester = %s, academic_year = %s, status = %s
-            WHERE id = %s
-            """,
-            (exam_name, exam_type, course, semester, academic_year, status, exam_id)
-        )
+        fields = ["exam_name = %s", "exam_type = %s", "course = %s", "semester = %s", "academic_year = %s", "status = %s"]
+        params = [exam_name, exam_type, course, semester, academic_year, status]
+        if max_marks is not None:
+            fields.append("max_marks = %s")
+            params.append(float(max_marks))
+        if pass_marks is not None:
+            fields.append("pass_marks = %s")
+            params.append(float(pass_marks))
+        params.append(exam_id)
+
+        sql = f"UPDATE exams SET {', '.join(fields)} WHERE id = %s"
+        cursor.execute(sql, params)
         conn.commit()
         return cursor.rowcount
     finally:
@@ -1307,16 +1378,24 @@ def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, rec
 
 
 def get_exam_marks_for_student(exam_id, stud_id):
-    """Fetch all subject marks recorded for a specific student in an exam."""
+    """Fetch all subject marks recorded for a specific student in an exam.
+    The pass_marks returned in each row reflects the exam-level configured passing mark
+    (if set on the exam), falling back to the subject-level pass_marks otherwise.
+    """
     pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             """
-            SELECT m.*, sub.subject_name, sub.subject_code, sub.pass_marks
+            SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
+                   sub.subject_name,
+                   sub.subject_code,
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks,
+                   COALESCE(e.pass_marks, sub.pass_marks, 40.00) AS pass_marks
             FROM exam_marks m
             JOIN subjects sub ON sub.id = m.subject_id
+            JOIN exams    e   ON e.id  = m.exam_id
             WHERE m.exam_id = %s AND m.stud_id = %s
             ORDER BY sub.id ASC
             """,
@@ -1335,10 +1414,13 @@ def get_all_marks_for_exam(exam_id):
     try:
         cursor.execute(
             """
-            SELECT m.*, s.student_name, s.student_id as roll_no, sub.subject_name, sub.subject_code
+            SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
+                   s.student_name, s.student_id as roll_no, sub.subject_name, sub.subject_code,
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks
             FROM exam_marks m
             JOIN students s ON s.id = m.stud_id
             JOIN subjects sub ON sub.id = m.subject_id
+            JOIN exams e ON e.id = m.exam_id
             WHERE m.exam_id = %s
             ORDER BY s.student_name ASC, sub.id ASC
             """,

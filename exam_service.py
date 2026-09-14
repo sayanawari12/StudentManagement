@@ -90,6 +90,61 @@ def validate_marks_input(obtained_marks: float, max_marks: float) -> tuple:
     return True, "", obt, mx
 
 
+def validate_pass_marks(pass_marks, max_marks: float) -> tuple:
+    """
+    Validates a configured passing-marks value:
+      - Must be a valid number
+      - Must be >= 0
+      - Must not exceed max_marks
+    Returns (is_valid, error_message, pass_marks_float).
+    """
+    try:
+        pm = float(pass_marks)
+        mx = float(max_marks)
+    except (ValueError, TypeError):
+        return False, "Passing marks must be a valid number.", 0.0
+
+    if mx <= 0:
+        return False, "Maximum marks must be greater than zero.", 0.0
+    if pm < 0:
+        return False, "Passing marks cannot be negative.", pm
+    if pm > mx:
+        return False, (
+            f"Passing marks ({pm:.2f}) cannot exceed maximum marks ({mx:.2f})."
+        ), pm
+
+    return True, "", pm
+
+
+def validate_exam_marks_config(max_marks, pass_marks) -> tuple:
+    """
+    Validates an exam's configured maximum marks and passing marks:
+      - max_marks must be a number > 0
+      - pass_marks must be a number >= 0
+      - pass_marks must not exceed max_marks
+    Returns (is_valid, error_message, max_marks_float, pass_marks_float).
+    """
+    try:
+        mx = float(max_marks)
+    except (ValueError, TypeError):
+        return False, "Maximum marks must be a valid number.", 0.0, 0.0
+
+    try:
+        pm = float(pass_marks)
+    except (ValueError, TypeError):
+        return False, "Passing marks must be a valid number.", mx, 0.0
+
+    if mx <= 0:
+        return False, "Maximum marks must be greater than zero.", mx, pm
+    if pm < 0:
+        return False, "Passing marks cannot be negative.", mx, pm
+    if pm > mx:
+        return False, f"Passing marks ({pm:.2f}) cannot exceed maximum marks ({mx:.2f}).", mx, pm
+
+    return True, "", mx, pm
+
+
+
 def compute_student_result_summary(*args, **kwargs) -> dict:
     """
     Calculates detailed result summary for a student's exam.
@@ -121,11 +176,16 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
     for row in raw_marks_list:
         obt = float(row.get("obtained_marks", 0.0))
         mx = float(row.get("max_marks", 100.0))
-        pass_cutoff = float(row.get("pass_marks", 40.0))
+        # Use the configured pass_marks stored on the mark record (from subjects JOIN).
+        # Fall back to 40.0 only when the database record truly has no value (legacy data),
+        # but do NOT use 40 as a second independent gate alongside pass_cutoff.
+        pass_cutoff = float(row.get("pass_marks") or 40.0)
 
         pct = (obt / mx * 100.0) if mx > 0 else 0.0
         grade = calculate_subject_grade(pct)
-        passed = (obt >= pass_cutoff) and (pct >= 40.0)
+        # A student passes a subject if and only if their obtained marks meet the
+        # configured passing mark for that subject. No secondary percentage gate.
+        passed = obt >= pass_cutoff
 
         if not passed:
             all_passed = False
@@ -146,7 +206,8 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
         })
 
     overall_pct = (total_obtained / total_max * 100.0) if total_max > 0 else 0.0
-    overall_status = "PASS" if (all_passed and len(subject_results) > 0 and overall_pct >= 40.0) else "FAIL"
+    # Overall result: student must pass every individual subject (no hardcoded overall floor).
+    overall_status = "PASS" if (all_passed and len(subject_results) > 0) else "FAIL"
     overall_grade = calculate_subject_grade(overall_pct) if overall_status == "PASS" else "F"
 
     return {

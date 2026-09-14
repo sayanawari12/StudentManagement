@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS exams (
     semester      INT          NOT NULL,
     academic_year VARCHAR(20)  NOT NULL,
     status        VARCHAR(50)  NOT NULL DEFAULT 'Scheduled',
+    max_marks     DECIMAL(5,2) NULL,
+    pass_marks    DECIMAL(5,2) NULL,
     created_by    INT          NOT NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id)
