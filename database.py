@@ -11,8 +11,12 @@ Column naming note:
 """
 
 import datetime
+import logging
 import mysql.connector
+from mysql.connector import Error
 import config
+
+logger = logging.getLogger(__name__)
 
 
 def get_db_connection():
@@ -1043,9 +1047,11 @@ def ensure_exam_tables_exist():
     Ensure that subjects, exams, and exam_marks tables exist in the database.
     Idempotent and safe to run on every app startup or on demand.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -1148,11 +1154,13 @@ def ensure_exam_tables_exist():
             )
 
         conn.commit()
-    except Error:
-        pass
+    except Error as e:
+        logger.warning("Database error during ensure_exam_tables_exist: %s", e)
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     # Idempotent migrations: add max_marks and pass_marks to exams if missing
     _migrate_add_exam_max_marks()
@@ -1164,9 +1172,11 @@ def _migrate_add_exam_max_marks():
     Idempotent ALTER TABLE: adds max_marks column to the exams table if it does not yet exist.
     Safe to run multiple times. Existing data is not affected.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute(
             """
             SELECT COUNT(*) FROM information_schema.columns
@@ -1180,11 +1190,13 @@ def _migrate_add_exam_max_marks():
                 "ALTER TABLE exams ADD COLUMN max_marks DECIMAL(5,2) NULL"
             )
             conn.commit()
-    except Error:
-        pass
+    except Error as e:
+        logger.warning("Database error in _migrate_add_exam_max_marks: %s", e)
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def _migrate_add_exam_pass_marks():
@@ -1192,9 +1204,11 @@ def _migrate_add_exam_pass_marks():
     Idempotent ALTER TABLE: adds pass_marks column to the exams table if it does not yet exist.
     Safe to run multiple times. Existing data is not affected.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         # Check if column already exists
         cursor.execute(
             """
@@ -1209,11 +1223,13 @@ def _migrate_add_exam_pass_marks():
                 "ALTER TABLE exams ADD COLUMN pass_marks DECIMAL(5,2) NULL"
             )
             conn.commit()
-    except Error:
-        pass
+    except Error as e:
+        logger.warning("Database error in _migrate_add_exam_pass_marks: %s", e)
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def _fetch_all_exams_query(course=None, semester=None, academic_year=None, status=None):
@@ -1391,7 +1407,7 @@ def get_exam_marks_for_student(exam_id, stud_id):
             SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
                    sub.subject_name,
                    sub.subject_code,
-                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks,
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks) AS max_marks,
                    COALESCE(e.pass_marks, sub.pass_marks) AS pass_marks
             FROM exam_marks m
             JOIN subjects sub ON sub.id = m.subject_id
@@ -1416,7 +1432,7 @@ def get_all_marks_for_exam(exam_id):
             """
             SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
                    s.student_name, s.student_id as roll_no, sub.subject_name, sub.subject_code,
-                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks) AS max_marks
             FROM exam_marks m
             JOIN students s ON s.id = m.stud_id
             JOIN subjects sub ON sub.id = m.subject_id
@@ -1459,7 +1475,7 @@ def get_student_exam_history(stud_id):
             SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
                    sub.subject_name,
                    sub.subject_code,
-                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks,
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks) AS max_marks,
                    COALESCE(e.pass_marks, sub.pass_marks) AS pass_marks
             FROM exam_marks m
             JOIN subjects sub ON sub.id = m.subject_id

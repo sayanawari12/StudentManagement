@@ -320,3 +320,25 @@ class TestAcademicRecordHardenAndOptimize:
                 assert float(item["marks"][0]["max_marks"]) == 80.0
                 assert float(item["marks"][0]["pass_marks"]) == 32.0
 
+    def test_compute_academic_transcript_with_missing_config_safe(self):
+        """Transcript computation safely processes exams with missing pass/max marks without raising TypeError."""
+        student = {"id": 1, "student_id": "BCA2401", "student_name": "Test Student", "course": "BCA", "semester": 1}
+        raw_history = [
+            {
+                "exam": {"id": 201, "exam_name": "Unconfigured Exam", "semester": 1, "max_marks": None, "pass_marks": None},
+                "marks": [
+                    {
+                        "subject_id": 1,
+                        "subject_name": "Practical",
+                        "obtained_marks": Decimal("25.0"),
+                        "max_marks": None,
+                        "pass_marks": None,
+                    }
+                ]
+            }
+        ]
+        transcript = exam_service.compute_academic_transcript(student, raw_history)
+        assert transcript["overall"]["has_data"] is True
+        assert transcript["overall"]["failed_subjects"] == 1
+        assert transcript["overall"]["overall_result"] == "FAIL"
+

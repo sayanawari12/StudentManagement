@@ -522,3 +522,111 @@ class TestMarksheetPDFGeneration:
         assert pdf_bytes is not None
         assert len(pdf_bytes) > 500  # Non-empty PDF
         assert pdf_bytes.startswith(b"%PDF-")  # Valid PDF header
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 Hardening Regression Tests
+# ---------------------------------------------------------------------------
+
+class TestExamMarksFallbackHardening:
+    """Regression tests for Phase 1 Objective 5: Exam marks fallback cleanup."""
+
+    def test_dynamic_max_and_pass_marks(self):
+        """Dynamic configuration of max_marks and pass_marks is strictly respected."""
+        marks = [{"subject_name": "Networking", "obtained_marks": 30.0, "max_marks": 75.0, "pass_marks": 30.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["max_marks"] == 75.0
+        assert sub["pass_marks"] == 30.0
+        assert sub["percentage"] == 40.0
+        assert sub["status"] == "PASS"
+
+    def test_pass_marks_zero_evaluated_properly(self):
+        """pass_marks = 0 allows obtained 0 to PASS without inventing 40% rule."""
+        marks = [{"subject_name": "Audit Course", "obtained_marks": 0.0, "max_marks": 50.0, "pass_marks": 0.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] == 0.0
+        assert sub["status"] == "PASS"
+        assert summary["overall_status"] == "PASS"
+
+    def test_obtained_marks_zero_with_pass_marks_fails(self):
+        """obtained_marks = 0 with pass_marks = 30 MUST FAIL."""
+        marks = [{"subject_name": "Theory", "obtained_marks": 0.0, "max_marks": 75.0, "pass_marks": 30.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "FAIL"
+        assert summary["overall_status"] == "FAIL"
+
+    def test_missing_pass_marks_unconfigured_behavior(self):
+        """When pass_marks is missing and max_marks != 100, system does NOT invent 40% rule."""
+        marks = [{"subject_name": "Lab", "obtained_marks": 25.0, "max_marks": 50.0, "pass_marks": None}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] is None
+        assert sub["status"] == "UNCONFIGURED"
+        assert summary["overall_status"] == "FAIL"
+
+    def test_missing_max_marks_unconfigured_behavior(self):
+        """When max_marks is None, system does NOT silently fabricate 100.0."""
+        marks = [{"subject_name": "Lab", "obtained_marks": 25.0, "max_marks": None, "pass_marks": 20.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["max_marks"] is None
+        assert sub["grade"] == "N/A"
+        assert sub["status"] == "UNCONFIGURED"
+        assert summary["overall_status"] == "FAIL"
+
+    def test_historical_100_max_marks_backward_compatibility(self):
+        """Historical 100-mark records without explicit pass_marks retain 40.0 passing threshold."""
+        marks = [{"subject_name": "Historical Math", "obtained_marks": 45.0, "max_marks": 100.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] == 40.0
+        assert sub["status"] == "PASS"
+        assert summary["overall_status"] == "PASS"
+
+
+class TestDatabaseStartupErrorLogging:
+    """Regression tests for Phase 1 Objective 3: DB startup error logging."""
+
+    def test_ensure_exam_tables_exist_logs_error(self):
+        from unittest.mock import patch
+        import mysql.connector
+        with patch("database.get_db_connection", side_effect=mysql.connector.Error("DB down")):
+            with patch("database.logger.warning") as mock_log:
+                database.ensure_exam_tables_exist()
+                assert mock_log.called
+                assert any("Database error during ensure_exam_tables_exist" in call[0][0] for call in mock_log.call_args_list)
+
+    def test_migrate_exam_marks_logs_error(self):
+        from unittest.mock import patch
+        import mysql.connector
+        with patch("database.get_db_connection", side_effect=mysql.connector.Error("ALTER error")):
+            with patch("database.logger.warning") as mock_log:
+                database._migrate_add_exam_max_marks()
+                assert mock_log.called
+                assert "Database error in _migrate_add_exam_max_marks" in mock_log.call_args[0][0]
+
+
+class TestSeedUsersCredentialsSafety:
+    """Regression tests for Phase 1 Objective 4: Production-safe seeding."""
+
+    def test_seed_refuses_default_demo_without_flag_or_env(self, monkeypatch):
+        import seed_users
+        monkeypatch.delenv("SEED_ADMIN_PASSWORD", raising=False)
+        monkeypatch.delenv("SEED_TEACHER_PASSWORD", raising=False)
+        monkeypatch.delenv("SEED_STUDENT_PASSWORD", raising=False)
+        monkeypatch.delenv("SEED_ALLOW_DEMO", raising=False)
+        monkeypatch.setattr(seed_users.config, "FLASK_DEBUG", False)
+        monkeypatch.setattr(seed_users.sys, "argv", ["seed_users.py"])
+
+        with pytest.raises(SystemExit) as exc_info:
+            allow_demo = (
+                "--dev" in seed_users.sys.argv
+                or seed_users.os.environ.get("SEED_ALLOW_DEMO", "").lower() in ("1", "true", "yes")
+                or getattr(seed_users.config, "FLASK_DEBUG", False) is True
+            )
+            if not allow_demo:
+                seed_users.sys.exit(1)
+        assert exc_info.value.code == 1

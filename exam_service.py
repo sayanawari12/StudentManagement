@@ -177,35 +177,50 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
         obt_val = row.get("obtained_marks")
         obt = float(obt_val) if obt_val is not None else 0.0
 
-        # Resolve max_marks: check row first, then exam configuration
+        # Authoritative max_marks: check row first, then exam configuration
         mx_val = row.get("max_marks")
         if mx_val is None and isinstance(exam, dict):
             mx_val = exam.get("max_marks")
-        mx = float(mx_val) if mx_val is not None else 100.0
+        mx = float(mx_val) if mx_val is not None else None
 
-        # Resolve pass_marks: check row first, then exam configuration
+        # Authoritative pass_marks: check row first, then exam configuration
         pass_val = row.get("pass_marks")
         if pass_val is None and isinstance(exam, dict):
             pass_val = exam.get("pass_marks")
 
-        # Explicit check: if pass_marks is specified (including 0 or 0.0), respect it.
-        # If pass_marks is unspecified in row & exam, use relative 40% of max_marks.
+        # Explicit check: respect explicit values including 0 or 0.0
         if pass_val is not None:
             pass_cutoff = float(pass_val)
+        elif mx == 100.0:
+            # Backward compatibility for legitimate historical records created under the standard 100-mark rule
+            pass_cutoff = 40.0
         else:
-            pass_cutoff = 40.0 if mx == 100.0 else (0.4 * mx)
+            # Unconfigured passing marks — do not invent an unauthoritative 40% rule
+            pass_cutoff = None
 
-        pct = (obt / mx * 100.0) if mx > 0 else 0.0
-        grade = calculate_subject_grade(pct)
-        # A student passes a subject if and only if their obtained marks meet the
-        # configured passing mark for that subject. No secondary percentage gate.
-        passed = obt >= pass_cutoff
-
-        if not passed:
+        if mx is None or mx <= 0:
+            pct = 0.0
+            grade = "N/A"
+            passed = False
             all_passed = False
+            status = "UNCONFIGURED"
+        elif pass_cutoff is None:
+            pct = (obt / mx * 100.0)
+            grade = "N/A"
+            passed = False
+            all_passed = False
+            status = "UNCONFIGURED"
+        else:
+            pct = (obt / mx * 100.0)
+            grade = calculate_subject_grade(pct)
+            passed = obt >= pass_cutoff
+            if not passed:
+                all_passed = False
+            status = "PASS" if passed else "FAIL"
 
         total_obtained += obt
-        total_max += mx
+        if mx is not None:
+            total_max += mx
 
         subject_results.append({
             "subject_id": row.get("subject_id"),
@@ -214,9 +229,9 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
             "obtained_marks": obt,
             "max_marks": mx,
             "pass_marks": pass_cutoff,
-            "percentage": round(pct, 2),
+            "percentage": round(pct, 2) if pct is not None else 0.0,
             "grade": grade,
-            "status": "PASS" if passed else "FAIL",
+            "status": status,
         })
 
     overall_pct = (total_obtained / total_max * 100.0) if total_max > 0 else 0.0
@@ -285,7 +300,9 @@ def compute_academic_transcript(student: dict, raw_history: list) -> dict:
         for sub in summary.get("subject_results", []):
             total_subjects += 1
             total_obtained += sub.get("obtained_marks", 0.0)
-            total_max += sub.get("max_marks", 0.0)
+            sub_mx = sub.get("max_marks")
+            if sub_mx is not None:
+                total_max += float(sub_mx)
             if sub.get("status") == "PASS":
                 passed_subjects += 1
             else:

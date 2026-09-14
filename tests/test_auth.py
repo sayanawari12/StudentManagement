@@ -243,3 +243,54 @@ class TestMarkedByAndRecordedByRegression:
         assert row["recorded_by"] == admin_user_id, (
             f"recorded_by should be admin's user_id={admin_user_id}, got {row['recorded_by']}"
         )
+
+
+# ---------------------------------------------------------------------------
+# _get_user_id() regression tests (Phase 1 Objective 2)
+# ---------------------------------------------------------------------------
+
+class TestGetUserIdSafety:
+    """Regression tests for Phase 1 Objective 2: _get_user_id() safe resolution."""
+
+    def test_authenticated_user_id_resolution_from_session(self, app):
+        with app.test_request_context("/"):
+            from flask import session
+            from app import _get_user_id
+            session["user_id"] = 42
+            assert _get_user_id() == 42
+
+    def test_authenticated_user_id_resolution_from_username(self, app, db):
+        with app.test_request_context("/"):
+            from flask import session
+            from app import _get_user_id
+            session["admin"] = "teacher"
+            teacher_id = db["users"]["teacher"]["id"]
+            assert _get_user_id() == teacher_id
+
+    def test_db_lookup_failure_does_not_return_one(self, app):
+        from unittest.mock import patch
+        with app.test_request_context("/"):
+            from flask import session
+            from app import _get_user_id
+            session["admin"] = "someone"
+            with patch("database.get_user_by_username", side_effect=mysql.connector.Error("Connection error")):
+                res = _get_user_id()
+                assert res is None
+                assert res != 1
+
+    def test_missing_user_does_not_return_one(self, app):
+        with app.test_request_context("/"):
+            from flask import session
+            from app import _get_user_id
+            session["admin"] = "nonexistent_user_xyz"
+            res = _get_user_id()
+            assert res is None
+            assert res != 1
+
+    def test_caller_route_handles_unresolvable_user_safely(self, client):
+        with client.session_transaction() as sess:
+            sess["role"] = "admin"
+            sess["admin"] = "nonexistent_user_xyz"
+        resp = client.get("/change-password", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/logout" in resp.headers["Location"]

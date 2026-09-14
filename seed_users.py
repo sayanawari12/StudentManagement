@@ -4,17 +4,18 @@ seed_users.py — seeds admin, teacher, and student accounts.
 This script replaces seed_admin.py. Run it once after schema.sql (fresh install)
 or after migrate.py (existing install):
 
-    python seed_users.py
+    python seed_users.py --dev
 
-Accounts created:
-    admin   / admin123   — role=admin,   can do everything
-    teacher / teacher123 — role=teacher, can view students + mark attendance
-    student / student123 — role=student, linked to student BCA2401 (Aarav Sharma)
+In production, provide explicit secure passwords via environment variables:
+    SEED_ADMIN_PASSWORD=... SEED_TEACHER_PASSWORD=... SEED_STUDENT_PASSWORD=... python seed_users.py
 
 All operations are idempotent — safe to re-run (skips existing usernames).
 """
 
+import os
+import sys
 from werkzeug.security import generate_password_hash
+import config
 import database
 import mysql.connector
 
@@ -53,18 +54,51 @@ def get_student_pk(student_id_roll):
         conn.close()
 
 
-if __name__ == "__main__":
+def seed(admin_password, teacher_password, student_password):
+    """Seed user accounts with provided passwords."""
     print("Seeding users…")
 
-    create_user("admin",   "admin123",   "admin")
-    create_user("teacher", "teacher123", "teacher")
+    create_user("admin",   admin_password,   "admin")
+    create_user("teacher", teacher_password, "teacher")
 
     # Link the student account to BCA2401 (Aarav Sharma — first sample row)
     stud_pk = get_student_pk("BCA2401")
     if stud_pk:
-        create_user("student", "student123", "student", linked_student_id=stud_pk)
+        create_user("student", student_password, "student", linked_student_id=stud_pk)
     else:
         print("  WARNING: student BCA2401 not found — "
               "run schema.sql first, then re-run seed_users.py")
 
     print("Done.")
+
+
+if __name__ == "__main__":
+    admin_pass = os.environ.get("SEED_ADMIN_PASSWORD")
+    teacher_pass = os.environ.get("SEED_TEACHER_PASSWORD")
+    student_pass = os.environ.get("SEED_STUDENT_PASSWORD")
+
+    allow_demo = (
+        "--dev" in sys.argv
+        or os.environ.get("SEED_ALLOW_DEMO", "").lower() in ("1", "true", "yes")
+        or getattr(config, "FLASK_DEBUG", False) is True
+    )
+
+    if not (admin_pass and teacher_pass and student_pass):
+        if not allow_demo:
+            print(
+                "ERROR: Predictable development credentials cannot be seeded in production.\n"
+                "To set custom production credentials, provide environment variables:\n"
+                "  SEED_ADMIN_PASSWORD, SEED_TEACHER_PASSWORD, SEED_STUDENT_PASSWORD\n"
+                "Or explicitly allow demo accounts for local development:\n"
+                "  python seed_users.py --dev   or set SEED_ALLOW_DEMO=true\n"
+            )
+            sys.exit(1)
+        print(
+            "WARNING: Seeding default demo credentials (admin123/teacher123/student123).\n"
+            "DO NOT use these credentials in a production environment!\n"
+        )
+        admin_pass = admin_pass or "admin123"
+        teacher_pass = teacher_pass or "teacher123"
+        student_pass = student_pass or "student123"
+
+    seed(admin_pass, teacher_pass, student_pass)

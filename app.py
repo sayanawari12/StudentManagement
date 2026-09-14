@@ -94,7 +94,7 @@ EXPECTED_CSV_HEADERS = [
 try:
     database.ensure_exam_tables_exist()
 except Exception as _e:
-    pass
+    app.logger.warning("Could not initialize exam tables on application startup: %s", _e)
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +296,9 @@ def logout():
 @login_required
 def change_password():
     user_id = _get_user_id()
+    if not user_id:
+        flash("User session invalid. Please log in again.", "error")
+        return redirect(url_for("logout"))
     try:
         user = database.get_user_by_id(user_id)
     except Error as e:
@@ -1073,6 +1076,9 @@ def attendance():
 
         students_list = database.get_all_students_for_attendance()
         marked_by = _get_user_id()
+        if not marked_by:
+            flash("Could not identify current user. Please log in again.", "error")
+            return redirect(url_for("attendance", date=post_date))
 
         for s in students_list:
             status = request.form.get(f"status_{s['id']}", "")
@@ -1223,6 +1229,9 @@ def grades_add(record_id):
             return render_template("grades_add.html", student=student, form=form)
 
         recorded_by = _get_user_id()
+        if not recorded_by:
+            flash("Could not identify current user. Please log in again.", "error")
+            return render_template("grades_add.html", student=student, form=form)
 
         try:
             database.insert_grade({
@@ -1252,15 +1261,21 @@ def grades_view(record_id):
 
 
 def _get_user_id():
-    """Fetch the users.id for the currently logged-in user."""
+    """Fetch the users.id for the currently logged-in user. Returns None if unresolvable."""
     if "user_id" in session:
         return session["user_id"]
+    username = session.get("admin", "")
+    if not username:
+        return None
     try:
-        user = database.get_user_by_username(session.get("admin", ""))
-        return user["id"] if user else 1
+        user = database.get_user_by_username(username)
+        if user:
+            session["user_id"] = user["id"]
+            return user["id"]
+        return None
     except Error as e:
-        app.logger.error("DB error fetching user_id in _get_user_id (defaulting to user_id=1): %s", e)
-        return 1
+        app.logger.error("DB error fetching user_id in _get_user_id: %s", e)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1505,6 +1520,9 @@ def totp_setup():
       - On failure: re-render with the same QR/secret, do NOT regenerate.
     """
     user_id = _get_user_id()
+    if not user_id:
+        flash("User session invalid. Please log in again.", "error")
+        return redirect(url_for("logout"))
 
     try:
         user = database.get_user_by_id(user_id)
@@ -1578,6 +1596,9 @@ def _totp_qr_uri(user):
 def totp_disable():
     """Disable TOTP for the current user, requiring current password as confirmation."""
     user_id = _get_user_id()
+    if not user_id:
+        flash("User session invalid. Please log in again.", "error")
+        return redirect(url_for("logout"))
 
     try:
         user = database.get_user_by_id(user_id)
@@ -1642,6 +1663,9 @@ def notice_add():
             return render_template("notice_add.html", form=request.form)
 
         posted_by = _get_user_id()
+        if not posted_by:
+            flash("Could not identify current user. Please log in again.", "error")
+            return render_template("notice_add.html", form=request.form)
         try:
             database.insert_notice(title, body, posted_by)
             flash("Notice posted successfully.", "success")
@@ -2018,7 +2042,10 @@ def enter_exam_marks_route(exam_id):
 
     if request.method == "POST":
         all_marks_valid = True
-        recorded_by = session.get("user_id")
+        recorded_by = _get_user_id()
+        if not recorded_by:
+            flash("Could not identify current user. Please log in again.", "error")
+            return redirect(url_for("list_exams_route"))
 
         for student in students:
             roll_no = student["student_id"]   # varchar roll number (used in field names)
