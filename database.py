@@ -1433,7 +1433,9 @@ def get_all_marks_for_exam(exam_id):
 
 
 def get_student_exam_history(stud_id):
-    """Fetch all exam results recorded for a student across all semesters."""
+    """Fetch all exam results recorded for a student across all semesters.
+    Uses 2 batch database queries instead of 1 + N queries to eliminate the N+1 query pattern.
+    """
     pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1449,16 +1451,43 @@ def get_student_exam_history(stud_id):
             (pk_id,)
         )
         exam_list = cursor.fetchall()
-        
+        if not exam_list:
+            return []
+
+        cursor.execute(
+            """
+            SELECT m.id, m.exam_id, m.stud_id, m.subject_id, m.obtained_marks, m.recorded_by, m.created_at, m.updated_at,
+                   sub.subject_name,
+                   sub.subject_code,
+                   COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.00) AS max_marks,
+                   COALESCE(e.pass_marks, sub.pass_marks) AS pass_marks
+            FROM exam_marks m
+            JOIN subjects sub ON sub.id = m.subject_id
+            JOIN exams    e   ON e.id  = m.exam_id
+            WHERE m.stud_id = %s
+            ORDER BY sub.id ASC
+            """,
+            (pk_id,)
+        )
+        all_marks = cursor.fetchall()
+
+        marks_by_exam = {}
+        for m_row in all_marks:
+            ex_id = m_row["exam_id"]
+            if ex_id not in marks_by_exam:
+                marks_by_exam[ex_id] = []
+            marks_by_exam[ex_id].append(m_row)
+
         history = []
         for exam in exam_list:
-            marks = get_exam_marks_for_student(exam["id"], pk_id)
+            e_id = exam["id"]
             history.append({
                 "exam": exam,
-                "marks": marks
+                "marks": marks_by_exam.get(e_id, [])
             })
         return history
     finally:
         cursor.close()
         conn.close()
+
 

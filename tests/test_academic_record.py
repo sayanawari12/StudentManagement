@@ -258,3 +258,65 @@ class TestAcademicTranscriptPDF:
         pdf_bytes = generate_academic_transcript_pdf(student, transcript)
         assert isinstance(pdf_bytes, bytes)
         assert pdf_bytes.startswith(b"%PDF")
+
+
+class TestAcademicRecordHardenAndOptimize:
+    """Regression tests for Issue 1 (zero marks & dynamic bounds) and Issue 2 (batch history queries)."""
+
+    def test_zero_obtained_and_forty_pass_marks_fail(self):
+        """obtained_marks = 0, pass_marks = 40 MUST yield FAIL."""
+        marks = [{"subject_name": "Physics", "obtained_marks": 0.0, "max_marks": 100.0, "pass_marks": 40.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["status"] == "FAIL"
+        assert summary["overall_status"] == "FAIL"
+
+    def test_dynamic_marks_custom_exam_bounds(self):
+        """Verify dynamic custom exam bounds (80/32 and 50/20) are respected without hardcoded 40/100 defaults."""
+        exam1 = {"max_marks": 80.0, "pass_marks": 32.0}
+        marks1 = [{"subject_name": "Paper 1", "obtained_marks": 32.0}]
+        sum1 = exam_service.compute_student_result_summary(None, exam1, marks1)
+        assert sum1["subject_results"][0]["max_marks"] == 80.0
+        assert sum1["subject_results"][0]["pass_marks"] == 32.0
+        assert sum1["subject_results"][0]["status"] == "PASS"
+
+        exam2 = {"max_marks": 50.0, "pass_marks": 20.0}
+        marks2 = [{"subject_name": "Paper 2", "obtained_marks": 19.99}]
+        sum2 = exam_service.compute_student_result_summary(None, exam2, marks2)
+        assert sum2["subject_results"][0]["max_marks"] == 50.0
+        assert sum2["subject_results"][0]["pass_marks"] == 20.0
+        assert sum2["subject_results"][0]["status"] == "FAIL"
+
+    def test_optimized_academic_history_retrieval(self, db):
+        """Verify get_student_exam_history batch query structure and data integrity."""
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        stud_id = stud_obj["student_id"]
+        admin_id = db["users"]["admin"]["id"]
+
+        # Create two separate exams
+        ex1_id = database.create_exam("Batch Test Exam 1", "Internal 1", stud_obj["course"], 1, "2025-26", admin_id, status="Completed", max_marks=50.0, pass_marks=20.0)
+        ex2_id = database.create_exam("Batch Test Exam 2", "Semester Examination", stud_obj["course"], 2, "2025-26", admin_id, status="Completed", max_marks=80.0, pass_marks=32.0)
+
+        subjects1 = database.ensure_semester1_subjects(stud_obj["course"])
+        subjects2 = database.ensure_semester2_subjects(stud_obj["course"])
+
+        database.save_exam_marks(ex1_id, stud_id, subjects1[0]["id"], 25.0, 50.0, admin_id)
+        database.save_exam_marks(ex2_id, stud_id, subjects2[0]["id"], 40.0, 80.0, admin_id)
+
+        history = database.get_student_exam_history(stud_id)
+        assert len(history) >= 2
+
+        # Verify returned structure
+        for item in history:
+            assert "exam" in item
+            assert "marks" in item
+            assert isinstance(item["marks"], list)
+            if item["exam"]["id"] == ex1_id:
+                assert len(item["marks"]) == 1
+                assert float(item["marks"][0]["max_marks"]) == 50.0
+                assert float(item["marks"][0]["pass_marks"]) == 20.0
+            elif item["exam"]["id"] == ex2_id:
+                assert len(item["marks"]) == 1
+                assert float(item["marks"][0]["max_marks"]) == 80.0
+                assert float(item["marks"][0]["pass_marks"]) == 32.0
+

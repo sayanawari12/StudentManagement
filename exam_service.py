@@ -174,10 +174,26 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
     all_passed = True
 
     for row in raw_marks_list:
-        obt = float(row.get("obtained_marks", 0.0))
-        mx = float(row.get("max_marks", 100.0))
+        obt_val = row.get("obtained_marks")
+        obt = float(obt_val) if obt_val is not None else 0.0
+
+        # Resolve max_marks: check row first, then exam configuration
+        mx_val = row.get("max_marks")
+        if mx_val is None and isinstance(exam, dict):
+            mx_val = exam.get("max_marks")
+        mx = float(mx_val) if mx_val is not None else 100.0
+
+        # Resolve pass_marks: check row first, then exam configuration
         pass_val = row.get("pass_marks")
-        pass_cutoff = float(pass_val) if pass_val is not None else 40.0
+        if pass_val is None and isinstance(exam, dict):
+            pass_val = exam.get("pass_marks")
+
+        # Explicit check: if pass_marks is specified (including 0 or 0.0), respect it.
+        # If pass_marks is unspecified in row & exam, use relative 40% of max_marks.
+        if pass_val is not None:
+            pass_cutoff = float(pass_val)
+        else:
+            pass_cutoff = 40.0 if mx == 100.0 else (0.4 * mx)
 
         pct = (obt / mx * 100.0) if mx > 0 else 0.0
         grade = calculate_subject_grade(pct)
