@@ -433,6 +433,21 @@ def students():
     return render_template("students.html", students=student_list, search=search)
 
 
+def sanitize_csv_value(val):
+    """
+    Safely neutralize spreadsheet formulas for CSV export.
+    Values starting with =, +, -, @, \t, or \r are prefixed with a single quote (')
+    so spreadsheet software (Excel, LibreOffice) treats them as plain text literals.
+    Normal text strings and data remain untouched.
+    """
+    if val is None:
+        return ""
+    val_str = str(val)
+    if val_str and val_str[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + val_str
+    return val_str
+
+
 @app.route("/students/export")
 @role_required("admin", "teacher")
 def students_export():
@@ -462,11 +477,16 @@ def students_export():
         row = dict(student)
         if row.get("date_of_birth") and hasattr(row["date_of_birth"], "isoformat"):
             row["date_of_birth"] = row["date_of_birth"].isoformat()
-        # Wrap phone as an Excel text-literal formula so purely-numeric values
-        # are never auto-converted to scientific notation when opened in Excel.
-        # Only `phone` is affected — all other fields are alphanumeric or dates.
-        if row.get("phone"):
-            row["phone"] = f'="{row["phone"]}"'
+
+        # Sanitize text fields against spreadsheet formula injection while preserving phone Excel text literal format
+        for k in list(row.keys()):
+            if k == "phone" and row.get("phone"):
+                raw_phone = str(row["phone"]).strip()
+                sanitized_phone = sanitize_csv_value(raw_phone)
+                row["phone"] = f'="{sanitized_phone}"'
+            elif row.get(k) is not None:
+                row[k] = sanitize_csv_value(row[k])
+
         writer.writerow(row)
 
     output.seek(0)
@@ -477,6 +497,7 @@ def students_export():
         as_attachment=True,
         download_name=filename,
     )
+
 
 
 @app.route("/students/add", methods=["GET", "POST"])
@@ -1951,6 +1972,8 @@ def edit_exam_route(exam_id):
     if not exam:
         abort(404)
 
+    has_marks = database.has_exam_marks(exam_id)
+
     if request.method == "POST":
         exam_name = request.form.get("exam_name", "").strip()
         exam_type = request.form.get("exam_type", "").strip()
@@ -1964,31 +1987,69 @@ def edit_exam_route(exam_id):
         errors = []
         if not exam_name:
             errors.append("Exam name is required.")
-        if not exam_type:
-            errors.append("Exam type is required.")
-        if not course:
-            errors.append("Course is required.")
-        if not semester_str or not semester_str.isdigit() or not (1 <= int(semester_str) <= 6):
-            errors.append("Semester must be between 1 and 6.")
         if not academic_year:
             errors.append("Academic year is required.")
-        if not max_marks_str:
-            errors.append("Maximum marks is required.")
-        if not pass_marks_str:
-            errors.append("Passing marks is required.")
 
-        max_marks_f, pass_marks_f = None, None
-        if max_marks_str and pass_marks_str:
-            cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
-                max_marks_str, pass_marks_str
-            )
-            if not cfg_valid:
-                errors.append(cfg_err)
+        # Task 1: If marks exist, academic configuration fields are locked server-side.
+        if has_marks:
+            orig_type = str(exam.get("exam_type") or "").strip()
+            orig_course = str(exam.get("course") or "").strip()
+            orig_sem = int(exam.get("semester")) if exam.get("semester") is not None else None
+            orig_max = float(exam.get("max_marks")) if exam.get("max_marks") is not None else 100.0
+            orig_pass = float(exam.get("pass_marks")) if exam.get("pass_marks") is not None else 40.0
+
+            locked_changed = False
+            if exam_type and exam_type != orig_type:
+                locked_changed = True
+            if course and course != orig_course:
+                locked_changed = True
+            if semester_str and semester_str.isdigit() and int(semester_str) != orig_sem:
+                locked_changed = True
+            if max_marks_str:
+                try:
+                    if abs(float(max_marks_str) - orig_max) > 1e-6:
+                        locked_changed = True
+                except ValueError:
+                    locked_changed = True
+            if pass_marks_str:
+                try:
+                    if abs(float(pass_marks_str) - orig_pass) > 1e-6:
+                        locked_changed = True
+                except ValueError:
+                    locked_changed = True
+
+            if locked_changed:
+                errors.append("Exam configuration cannot be changed after marks have been entered.")
+
+            exam_type = orig_type
+            course = orig_course
+            semester_str = str(orig_sem) if orig_sem is not None else "1"
+            max_marks_f = orig_max
+            pass_marks_f = orig_pass
+        else:
+            if not exam_type:
+                errors.append("Exam type is required.")
+            if not course:
+                errors.append("Course is required.")
+            if not semester_str or not semester_str.isdigit() or not (1 <= int(semester_str) <= 6):
+                errors.append("Semester must be between 1 and 6.")
+            if not max_marks_str:
+                errors.append("Maximum marks is required.")
+            if not pass_marks_str:
+                errors.append("Passing marks is required.")
+
+            max_marks_f, pass_marks_f = None, None
+            if max_marks_str and pass_marks_str:
+                cfg_valid, cfg_err, max_marks_f, pass_marks_f = exam_service.validate_exam_marks_config(
+                    max_marks_str, pass_marks_str
+                )
+                if not cfg_valid:
+                    errors.append(cfg_err)
 
         if errors:
             for err in errors:
                 flash(err, "error")
-            return render_template("exam_form.html", exam=request.form, is_edit=True, exam_id=exam_id)
+            return render_template("exam_form.html", exam=request.form, is_edit=True, exam_id=exam_id, has_marks=has_marks)
 
         try:
             database.update_exam(
@@ -2008,7 +2069,8 @@ def edit_exam_route(exam_id):
             app.logger.error("DB error updating exam: %s", e)
             flash("Failed to update exam in database.", "error")
 
-    return render_template("exam_form.html", exam=exam, is_edit=True, exam_id=exam_id)
+    return render_template("exam_form.html", exam=exam, is_edit=True, exam_id=exam_id, has_marks=has_marks)
+
 
 
 @app.route("/exams/<int:exam_id>/delete", methods=["POST"])

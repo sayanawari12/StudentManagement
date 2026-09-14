@@ -1346,6 +1346,19 @@ def delete_exam(exam_id):
         conn.close()
 
 
+def has_exam_marks(exam_id):
+    """Check if any marks have been recorded for an exam."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT 1 FROM exam_marks WHERE exam_id = %s LIMIT 1", (exam_id,))
+        return cursor.fetchone() is not None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
 # ---------------------------------------------------------------------------
 # Exam Marks / Results query helpers
 # ---------------------------------------------------------------------------

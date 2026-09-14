@@ -396,3 +396,85 @@ def test_phone_excel_wrapper_roundtrip(client):
         f"Expected stored phone {phone_raw!r}, got {captured_payload['phone']!r}. "
         "Import did not strip the Excel text-literal wrapper."
     )
+
+
+class TestCSVFormulaInjection:
+    """Regression tests for Phase 3 Task 2: CSV formula injection protection."""
+
+    def test_sanitize_csv_value_helper(self):
+        from app import sanitize_csv_value
+
+        # Dangerous values starting with =, +, -, @, \t, \r
+        assert sanitize_csv_value('=HYPERLINK("http://evil.com")') == '\'=HYPERLINK("http://evil.com")'
+        assert sanitize_csv_value('+12345') == "'+12345"
+        assert sanitize_csv_value('-cmd|"/C calc"!A1') == "'-cmd|\"/C calc\"!A1"
+        assert sanitize_csv_value('@SUM(A1:A10)') == "'@SUM(A1:A10)"
+        assert sanitize_csv_value('\t123') == "'\t123"
+        assert sanitize_csv_value('\r123') == "'\r123"
+
+        # Normal values remain unchanged
+        assert sanitize_csv_value('Sayan Awari') == 'Sayan Awari'
+        assert sanitize_csv_value('alice@example.com') == 'alice@example.com'
+        assert sanitize_csv_value('2005-01-15') == '2005-01-15'
+        assert sanitize_csv_value('') == ''
+        assert sanitize_csv_value(None) == ''
+
+    def test_export_neutralizes_formula_injection_cells(self, client):
+        from unittest.mock import patch
+        dangerous_student = {
+            "id": 10,
+            "student_id": "=CMD|' /C calc'!A1",
+            "student_name": "=HYPERLINK(\"http://evil.com\")",
+            "email": "@admin@example.com",
+            "phone": "+919876543210",
+            "gender": "-Male",
+            "date_of_birth": datetime.date(2002, 5, 20),
+            "course": "BCA",
+            "semester": "3",
+            "address": "+123 Evil Street",
+        }
+
+        with patch("database.get_all_students", return_value=[dangerous_student]):
+            resp = _export_as_admin(client)
+
+        assert resp.status_code == 200
+        rows = _parse_csv(resp.data)
+        row = rows[0]
+
+        assert row["student_id"] == "'=CMD|' /C calc'!A1"
+        assert row["student_name"] == '\'=HYPERLINK("http://evil.com")'
+        assert row["email"] == "'@admin@example.com"
+        assert row["gender"] == "'-Male"
+        assert row["address"] == "'+123 Evil Street"
+        assert row["phone"] == '="\'\'+919876543210"' or "'+919876543210" in row["phone"]
+
+
+    def test_export_normal_student_data_remains_unmodified(self, client):
+        from unittest.mock import patch
+        normal_student = {
+            "id": 11,
+            "student_id": "BCA2401",
+            "student_name": "Sayan Awari",
+            "email": "sayan@example.com",
+            "phone": "9876543210",
+            "gender": "Male",
+            "date_of_birth": datetime.date(2004, 8, 10),
+            "course": "BCA",
+            "semester": "3",
+            "address": "456 College Road",
+        }
+
+        with patch("database.get_all_students", return_value=[normal_student]):
+            resp = _export_as_admin(client)
+
+        assert resp.status_code == 200
+        rows = _parse_csv(resp.data)
+        row = rows[0]
+
+        assert row["student_id"] == "BCA2401"
+        assert row["student_name"] == "Sayan Awari"
+        assert row["email"] == "sayan@example.com"
+        assert row["phone"] == '="9876543210"'
+        assert row["date_of_birth"] == "2004-08-10"
+        assert row["address"] == "456 College Road"
+

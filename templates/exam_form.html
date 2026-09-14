@@ -13,7 +13,13 @@
   </div>
 
   <div class="card" style="max-width: 680px; margin: 0 auto;">
-    <form method="POST" action="{% if exam %}{{ url_for('edit_exam_route', exam_id=exam.id) }}{% else %}{{ url_for('create_exam_route') }}{% endif %}">
+    {% if has_marks %}
+      <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--danger);">
+        <strong>Configuration Locked:</strong> Marks have already been entered for this exam. Academic configuration fields (Exam Type, Course, Semester, Maximum Marks, Passing Marks) are locked to maintain historical data integrity.
+      </div>
+    {% endif %}
+
+    <form method="POST" action="{% if exam and exam.id %}{{ url_for('edit_exam_route', exam_id=exam.id) }}{% else %}{{ url_for('create_exam_route') }}{% endif %}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="form-group">
@@ -26,7 +32,7 @@
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="form-group">
           <label for="exam_type" class="form-label">Exam Type <span style="color: var(--danger);">*</span></label>
-          <select id="exam_type" name="exam_type" class="form-control" required>
+          <select id="exam_type" name="exam_type" class="form-control" required {% if has_marks %}disabled{% endif %}>
             {% for et in ['Internal 1', 'Internal 2', 'Practical', 'Semester Examination'] %}
               <option value="{{ et }}" {% if exam and exam.exam_type == et %}selected{% endif %}>{{ et }}</option>
             {% endfor %}
@@ -46,14 +52,14 @@
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
         <div class="form-group">
           <label for="course" class="form-label">Course <span style="color: var(--danger);">*</span></label>
-          <select id="course" name="course" class="form-control" required>
+          <select id="course" name="course" class="form-control" required {% if has_marks %}disabled{% endif %}>
             <option value="BCA" {% if exam and exam.course == 'BCA' %}selected{% endif %}>BCA</option>
           </select>
         </div>
 
         <div class="form-group">
           <label for="semester" class="form-label">Semester <span style="color: var(--danger);">*</span></label>
-          <select id="semester" name="semester" class="form-control" required>
+          <select id="semester" name="semester" class="form-control" required {% if has_marks %}disabled{% endif %}>
             {% for s in range(1, 7) %}
               <option value="{{ s }}" {% if exam and exam.semester == s %}selected{% elif not exam and s == 3 %}selected{% endif %}>Semester {{ s }}</option>
             {% endfor %}
@@ -75,7 +81,7 @@
             <span style="font-size:11px; color:var(--text-secondary); font-weight:400;">(per subject)</span>
           </label>
           <input type="number" id="max_marks" name="max_marks" class="form-control"
-                 step="0.01" min="0.01" required
+                 step="0.01" min="0.01" required {% if has_marks %}disabled{% endif %}
                  placeholder="e.g. 70 or 100"
                  value="{{ exam.max_marks if exam and exam.max_marks is defined else 100 }}">
           <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">
@@ -89,7 +95,7 @@
             <span style="font-size:11px; color:var(--text-secondary); font-weight:400;">(per subject)</span>
           </label>
           <input type="number" id="pass_marks" name="pass_marks" class="form-control"
-                 step="0.01" min="0" required
+                 step="0.01" min="0" required {% if has_marks %}disabled{% endif %}
                  placeholder="e.g. 28 or 40"
                  value="{{ exam.pass_marks if exam and exam.pass_marks is defined else 40 }}">
           <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">
@@ -108,7 +114,7 @@
 
       <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
         <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Cancel</a>
-        <button type="submit" class="btn btn-primary">{% if exam %}Save Changes{% else %}Create Exam{% endif %}</button>
+        <button type="submit" class="btn btn-primary">{% if exam and exam.id %}Save Changes{% else %}Create Exam{% endif %}</button>
       </div>
     </form>
   </div>

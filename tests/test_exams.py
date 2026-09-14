@@ -630,3 +630,186 @@ class TestSeedUsersCredentialsSafety:
             if not allow_demo:
                 seed_users.sys.exit(1)
         assert exc_info.value.code == 1
+
+
+class TestExamLockConfiguration:
+    """Regression tests for Phase 3 Task 1: Locking exam configuration after marks exist."""
+
+    def test_edit_exam_config_allowed_before_marks_exist(self, admin_client, db):
+        """Editing max_marks, pass_marks, course, semester, exam_type is allowed when no marks exist."""
+        admin_id = db["users"]["admin"]["id"]
+        exam_id = database.create_exam(
+            exam_name="Unmarked Exam 1",
+            exam_type="Internal 1",
+            course="BCA",
+            semester=3,
+            academic_year="2026-27",
+            status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
+            created_by=admin_id
+        )
+
+        resp = admin_client.post(f"/exams/{exam_id}/edit", data={
+            "exam_name": "Unmarked Exam Updated",
+            "exam_type": "Internal 2",
+            "course": "BCA",
+            "semester": "4",
+            "academic_year": "2026-27",
+            "status": "Completed",
+            "max_marks": "50",
+            "pass_marks": "20"
+        }, follow_redirects=True)
+
+        assert resp.status_code == 200
+        updated = database.get_exam_by_id(exam_id)
+        assert updated["exam_name"] == "Unmarked Exam Updated"
+        assert updated["exam_type"] == "Internal 2"
+        assert updated["semester"] == 4
+        assert float(updated["max_marks"]) == 50.0
+        assert float(updated["pass_marks"]) == 20.0
+
+    def test_edit_exam_max_marks_rejected_after_marks_exist(self, admin_client, db):
+        """Attempting to change max_marks after marks exist is rejected server-side."""
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        exam_id = database.create_exam(
+            exam_name="Marked Exam 1",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-27",
+            status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        sub_id = subjects[0]["id"]
+        database.save_exam_marks(exam_id, stud_obj["student_id"], sub_id, 80.0, 100.0, admin_id)
+
+        resp = admin_client.post(f"/exams/{exam_id}/edit", data={
+            "exam_name": "Marked Exam 1",
+            "exam_type": "Internal 1",
+            "course": stud_obj["course"],
+            "semester": str(stud_obj["semester"]),
+            "academic_year": "2026-27",
+            "status": "Scheduled",
+            "max_marks": "50",
+            "pass_marks": "40"
+        }, follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert b"Exam configuration cannot be changed after marks have been entered." in resp.data
+        exam_db = database.get_exam_by_id(exam_id)
+        assert float(exam_db["max_marks"]) == 100.0
+
+    def test_edit_exam_pass_marks_rejected_after_marks_exist(self, admin_client, db):
+        """Attempting to change pass_marks after marks exist is rejected."""
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        exam_id = database.create_exam(
+            exam_name="Marked Exam 2",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-27",
+            status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        sub_id = subjects[0]["id"]
+        database.save_exam_marks(exam_id, stud_obj["student_id"], sub_id, 80.0, 100.0, admin_id)
+
+        resp = admin_client.post(f"/exams/{exam_id}/edit", data={
+            "exam_name": "Marked Exam 2",
+            "exam_type": "Internal 1",
+            "course": stud_obj["course"],
+            "semester": str(stud_obj["semester"]),
+            "academic_year": "2026-27",
+            "status": "Scheduled",
+            "max_marks": "100",
+            "pass_marks": "35"
+        }, follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert b"Exam configuration cannot be changed after marks have been entered." in resp.data
+        exam_db = database.get_exam_by_id(exam_id)
+        assert float(exam_db["pass_marks"]) == 40.0
+
+    def test_edit_exam_course_semester_type_rejected_after_marks_exist(self, admin_client, db):
+        """Attempting to change course/semester/type after marks exist is rejected."""
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        exam_id = database.create_exam(
+            exam_name="Marked Exam 3",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-27",
+            status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        sub_id = subjects[0]["id"]
+        database.save_exam_marks(exam_id, stud_obj["student_id"], sub_id, 80.0, 100.0, admin_id)
+
+        resp = admin_client.post(f"/exams/{exam_id}/edit", data={
+            "exam_name": "Marked Exam 3",
+            "exam_type": "Semester Examination",
+            "course": "BCA",
+            "semester": "5",
+            "academic_year": "2026-27",
+            "status": "Scheduled",
+            "max_marks": "100",
+            "pass_marks": "40"
+        }, follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert b"Exam configuration cannot be changed after marks have been entered." in resp.data
+
+    def test_edit_exam_metadata_allowed_after_marks_exist(self, admin_client, db):
+        """Updating exam_name, academic_year, and status is allowed even after marks exist."""
+        admin_id = db["users"]["admin"]["id"]
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        exam_id = database.create_exam(
+            exam_name="Original Exam Name",
+            exam_type="Internal 1",
+            course=stud_obj["course"],
+            semester=stud_obj["semester"],
+            academic_year="2026-27",
+            status="Scheduled",
+            max_marks=100.0,
+            pass_marks=40.0,
+            created_by=admin_id
+        )
+
+        subjects = database.get_subjects_by_course_and_semester(stud_obj["course"], stud_obj["semester"])
+        sub_id = subjects[0]["id"]
+        database.save_exam_marks(exam_id, stud_obj["student_id"], sub_id, 80.0, 100.0, admin_id)
+
+        resp = admin_client.post(f"/exams/{exam_id}/edit", data={
+            "exam_name": "Renamed Exam Title",
+            "exam_type": "Internal 1",
+            "course": stud_obj["course"],
+            "semester": str(stud_obj["semester"]),
+            "academic_year": "2027-28",
+            "status": "Published",
+            "max_marks": "100",
+            "pass_marks": "40"
+        }, follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert b"updated successfully" in resp.data
+        exam_db = database.get_exam_by_id(exam_id)
+        assert exam_db["exam_name"] == "Renamed Exam Title"
+        assert exam_db["academic_year"] == "2027-28"
+        assert exam_db["status"] == "Published"
+
