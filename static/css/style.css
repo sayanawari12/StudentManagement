@@ -977,19 +977,224 @@ body.drawer-open {
   }
 }
 
-@media (max-width: 380px) {
-  .main {
-    padding: 14px 10px 32px;
+/* ---------------------------------------------------------------------- */
+/* Mobile Students View (Matching S2.png Reference Image)                 */
+/* ---------------------------------------------------------------------- */
+
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .desktop-only {
+    display: none !important;
   }
 
-  .btn {
-    padding: 8px 14px;
+  .mobile-only {
+    display: block !important;
+  }
+
+  .mobile-students-header {
+    margin-bottom: 20px;
+  }
+
+  .mobile-students-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .mobile-students-title {
+    font-family: var(--font-heading);
+    font-size: 32px;
+    font-style: italic;
+    font-weight: 500;
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .badge-record-count {
+    background: var(--accent-soft, #F3E9E1);
+    color: var(--accent, #A9714F);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  .mobile-students-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .btn-mobile-primary {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 8px;
+  }
+
+  .mobile-csv-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .btn-mobile-csv {
+    flex: 1;
+    justify-content: center;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    background: var(--bg-surface);
+  }
+
+  .mobile-search-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 24px;
+  }
+
+  .mobile-search-wrap input {
+    width: 100%;
+    padding: 14px 16px 14px 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  }
+
+  .mobile-search-wrap input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .mobile-search-wrap svg {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  .mobile-student-cards {
+    display: flex !important;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .mobile-student-card {
+    background: var(--bg-surface, #ffffff);
+    border: 1px solid var(--border, rgba(22, 22, 22, 0.14));
+    border-radius: 12px;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  }
+
+  .mobile-card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .mobile-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent, #A9714F);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .mobile-card-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-card-name {
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.25;
+  }
+
+  .mobile-card-id {
+    font-family: monospace;
     font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-top: 3px;
   }
 
-  .result-summary-grid {
-    grid-template-columns: 1fr !important;
+  .mobile-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border, rgba(22, 22, 22, 0.1));
+  }
+
+  .mobile-card-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .mobile-card-row svg {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .mobile-card-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .mobile-card-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+  }
+
+  .mobile-cards-footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 12px;
+    font-style: italic;
   }
 }
+
 
 

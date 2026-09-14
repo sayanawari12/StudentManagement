@@ -2,7 +2,8 @@
 {% block title %}Students — Student Management System{% endblock %}
 
 {% block content %}
-  <div class="topbar">
+  {# ── DESKTOP HEADER & TOPBAR (Visible > 860px) ──────────────── #}
+  <div class="topbar desktop-only">
     <div>
       <h1>Students</h1>
       <p>{{ students|length }} record{{ 's' if students|length != 1 else '' }}{{ ' matching "%s"' % search if search else '' }}</p>
@@ -16,7 +17,40 @@
     </div>
   </div>
 
-  <form class="search-form" method="GET" action="{{ url_for('students') }}">
+  {# ── MOBILE HEADER & ACTIONS (Visible <= 860px - Matching Reference S2.png) ── #}
+  <div class="mobile-students-header mobile-only">
+    <div class="mobile-students-title-row">
+      <h1 class="mobile-students-title">Students</h1>
+      <span class="badge-record-count">{{ students|length }} Records</span>
+    </div>
+
+    <div class="mobile-students-actions">
+      {% if session.get('role') == 'admin' %}
+        <a href="{{ url_for('add_student') }}" class="btn btn-primary btn-mobile-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Student
+        </a>
+        <div class="mobile-csv-row">
+          <a href="{{ url_for('students_import') }}" class="btn btn-outline btn-mobile-csv">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import CSV
+          </a>
+          <a href="{{ url_for('students_export', search=search) }}" class="btn btn-outline btn-mobile-csv">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </a>
+        </div>
+      {% else %}
+        <a href="{{ url_for('students_export', search=search) }}" class="btn btn-outline btn-mobile-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── SEARCH FORM (Desktop) ──────────── #}
+  <form class="search-form desktop-only" method="GET" action="{{ url_for('students') }}">
     <input type="text" name="search" placeholder="Search by name, student ID or email" value="{{ search }}">
     <button type="submit" class="btn btn-outline">Search</button>
     {% if search %}
@@ -24,7 +58,21 @@
     {% endif %}
   </form>
 
-  <div class="table-wrap">
+  {# ── SEARCH FORM (Mobile) ──────────── #}
+  <form class="mobile-search-form mobile-only" method="GET" action="{{ url_for('students') }}">
+    <div class="mobile-search-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" name="search" placeholder="Search students by name, ID or email..." value="{{ search }}">
+    </div>
+    {% if search %}
+      <div style="margin-bottom: 16px; text-align: right;">
+        <a href="{{ url_for('students') }}" class="btn btn-outline btn-sm">Clear Search</a>
+      </div>
+    {% endif %}
+  </form>
+
+  {# ── DESKTOP TABLE VIEW (Visible > 860px) ────────────────────── #}
+  <div class="table-wrap desktop-only">
     {% if students %}
       <table>
         <thead>
@@ -68,6 +116,55 @@
       </table>
     {% else %}
       <div class="empty-state">
+        <strong>{{ 'No matches found' if search else 'No students yet' }}</strong>
+        {{ 'Try a different search term.' if search else 'Add your first record to get started.' }}
+      </div>
+    {% endif %}
+  </div>
+
+  {# ── MOBILE STUDENT CARDS VIEW (Visible <= 860px - Matching Reference S2.png) ── #}
+  <div class="mobile-student-cards mobile-only">
+    {% if students %}
+      {% for student in students %}
+        <div class="mobile-student-card">
+          <div class="mobile-card-header">
+            <div class="mobile-avatar">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="mobile-card-info">
+              <div class="mobile-card-name">{{ student.student_name }}</div>
+              <div class="mobile-card-id">{{ student.student_id }}</div>
+            </div>
+          </div>
+
+          <div class="mobile-card-body">
+            <div class="mobile-card-row">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>
+              <span>{{ student.course }} &bull; Semester {{ student.semester }}</span>
+            </div>
+            <div class="mobile-card-row">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              <span>{{ student.phone or '—' }}</span>
+            </div>
+          </div>
+
+          <div class="mobile-card-actions">
+            <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline mobile-card-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              View
+            </a>
+            {% if session.get('role') == 'admin' %}
+              <a href="{{ url_for('edit_student', record_id=student.id) }}" class="btn btn-primary mobile-card-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                Edit
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+      <div class="mobile-cards-footer">&hellip; {{ students|length }} students total &hellip;</div>
+    {% else %}
+      <div class="card empty-state">
         <strong>{{ 'No matches found' if search else 'No students yet' }}</strong>
         {{ 'Try a different search term.' if search else 'Add your first record to get started.' }}
       </div>
