@@ -109,9 +109,9 @@
           </div>
 
           <!-- Marks input section -->
-          <div id="marks-section-{{ loop.index }}" style="padding:20px;">
+          <div id="marks-section-{{ loop.index }}" class="marks-section" style="padding:20px;">
             <div class="table-wrap">
-              <table>
+              <table class="marks-table">
                 <thead>
                   <tr>
                     <th style="width:40%;">Subject</th>
@@ -152,8 +152,7 @@
                                max="{{ exam.max_marks if exam and exam.max_marks is not none else '100' }}"
                                name="obt_{{ roll_no }}_{{ sub_id }}"
                                id="obt_{{ roll_no }}_{{ sub_id }}"
-
-                               class="form-control"
+                               class="form-control marks-input"
                                placeholder="0.00"
                                value="{{ '%.2f'|format(existing.obtained_marks|float) if existing else '' }}"
                                oninput="highlightRow(this)">
@@ -168,14 +167,10 @@
         </div>
       {% endfor %}
 
-      <!-- Sticky save bar -->
-      <div style="position:sticky; bottom:0; background:var(--bg-card);
-                  border-top:1px solid var(--border); padding:14px 20px;
-                  display:flex; gap:12px; justify-content:flex-end;
-                  box-shadow:0 -2px 8px rgba(0,0,0,0.08); z-index:10;
-                  margin-top:8px;">
-        <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline">Cancel</a>
-        <button type="submit" class="btn btn-primary" id="btn-save-marks">
+      <!-- Save bar -->
+      <div class="marks-save-bar">
+        <a href="{{ url_for('list_exams_route') }}" class="btn btn-outline btn-marks-cancel">Cancel</a>
+        <button type="submit" class="btn btn-primary btn-marks-save" id="btn-save-marks">
           Save All Marks
         </button>
       </div>
