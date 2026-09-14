@@ -689,9 +689,13 @@ def student_details(record_id):
         attendance_records = []
 
     attendance_pct = None
+    present_count = 0
+    absent_count = 0
+    total_sessions = len(attendance_records)
     if attendance_records:
         present_count = sum(1 for r in attendance_records if r["status"] == "Present")
-        attendance_pct = round(present_count / len(attendance_records) * 100)
+        absent_count = sum(1 for r in attendance_records if r["status"] == "Absent")
+        attendance_pct = round(present_count / total_sessions * 100)
 
     # Grades section data
     PASSING_THRESHOLD = 40.0  # Defined here for easy modification
@@ -718,27 +722,70 @@ def student_details(record_id):
         app.logger.warning("DB error fetching fees for student %s in student_details: %s", record_id, e)
         fee_records = []
 
-    # Compute derived status for each fee row
+    total_due_amt = 0.0
+    total_paid_amt = 0.0
+    total_pending_amt = 0.0
+    has_overdue_fee = False
     for fee in fee_records:
-        paid = fee["amount_paid"]
-        due  = fee["amount_due"]
+        paid = float(fee["amount_paid"])
+        due  = float(fee["amount_due"])
+        remaining = due - paid
         if paid >= due:
             fee["status"] = "Paid"
         elif paid > 0:
             fee["status"] = "Partial"
         else:
             fee["status"] = "Due"
-        fee["remaining"] = due - paid
+            has_overdue_fee = True
+        fee["remaining"] = max(0.0, remaining)
+        total_due_amt += due
+        total_paid_amt += paid
+        total_pending_amt += max(0.0, remaining)
+
+    # Exam & Result History Summary
+    raw_exam_history = []
+    latest_exam = None
+    latest_result_summary = None
+    transcript = None
+    try:
+        stud_code = student.get("student_id") or str(record_id)
+        raw_exam_history = database.get_student_exam_history(stud_code)
+        if raw_exam_history:
+            latest_item = raw_exam_history[-1]
+            latest_exam = latest_item.get("exam")
+            latest_result_summary = exam_service.compute_student_result_summary(latest_item.get("marks", []))
+            transcript = exam_service.compute_academic_transcript(student, raw_exam_history)
+    except Exception as e:
+        app.logger.warning("DB error fetching exam history for student %s: %s", record_id, e)
+
+    # Recent Student Activity Log
+    activity_logs = []
+    try:
+        activity_logs = database.get_student_audit_log(record_id, limit=5)
+    except Exception as e:
+        app.logger.warning("DB error fetching audit log for student %s: %s", record_id, e)
 
     return render_template(
         "student_details.html",
         student=student,
         attendance_records=attendance_records,
         attendance_pct=attendance_pct,
+        present_count=present_count,
+        absent_count=absent_count,
+        total_sessions=total_sessions,
         grade_records=grade_records,
         grade_summary_pct=grade_summary_pct,
         passing_threshold=PASSING_THRESHOLD,
         fee_records=fee_records,
+        total_due_amt=total_due_amt,
+        total_paid_amt=total_paid_amt,
+        total_pending_amt=total_pending_amt,
+        has_overdue_fee=has_overdue_fee,
+        raw_exam_history=raw_exam_history,
+        latest_exam=latest_exam,
+        latest_result_summary=latest_result_summary,
+        transcript=transcript,
+        activity_logs=activity_logs,
     )
 
 

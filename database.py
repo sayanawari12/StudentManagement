@@ -864,6 +864,55 @@ def get_audit_log(limit=100):
         conn.close()
 
 
+def get_student_audit_log(stud_id, limit=5):
+    """Return student-specific activity across attendance, grades, and fees."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT event_type, event_time, actor, description
+            FROM (
+                SELECT 'attendance' AS event_type,
+                       a.date       AS event_time,
+                       COALESCE(u.username, 'System') AS actor,
+                       CONCAT('Attendance marked: ', a.status) AS description
+                FROM attendance a
+                LEFT JOIN users u ON u.id = a.marked_by
+                WHERE a.stud_id = %s
+
+                UNION ALL
+
+                SELECT 'grade'      AS event_type,
+                       g.created_at AS event_time,
+                       COALESCE(u.username, 'System') AS actor,
+                       CONCAT('Grade recorded for ', g.subject, ' (', g.marks_obtained, '/', g.max_marks, ')') AS description
+                FROM grades g
+                LEFT JOIN users u ON u.id = g.recorded_by
+                WHERE g.stud_id = %s
+
+                UNION ALL
+
+                SELECT 'fee'        AS event_type,
+                       f.due_date   AS event_time,
+                       'Finance'    AS actor,
+                       CONCAT('Fee record: ₹', f.amount_due, ' (Paid: ₹', f.amount_paid, ')') AS description
+                FROM fees f
+                WHERE f.stud_id = %s
+            ) AS student_audit
+            ORDER BY event_time DESC
+            LIMIT %s
+            """,
+            (stud_id, stud_id, stud_id, limit)
+        )
+        return cursor.fetchall()
+    except Exception as e:
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def is_account_locked(user):
 
     """Return True if user's locked_until is set and is in the future."""
