@@ -9,6 +9,7 @@ import base64
 import re
 import os
 import pytest
+import database
 
 from pdf_generator import generate_id_card_pdf, resolve_student_photo_path
 
@@ -70,6 +71,52 @@ def test_uploaded_photo_takes_priority(tmp_path):
     student = _make_student(gender="Female", photo=str(custom_img))
     photo_path = resolve_student_photo_path(student)
     assert photo_path == str(custom_img)
+
+
+def test_attendance_query_includes_gender(db):
+    """Verify get_all_students_for_attendance includes gender column for dynamic photo resolution."""
+    students = database.get_all_students_for_attendance()
+    assert isinstance(students, list)
+    if students:
+        for s in students:
+            assert "gender" in s, "Attendance student record must contain gender field"
+
+
+def test_attendance_page_renders_gender_aware_photos(teacher_client, db):
+    """Verify /attendance route renders female photo for Female student and male photo for Male student."""
+    # Insert female and male students
+    pk_f = database.insert_student({
+        "student_id": "TEST_FEMALE_99",
+        "student_name": "Anjali Test Girl",
+        "gender": "Female",
+        "course": "BCA",
+        "semester": 1,
+        "phone": "9998887771",
+        "email": "anjali_test@example.com",
+        "date_of_birth": "2003-01-01",
+        "address": "Nagpur"
+    })
+    pk_m = database.insert_student({
+        "student_id": "TEST_MALE_99",
+        "student_name": "Adnan Test Boy",
+        "gender": "Male",
+        "course": "BCA",
+        "semester": 1,
+        "phone": "9998887772",
+        "email": "adnan_test@example.com",
+        "date_of_birth": "2002-01-01",
+        "address": "Pune"
+    })
+
+    try:
+        resp = teacher_client.get("/attendance")
+        assert resp.status_code == 200
+        html = resp.data.decode("utf-8")
+        assert "id-card-default-female.jpg" in html, "Attendance HTML must contain female default photo for female student"
+        assert "id-card-default-male.jpg" in html, "Attendance HTML must contain male default photo for male student"
+    finally:
+        database.delete_student(pk_f)
+        database.delete_student(pk_m)
 
 
 # ---------------------------------------------------------------------------

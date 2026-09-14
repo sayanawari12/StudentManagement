@@ -400,7 +400,7 @@ def get_all_students_for_attendance():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT id, student_name, student_id FROM students ORDER BY student_name"
+            "SELECT id, student_name, student_id, gender FROM students ORDER BY student_name"
         )
         return cursor.fetchall()
     finally:
@@ -697,13 +697,13 @@ def get_students_with_overdue_fees():
     """Return fee records that are overdue or partially paid and due_date <= CURDATE().
 
     Returns a list of dicts:
-      {student_id, student_name, email, amount_due, amount_paid, due_date}
+      {student_id, student_name, email, gender, amount_due, amount_paid, due_date}
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """SELECT s.id AS student_id, s.student_name, s.email,
+            """SELECT s.id AS student_id, s.student_name, s.email, s.gender,
                       f.amount_due, f.amount_paid, f.due_date
                FROM fees f
                JOIN students s ON f.stud_id = s.id
@@ -722,17 +722,17 @@ def get_students_with_low_attendance(threshold):
 
     Excludes students with zero attendance records.
     Returns a list of dicts:
-      {student_id, student_name, email, percentage}
+      {student_id, student_name, email, gender, percentage}
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """SELECT s.id AS student_id, s.student_name, s.email,
+            """SELECT s.id AS student_id, s.student_name, s.email, s.gender,
                       ROUND(COALESCE(SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0) * 100, 0), 1) AS percentage
                FROM students s
                JOIN attendance a ON a.stud_id = s.id
-               GROUP BY s.id, s.student_name, s.email
+               GROUP BY s.id, s.student_name, s.email, s.gender
                HAVING percentage < %s
                ORDER BY percentage ASC""",
             (threshold,)
