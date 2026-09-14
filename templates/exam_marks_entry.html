@@ -149,8 +149,10 @@
                       </td>
                       <td>
                         <input type="number" step="0.01" min="0"
+                               max="{{ exam.max_marks if exam and exam.max_marks is not none else '100' }}"
                                name="obt_{{ roll_no }}_{{ sub_id }}"
                                id="obt_{{ roll_no }}_{{ sub_id }}"
+
                                class="form-control"
                                placeholder="0.00"
                                value="{{ '%.2f'|format(existing.obtained_marks|float) if existing else '' }}"

@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Result History - {{ student.stud_name }}{% endblock %}
+{% block title %}Result History - {{ student.student_name or student.stud_name }}{% endblock %}
 
 {% block content %}
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-bold mb-1"><i class="bi bi-clock-history text-primary me-2"></i>Academic Result History</h2>
-            <p class="text-muted mb-0">Showing past examination performance for <strong>{{ student.stud_name }}</strong> (ID: {{ student.stud_id }})</p>
+            <p class="text-muted mb-0">Showing past examination performance for <strong>{{ student.student_name or student.stud_name }}</strong> (ID: {{ student.student_id or student.stud_id }})</p>
         </div>
         <div>
-            {% if session.get('role') == 'Student' %}
-            <a href="{{ url_for('student_dashboard_route') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+            {% if session.get('role', '').lower() == 'student' %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
             {% else %}
             <a href="{{ url_for('student_details', record_id=student.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Student Profile</a>
             {% endif %}
@@ -32,7 +32,7 @@
                 </div>
                 <div class="col-md-3">
                     <small class="text-muted d-block text-uppercase fw-semibold">Roll Number</small>
-                    <span class="fw-bold text-dark">{{ student.roll_no or 'N/A' }}</span>
+                    <span class="fw-bold text-dark">{{ student.student_id or student.roll_no or 'N/A' }}</span>
                 </div>
                 <div class="col-md-3">
                     <small class="text-muted d-block text-uppercase fw-semibold">Academic Year</small>
@@ -89,12 +89,13 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    <a href="{{ url_for('view_exam_results_route', exam_id=(exam_item.exam.id or exam_item.exam.exam_id), student_id=student.student_id) }}" class="btn btn-outline-primary btn-sm me-1">
+                                    <a href="{{ url_for('view_exam_results_route', exam_id=(exam_item.exam.id or exam_item.exam.exam_id), student_id=student.student_id or student.id) }}" class="btn btn-outline-primary btn-sm me-1">
                                         <i class="bi bi-eye"></i> View Statement
                                     </a>
-                                    <a href="{{ url_for('download_marksheet_pdf_route', exam_id=(exam_item.exam.id or exam_item.exam.exam_id), student_id=student.student_id) }}" class="btn btn-primary btn-sm">
+                                    <a href="{{ url_for('download_marksheet_pdf_route', exam_id=(exam_item.exam.id or exam_item.exam.exam_id), student_id=student.student_id or student.id) }}" class="btn btn-primary btn-sm">
                                         <i class="bi bi-file-earmark-pdf"></i> Marksheet PDF
                                     </a>
+
                                 </td>
                             </tr>
                             {% endfor %}

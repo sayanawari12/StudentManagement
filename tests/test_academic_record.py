@@ -439,4 +439,27 @@ class TestPassMarkGradeConsistency:
         assert sub["grade"] == "N/A"
 
 
+class TestResultHistoryRoute:
+    """Regression tests for Phase 5 result history route and template rendering."""
+
+    def test_student_result_history_route_renders(self, admin_client, db):
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        roll_no = stud_obj["student_id"]
+
+        resp = admin_client.get(f"/students/{roll_no}/result-history")
+        assert resp.status_code == 200
+        assert b"Academic Result History" in resp.data
+        assert stud_obj["student_name"].encode("utf-8") in resp.data
+
+    def test_student_can_view_own_result_history(self, student_client, db):
+        stud_obj = database.get_student_by_id(db["linked_pk"])
+        roll_no = stud_obj["student_id"]
+
+        resp = student_client.get(f"/students/{roll_no}/result-history")
+        assert resp.status_code == 200
+        assert b"Academic Result History" in resp.data
+        assert b"Dashboard" in resp.data
+
+
+
 
