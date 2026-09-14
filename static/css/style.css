@@ -1261,6 +1261,64 @@ body.drawer-open {
     gap: 10px;
     border-radius: 0px;
   }
+
+  /* Mobile Audit Log Cards (Matching S1 Design Tokens) */
+  .mobile-audit-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .mobile-audit-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-dark);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 0px;
+  }
+
+  .mobile-audit-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mobile-audit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-audit-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+  }
+
+  .mobile-audit-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-audit-value.uppercase-type {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .mobile-audit-value.actor-name {
+    font-weight: 600;
+  }
 }
 
 

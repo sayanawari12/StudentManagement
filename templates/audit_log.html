@@ -9,44 +9,83 @@
     </div>
   </div>
 
-  <div class="table-wrap">
+  <div class="card">
     {% if events %}
-      <table>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Event Type</th>
-            <th>Actor</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ev in events %}
+      {# Desktop Table View (>860px) #}
+      <div class="table-wrap desktop-only">
+        <table>
+          <thead>
             <tr>
-              <td style="white-space:nowrap; color:var(--muted,#888); font-size:0.85rem;">
-                {% if ev.event_time %}
-                  {% if ev.event_time is string %}
-                    {{ ev.event_time }}
-                  {% elif ev.event_time.strftime is defined %}
-                    {{ ev.event_time.strftime('%d %b %Y, %H:%M') }}
-                  {% else %}
-                    {{ ev.event_time }}
-                  {% endif %}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td>
-                <span style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted,#888);">
-                  {{ ev.event_type }}
-                </span>
-              </td>
-              <td><strong>{{ ev.actor }}</strong></td>
-              <td>{{ ev.description }}</td>
+              <th>When</th>
+              <th>Event Type</th>
+              <th>Actor</th>
+              <th>Details</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for ev in events %}
+              <tr>
+                <td style="white-space:nowrap; color:var(--muted,#888); font-size:0.85rem;">
+                  {% if ev.event_time %}
+                    {% if ev.event_time is string %}
+                      {{ ev.event_time }}
+                    {% elif ev.event_time.strftime is defined %}
+                      {{ ev.event_time.strftime('%d %b %Y, %H:%M') }}
+                    {% else %}
+                      {{ ev.event_time }}
+                    {% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  <span style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted,#888);">
+                    {{ ev.event_type }}
+                  </span>
+                </td>
+                <td><strong>{{ ev.actor }}</strong></td>
+                <td>{{ ev.description }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# Mobile Cards View (<=860px) #}
+      <div class="mobile-audit-cards mobile-only">
+        {% for ev in events %}
+          <div class="mobile-audit-card">
+            <div class="mobile-audit-time">
+              {% if ev.event_time %}
+                {% if ev.event_time is string %}
+                  {{ ev.event_time }}
+                {% elif ev.event_time.strftime is defined %}
+                  {{ ev.event_time.strftime('%d %b %Y, %H:%M') }}
+                {% else %}
+                  {{ ev.event_time }}
+                {% endif %}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+
+            <div class="mobile-audit-field">
+              <div class="mobile-audit-label">Event Type</div>
+              <div class="mobile-audit-value uppercase-type">{{ ev.event_type }}</div>
+            </div>
+
+            <div class="mobile-audit-field">
+              <div class="mobile-audit-label">Actor</div>
+              <div class="mobile-audit-value actor-name">{{ ev.actor }}</div>
+            </div>
+
+            <div class="mobile-audit-field">
+              <div class="mobile-audit-label">Details</div>
+              <div class="mobile-audit-value audit-details">{{ ev.description }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
     {% else %}
       <div class="empty-state">
         <strong>No activity recorded yet.</strong>
