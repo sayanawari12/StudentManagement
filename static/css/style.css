@@ -1244,6 +1244,23 @@ body.drawer-open {
     width: 100%;
     justify-content: center;
   }
+
+  /* Mobile Exam Cards (Matching S1 Design Tokens) */
+  .mobile-exam-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .mobile-exam-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-dark);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 0px;
+  }
 }
 
 

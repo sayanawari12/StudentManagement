@@ -55,7 +55,8 @@
   <!-- Exam Table -->
   <div class="card">
     {% if exams %}
-      <div class="table-wrap">
+      {# Desktop Table View (>860px) #}
+      <div class="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -72,18 +73,18 @@
             {% for exam in exams %}
               <tr>
                 <td><strong>{{ exam.exam_name }}</strong></td>
-                <td><span class="badge" style="background: rgba(169, 113, 79, 0.1); color: var(--accent);">{{ exam.exam_type }}</span></td>
+                <td><span class="badge" style="background: rgba(169, 113, 79, 0.1); color: var(--accent); border-radius: 0px;">{{ exam.exam_type }}</span></td>
                 <td>{{ exam.course }} — Sem {{ exam.semester }}</td>
                 <td>{{ exam.academic_year }}</td>
                 <td>
                   {% if exam.status == 'Published' %}
-                    <span class="badge badge-present">Published</span>
+                    <span class="badge badge-present" style="border-radius: 0px;">Published</span>
                   {% elif exam.status == 'Completed' %}
-                    <span class="badge" style="background: #E8F0FE; color: #1A73E8;">Completed</span>
+                    <span class="badge" style="background: #E8F0FE; color: #1A73E8; border-radius: 0px;">Completed</span>
                   {% elif exam.status == 'Cancelled' %}
-                    <span class="badge badge-absent">Cancelled</span>
+                    <span class="badge badge-absent" style="border-radius: 0px;">Cancelled</span>
                   {% else %}
-                    <span class="badge" style="background: #FFF0E6; color: #D96B27;">Scheduled</span>
+                    <span class="badge" style="background: #FFF0E6; color: #D96B27; border-radius: 0px;">Scheduled</span>
                   {% endif %}
                 </td>
                 <td style="color: var(--text-secondary); font-size: 13px;">{{ exam.creator_name }}</td>
@@ -105,6 +106,57 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+
+      {# Mobile Cards View (<=860px) #}
+      <div class="mobile-exam-cards mobile-only">
+        {% for exam in exams %}
+          <div class="mobile-exam-card">
+            <div class="mobile-card-header" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; width: 100%; align-items: flex-start; gap: 8px;">
+                <div class="mobile-card-name" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">{{ exam.exam_name }}</div>
+                {% if exam.status == 'Published' %}
+                  <span class="badge badge-present" style="border-radius: 0px;">Published</span>
+                {% elif exam.status == 'Completed' %}
+                  <span class="badge" style="background: #E8F0FE; color: #1A73E8; border-radius: 0px;">Completed</span>
+                {% elif exam.status == 'Cancelled' %}
+                  <span class="badge badge-absent" style="border-radius: 0px;">Cancelled</span>
+                {% else %}
+                  <span class="badge" style="background: #FFF0E6; color: #D96B27; border-radius: 0px;">Scheduled</span>
+                {% endif %}
+              </div>
+              <div style="font-size: 13px; color: var(--accent); font-weight: 500;">{{ exam.exam_type }}</div>
+            </div>
+
+            <div class="mobile-card-body" style="padding-top: 8px; border-top: 1px solid var(--border);">
+              <div class="mobile-card-row">
+                <span style="color: var(--text-secondary); font-size: 13px; min-width: 110px;">Course & Sem:</span>
+                <span style="font-weight: 600; color: var(--text-primary); font-size: 13px;">{{ exam.course }} &bull; Semester {{ exam.semester }}</span>
+              </div>
+              <div class="mobile-card-row">
+                <span style="color: var(--text-secondary); font-size: 13px; min-width: 110px;">Academic Year:</span>
+                <span style="font-size: 13px; color: var(--text-primary);">{{ exam.academic_year }}</span>
+              </div>
+              <div class="mobile-card-row">
+                <span style="color: var(--text-secondary); font-size: 13px; min-width: 110px;">Created By:</span>
+                <span style="font-size: 13px; color: var(--text-primary);">{{ exam.creator_name }}</span>
+              </div>
+            </div>
+
+            <div class="mobile-card-actions" style="flex-wrap: wrap; gap: 8px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border);">
+              {% if session.get('role') in ['admin', 'teacher'] %}
+                <a href="{{ url_for('enter_exam_marks_route', exam_id=exam.id) }}" class="btn btn-primary btn-sm mobile-card-btn">Enter Marks</a>
+                <a href="{{ url_for('edit_exam_route', exam_id=exam.id) }}" class="btn btn-outline btn-sm mobile-card-btn">Edit</a>
+              {% endif %}
+              {% if session.get('role') == 'admin' %}
+                <form method="POST" action="{{ url_for('delete_exam_route', exam_id=exam.id) }}" style="display: inline; flex: 1; min-width: 100%;" class="js-confirm-delete" data-student-name="{{ exam.exam_name }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-danger btn-sm" style="width: 100%; justify-content: center;">Delete</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
       </div>
     {% else %}
       <div style="text-align: center; padding: 48px 24px; color: var(--text-secondary);">
