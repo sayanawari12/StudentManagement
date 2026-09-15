@@ -273,5 +273,50 @@ document.addEventListener("DOMContentLoaded", function () {
       searchDropdown.style.display = "none";
     }
   });
+
+  // Top Performers Widget Semester Switcher
+  var semSelect = document.getElementById("topPerformersSemSelect");
+  if (semSelect) {
+    semSelect.addEventListener("change", function () {
+      var sem = this.value;
+      var viewLink = document.getElementById("viewFullRankingLink");
+      if (viewLink) {
+        viewLink.href = "/rankings?semester=" + sem;
+      }
+      fetch("/api/student-rankings?semester=" + sem)
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          var container = document.getElementById("topPerformersList");
+          if (!container) return;
+          if (data.success && data.rankings && data.rankings.length > 0) {
+            var top3 = data.rankings.slice(0, 3);
+            var html = '<div class="top-performers-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">';
+            top3.forEach(function (p) {
+              var badge = p.rank === 1 ? '🥇' : (p.rank === 2 ? '🥈' : (p.rank === 3 ? '🥉' : '#' + p.rank));
+              html += '<div class="performer-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--bg-page); border: 1px solid var(--border); box-sizing: border-box;">';
+              html += '  <div style="display: flex; align-items: center; gap: 8px;">';
+              html += '    <span class="performer-badge" style="font-size: 16px; font-weight: 700; min-width: 24px;">' + badge + '</span>';
+              html += '    <div>';
+              html += '      <a href="/students/' + p.record_id + '" style="font-weight: 600; color: var(--text-primary); text-decoration: none; font-size: 13px;">' + escapeHtml(p.student_name) + '</a>';
+              html += '      <div style="font-size: 11px; color: var(--text-secondary);">' + escapeHtml(p.student_id) + ' &bull; ' + escapeHtml(p.course) + '</div>';
+              html += '    </div>';
+              html += '  </div>';
+              html += '  <div style="text-align: right;">';
+              html += '    <div style="font-weight: 700; color: var(--accent); font-size: 13px;">' + escapeHtml(p.formatted_marks) + '</div>';
+              html += '    <div style="font-size: 11px; font-weight: 600; color: var(--text-primary);">' + escapeHtml(p.formatted_percentage) + '</div>';
+              html += '  </div>';
+              html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = '<div class="empty-state" style="padding: 20px 12px; font-size: 13px;">No ranking available for this semester yet.</div>';
+          }
+        })
+        .catch(function (err) {
+          console.error("Error updating top performers widget:", err);
+        });
+    });
+  }
 });
 

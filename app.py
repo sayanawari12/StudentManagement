@@ -453,7 +453,20 @@ def dashboard():
         app.logger.warning("DB error loading recent notices for dashboard: %s", e)
         recent_notices = []
 
-    return render_template("dashboard.html", stats=stats, recent_notices=recent_notices)
+    sem_param = request.args.get("semester", default=1, type=int)
+    top_performers = []
+    try:
+        top_performers = database.get_semester_rankings(sem_param)[:3]
+    except Exception as e:
+        app.logger.warning("DB error loading rankings for dashboard: %s", e)
+
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        recent_notices=recent_notices,
+        selected_ranking_semester=sem_param,
+        top_performers=top_performers
+    )
 
 
 @app.route("/dashboard/export")
@@ -2663,6 +2676,94 @@ def api_global_search():
         limit=10
     )
     return jsonify(search_data)
+
+
+# ---------------------------------------------------------------------------
+# Student Performance & Ranking Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/rankings")
+@app.route("/student-rankings")
+@role_required("admin", "teacher", "student")
+def rankings():
+    try:
+        semester = request.args.get("semester", default=1, type=int)
+        if semester < 1 or semester > 6:
+            semester = 1
+    except (ValueError, TypeError):
+        semester = 1
+
+    user_role = session.get("role")
+    linked_student_id = session.get("linked_student_id")
+
+    all_rankings = []
+    own_rank = None
+
+    try:
+        all_rankings = database.get_semester_rankings(semester)
+    except Exception as e:
+        app.logger.warning("DB error loading rankings for semester %s: %s", semester, e)
+        all_rankings = []
+
+    if user_role == "student":
+        if linked_student_id:
+            own_rank = next(
+                (r for r in all_rankings if str(r.get("record_id")) == str(linked_student_id) or str(r.get("student_id")) == str(linked_student_id)),
+                None
+            )
+        display_rankings = [own_rank] if own_rank else []
+    else:
+        display_rankings = all_rankings
+
+    return render_template(
+        "rankings.html",
+        rankings=display_rankings,
+        own_rank=own_rank,
+        selected_semester=semester,
+        total_students_ranked=len(all_rankings)
+    )
+
+
+@app.route("/api/student-rankings")
+@role_required("admin", "teacher", "student")
+def api_student_rankings():
+    try:
+        semester = request.args.get("semester", default=1, type=int)
+        if semester < 1 or semester > 6:
+            semester = 1
+    except (ValueError, TypeError):
+        semester = 1
+
+    user_role = session.get("role")
+    linked_student_id = session.get("linked_student_id")
+
+    try:
+        all_rankings = database.get_semester_rankings(semester)
+    except Exception as e:
+        app.logger.warning("DB error fetching API rankings: %s", e)
+        return jsonify({"success": False, "message": "Failed to fetch rankings", "rankings": []}), 500
+
+    if user_role == "student":
+        own_rank = None
+        if linked_student_id:
+            own_rank = next(
+                (r for r in all_rankings if str(r.get("record_id")) == str(linked_student_id) or str(r.get("student_id")) == str(linked_student_id)),
+                None
+            )
+        return jsonify({
+            "success": True,
+            "semester": semester,
+            "rankings": [own_rank] if own_rank else [],
+            "own_rank": own_rank,
+            "role": "student"
+        })
+    else:
+        return jsonify({
+            "success": True,
+            "semester": semester,
+            "rankings": all_rankings,
+            "role": user_role
+        })
 
 
 # ---------------------------------------------------------------------------

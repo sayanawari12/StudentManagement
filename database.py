@@ -2212,5 +2212,142 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Student Performance & Ranking Helpers
+# ---------------------------------------------------------------------------
+
+def get_semester_rankings(semester):
+    """
+    Calculates student rankings for a given semester based strictly on:
+    Percentage = (Total Obtained Marks / Total Maximum Marks) * 100
+
+    Does NOT use CGPA. Uses dynamic maximum marks from actual configured exams/subjects.
+    Uses competition ranking (1, 2, 2, 4) for equal percentages.
+    Returns list of dicts ordered by rank.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        try:
+            sem_int = int(semester)
+        except (ValueError, TypeError):
+            sem_int = 1
+
+        # Query exam_marks joined with exams, subjects, students
+        cursor.execute(
+            """
+            SELECT 
+                s.id AS record_id,
+                s.student_id,
+                s.student_name,
+                s.course,
+                SUM(m.obtained_marks) AS total_obtained,
+                SUM(COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.0)) AS total_max,
+                COUNT(m.id) AS marks_count
+            FROM exam_marks m
+            JOIN students s ON s.id = m.stud_id
+            JOIN exams e ON e.id = m.exam_id
+            JOIN subjects sub ON sub.id = m.subject_id
+            WHERE e.semester = %s
+            GROUP BY s.id, s.student_id, s.student_name, s.course
+            HAVING total_max > 0
+            """,
+            (sem_int,)
+        )
+        exam_rows = cursor.fetchall()
+
+        student_data = {}
+        for r in exam_rows:
+            sid = r["record_id"]
+            obt = float(r["total_obtained"] or 0)
+            mx = float(r["total_max"] or 0)
+            if mx > 0:
+                student_data[sid] = {
+                    "record_id": sid,
+                    "student_id": r["student_id"],
+                    "student_name": r["student_name"],
+                    "course": r["course"],
+                    "total_obtained": obt,
+                    "total_max": mx
+                }
+
+        # Supplement with grades table if any student in grades for this semester is not in exam_marks
+        cursor.execute(
+            """
+            SELECT 
+                s.id AS record_id,
+                s.student_id,
+                s.student_name,
+                s.course,
+                SUM(g.marks_obtained) AS total_obtained,
+                SUM(COALESCE(g.max_marks, 100.0)) AS total_max,
+                COUNT(g.id) AS grade_count
+            FROM grades g
+            JOIN students s ON s.id = g.stud_id
+            WHERE g.semester = %s
+            GROUP BY s.id, s.student_id, s.student_name, s.course
+            HAVING total_max > 0
+            """,
+            (sem_int,)
+        )
+        grade_rows = cursor.fetchall()
+        for r in grade_rows:
+            sid = r["record_id"]
+            if sid not in student_data:
+                obt = float(r["total_obtained"] or 0)
+                mx = float(r["total_max"] or 0)
+                if mx > 0:
+                    student_data[sid] = {
+                        "record_id": sid,
+                        "student_id": r["student_id"],
+                        "student_name": r["student_name"],
+                        "course": r["course"],
+                        "total_obtained": obt,
+                        "total_max": mx
+                    }
+
+        if not student_data:
+            return []
+
+        rank_list = []
+        for sid, item in student_data.items():
+            obt = item["total_obtained"]
+            mx = item["total_max"]
+            pct = round((obt / mx * 100.0), 2)
+            fmt_obt = f"{int(obt)}" if obt.is_integer() else f"{obt:.2f}"
+            fmt_mx = f"{int(mx)}" if mx.is_integer() else f"{mx:.2f}"
+
+            rank_list.append({
+                "record_id": item["record_id"],
+                "student_id": item["student_id"],
+                "student_name": item["student_name"],
+                "course": item["course"],
+                "total_obtained": round(obt, 2),
+                "total_max": round(mx, 2),
+                "percentage": pct,
+                "formatted_marks": f"{fmt_obt} / {fmt_mx}",
+                "formatted_percentage": f"{pct:.2f}%"
+            })
+
+        # Sort descending by percentage, then total_obtained, then student_name
+        rank_list.sort(key=lambda x: (-x["percentage"], -x["total_obtained"], x["student_name"]))
+
+        # Competition ranking (1, 2, 2, 4)
+        for i, item in enumerate(rank_list):
+            if i > 0:
+                prev_item = rank_list[i - 1]
+                if item["percentage"] == prev_item["percentage"]:
+                    item["rank"] = prev_item["rank"]
+                else:
+                    item["rank"] = i + 1
+            else:
+                item["rank"] = 1
+
+        return rank_list
+    finally:
+        cursor.close()
+        conn.close()
+
+
 
 

@@ -179,6 +179,53 @@
         </div>
       </div>
 
+      {# Top Performers Widget #}
+      <div class="dashboard-card" id="topPerformersCard">
+        <div class="dashboard-card-title" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>🏆 Top Performers</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <select id="topPerformersSemSelect" class="form-select" style="padding: 3px 6px; font-size: 12px; height: auto; width: auto; border: 1px solid var(--border-dark);">
+              {% for sem_num in range(1, 7) %}
+                <option value="{{ sem_num }}" {% if sem_num == selected_ranking_semester %}selected{% endif %}>Semester {{ sem_num }}</option>
+              {% endfor %}
+            </select>
+            <a href="{{ url_for('rankings') }}?semester={{ selected_ranking_semester or 1 }}" id="viewFullRankingLink" style="font-size: 12px; font-weight: 500; color: var(--accent);">View Full Ranking &rarr;</a>
+          </div>
+        </div>
+
+        <div id="topPerformersList">
+          {% if top_performers %}
+            <div class="top-performers-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+              {% for p in top_performers %}
+                <div class="performer-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--bg-page); border: 1px solid var(--border); box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="performer-badge" style="font-size: 16px; font-weight: 700; min-width: 24px;">
+                      {% if p.rank == 1 %}🥇{% elif p.rank == 2 %}🥈{% elif p.rank == 3 %}🥉{% else %}#{{ p.rank }}{% endif %}
+                    </span>
+                    <div>
+                      <a href="{{ url_for('student_details', record_id=p.record_id) }}" style="font-weight: 600; color: var(--text-primary); text-decoration: none; font-size: 13px;">
+                        {{ p.student_name }}
+                      </a>
+                      <div style="font-size: 11px; color: var(--text-secondary);">{{ p.student_id }} &bull; {{ p.course }}</div>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-weight: 700; color: var(--accent); font-size: 13px;">{{ p.formatted_marks }}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: var(--text-primary);">{{ p.formatted_percentage }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state" style="padding: 20px 12px; font-size: 13px;">
+              No ranking available for this semester yet.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
     </div>
 
   </div>

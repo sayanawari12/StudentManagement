@@ -88,6 +88,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             Exams & Results
           </a>
+          <a href="{{ url_for('rankings') }}" class="drawer-item {{ 'active' if request.endpoint == 'rankings' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
+            Student Rankings
+          </a>
         {% endif %}
 
         {% if session.get('role') == 'student' and session.get('linked_student_id') %}
@@ -183,6 +187,8 @@
              class="{{ 'active' if request.endpoint in ['attendance', 'attendance_history'] else '' }}">Attendance</a>
           <a href="{{ url_for('list_exams_route') }}"
              class="{{ 'active' if request.endpoint in ['list_exams_route', 'create_exam_route', 'edit_exam_route', 'enter_exam_marks_route'] else '' }}">Exams & Results</a>
+          <a href="{{ url_for('rankings') }}"
+             class="{{ 'active' if request.endpoint == 'rankings' else '' }}">Student Rankings</a>
         {% endif %}
 
         {# Analytics — admin + teacher #}
