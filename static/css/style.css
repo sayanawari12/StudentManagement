@@ -1931,6 +1931,213 @@ body.drawer-open {
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Global Search Module                                                   */
+/* ---------------------------------------------------------------------- */
+
+.global-search-bar-wrap {
+  position: relative;
+  margin-bottom: 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.global-search-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dark);
+  box-sizing: border-box;
+}
+
+.global-search-icon {
+  width: 18px;
+  height: 18px;
+  position: absolute;
+  left: 14px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.global-search-input {
+  width: 100%;
+  padding: 12px 40px 12px 42px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.global-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.global-search-input:focus {
+  background: #FFFDF9;
+}
+
+.global-search-clear {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.global-search-clear:hover {
+  color: var(--text-primary);
+}
+
+/* Floating Dropdown Results */
+.global-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dark);
+  border-top: none;
+  max-height: 480px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+}
+
+.search-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.search-group:last-child {
+  border-bottom: none;
+}
+
+.search-group-header {
+  padding: 8px 14px;
+  background: var(--bg-page);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background 0.12s;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.search-item-row:last-child {
+  border-bottom: none;
+}
+
+.search-item-row:hover,
+.search-item-row.active-focused {
+  background: var(--accent-soft);
+}
+
+.search-item-content {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.search-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.search-item-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.search-item-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.search-item-action {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.search-no-results,
+.search-loading-state {
+  padding: 16px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Mobile Overrides (max-width: 860px) */
+@media (max-width: 860px) {
+  .global-search-bar-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 16px !important;
+  }
+
+  .global-search-input-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .global-search-dropdown {
+    width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    box-sizing: border-box !important;
+    max-height: 60vh !important;
+  }
+
+  .search-item-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .search-item-content {
+    width: 100% !important;
+  }
+
+  .search-item-action {
+    align-self: flex-end !important;
+  }
+}
+
+
 
 
 

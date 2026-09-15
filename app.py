@@ -11,7 +11,8 @@ from decimal import Decimal
 
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file, jsonify
+
 from werkzeug.security import check_password_hash, generate_password_hash
 from mysql.connector import Error
 from flask_limiter import Limiter
@@ -2643,8 +2644,31 @@ def delete_student_document(student_id, doc_id):
 
 
 # ---------------------------------------------------------------------------
+# Global Search Route
+# ---------------------------------------------------------------------------
+
+@app.route("/api/global-search")
+@role_required("admin", "teacher", "student")
+def api_global_search():
+    query = request.args.get("q", "").strip()
+    user_role = session.get("role")
+    user_id = session.get("user_id")
+    linked_student_id = session.get("linked_student_id")
+
+    search_data = database.global_search(
+        query=query,
+        user_role=user_role,
+        user_id=user_id,
+        linked_student_id=linked_student_id,
+        limit=10
+    )
+    return jsonify(search_data)
+
+
+# ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
+
 
 
 @app.errorhandler(403)

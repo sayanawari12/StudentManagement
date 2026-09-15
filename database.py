@@ -1858,4 +1858,359 @@ def get_document_stats_for_student(stud_id):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Global Search Service
+# ---------------------------------------------------------------------------
+
+def _escape_like_query(search_str):
+    """Escape % and _ for safe literal matching in SQL LIKE statements."""
+    if not search_str:
+        return ""
+    return search_str.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
+    """
+    Executes a role-restricted parameterized global search across 7 modules:
+    Students, Exams, Results, Fees, Notices, Certificates, Audit Logs.
+    
+    Returns a dictionary of category result lists.
+    """
+    empty_response = {
+        "query": query.strip() if query and isinstance(query, str) else "",
+        "results": {
+            "students": [],
+            "exams": [],
+            "results": [],
+            "fees": [],
+            "notices": [],
+            "certificates": [],
+            "audit_logs": []
+        }
+    }
+
+    if not query or not isinstance(query, str):
+        return empty_response
+
+    q_trimmed = query.strip()
+    if len(q_trimmed) < 2:
+        return empty_response
+
+    safe_like = f"%{_escape_like_query(q_trimmed)}%"
+    role = (user_role or "").lower()
+    student_pk = _resolve_student_pk(linked_student_id) if linked_student_id else None
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    results = {
+        "students": [],
+        "exams": [],
+        "results": [],
+        "fees": [],
+        "notices": [],
+        "certificates": [],
+        "audit_logs": []
+    }
+
+    try:
+        # 1. STUDENTS SEARCH
+        if role in ("admin", "teacher"):
+            cursor.execute("""
+                SELECT id, student_id, student_name, course, semester, email, phone
+                FROM students
+                WHERE student_name LIKE %s ESCAPE '\\\\'
+                   OR student_id LIKE %s ESCAPE '\\\\'
+                   OR email LIKE %s ESCAPE '\\\\'
+                   OR phone LIKE %s ESCAPE '\\\\'
+                ORDER BY (CASE WHEN student_id = %s THEN 0 WHEN student_id LIKE %s ESCAPE '\\\\' THEN 1 ELSE 2 END), student_name ASC
+                LIMIT %s
+            """, (safe_like, safe_like, safe_like, safe_like, q_trimmed, f"{_escape_like_query(q_trimmed)}%", limit))
+            s_rows = cursor.fetchall()
+            for r in s_rows:
+                results["students"].append({
+                    "id": r["id"],
+                    "student_id": r["student_id"],
+                    "title": r["student_name"],
+                    "subtitle": f"{r['student_id']} • {r['course']} Sem {r['semester']}",
+                    "detail": r["email"] or "",
+                    "url": f"/students/{r['id']}",
+                    "action_text": "View Student"
+                })
+        elif role == "student" and student_pk:
+            cursor.execute("""
+                SELECT id, student_id, student_name, course, semester, email, phone
+                FROM students
+                WHERE id = %s AND (
+                    student_name LIKE %s ESCAPE '\\\\'
+                 OR student_id LIKE %s ESCAPE '\\\\'
+                 OR email LIKE %s ESCAPE '\\\\'
+                 OR phone LIKE %s ESCAPE '\\\\'
+                )
+                LIMIT 1
+            """, (student_pk, safe_like, safe_like, safe_like, safe_like))
+            s_rows = cursor.fetchall()
+            for r in s_rows:
+                results["students"].append({
+                    "id": r["id"],
+                    "student_id": r["student_id"],
+                    "title": r["student_name"],
+                    "subtitle": f"{r['student_id']} • {r['course']} Sem {r['semester']}",
+                    "detail": r["email"] or "",
+                    "url": f"/students/{r['id']}",
+                    "action_text": "View Student"
+                })
+
+        # 2. EXAMS SEARCH
+        if role in ("admin", "teacher"):
+            cursor.execute("""
+                SELECT e.id, e.exam_name, e.exam_type, e.course, e.semester, e.academic_year, e.status
+                FROM exams e
+                WHERE e.exam_name LIKE %s ESCAPE '\\\\'
+                   OR e.course LIKE %s ESCAPE '\\\\'
+                   OR e.academic_year LIKE %s ESCAPE '\\\\'
+                   OR e.exam_type LIKE %s ESCAPE '\\\\'
+                ORDER BY e.created_at DESC
+                LIMIT %s
+            """, (safe_like, safe_like, safe_like, safe_like, limit))
+            e_rows = cursor.fetchall()
+            for r in e_rows:
+                results["exams"].append({
+                    "id": r["id"],
+                    "title": r["exam_name"],
+                    "subtitle": f"{r['exam_type']} • {r['course']} Sem {r['semester']} ({r['academic_year']})",
+                    "detail": f"Status: {r['status']}",
+                    "url": f"/exams/{r['id']}/marks",
+                    "action_text": "View Exam"
+                })
+
+        # 3. RESULTS SEARCH
+        if role in ("admin", "teacher"):
+            cursor.execute("""
+                SELECT e.id AS exam_id, e.exam_name, s.id AS stud_pk, s.student_id, s.student_name, sub.subject_name, MAX(m.created_at) AS latest_created
+                FROM exam_marks m
+                JOIN exams e ON e.id = m.exam_id
+                JOIN students s ON s.id = m.stud_id
+                JOIN subjects sub ON sub.id = m.subject_id
+                WHERE s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                   OR sub.subject_name LIKE %s ESCAPE '\\\\'
+                   OR sub.subject_code LIKE %s ESCAPE '\\\\'
+                   OR e.exam_name LIKE %s ESCAPE '\\\\'
+                GROUP BY e.id, e.exam_name, s.id, s.student_id, s.student_name, sub.subject_name
+                ORDER BY latest_created DESC
+                LIMIT %s
+            """, (safe_like, safe_like, safe_like, safe_like, safe_like, limit))
+            r_rows = cursor.fetchall()
+            for r in r_rows:
+                results["results"].append({
+                    "id": r["exam_id"],
+                    "title": f"Result: {r['student_name']} ({r['student_id']})",
+                    "subtitle": f"{r['exam_name']} • {r['subject_name']}",
+                    "detail": f"Student Roll: {r['student_id']}",
+                    "url": f"/students/{r['student_id']}/result-history",
+                    "action_text": "View Result"
+                })
+        elif role == "student" and student_pk:
+            cursor.execute("""
+                SELECT e.id AS exam_id, e.exam_name, s.id AS stud_pk, s.student_id, s.student_name, sub.subject_name, MAX(m.created_at) AS latest_created
+                FROM exam_marks m
+                JOIN exams e ON e.id = m.exam_id
+                JOIN students s ON s.id = m.stud_id
+                JOIN subjects sub ON sub.id = m.subject_id
+                WHERE s.id = %s AND (
+                      sub.subject_name LIKE %s ESCAPE '\\\\'
+                   OR sub.subject_code LIKE %s ESCAPE '\\\\'
+                   OR e.exam_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                )
+                GROUP BY e.id, e.exam_name, s.id, s.student_id, s.student_name, sub.subject_name
+                ORDER BY latest_created DESC
+                LIMIT %s
+            """, (student_pk, safe_like, safe_like, safe_like, safe_like, safe_like, limit))
+            r_rows = cursor.fetchall()
+            for r in r_rows:
+                results["results"].append({
+                    "id": r["exam_id"],
+                    "title": f"My Result: {r['exam_name']}",
+                    "subtitle": f"{r['subject_name']}",
+                    "detail": f"Student ID: {r['student_id']}",
+                    "url": f"/students/{r['student_id']}/result-history",
+                    "action_text": "View Result"
+                })
+
+
+        # 4. FEES SEARCH (ADMIN & STUDENT OWN)
+        if role == "admin":
+            cursor.execute("""
+                SELECT f.id, f.amount_due, f.amount_paid, f.due_date, s.id AS stud_pk, s.student_id, s.student_name
+                FROM fees f
+                JOIN students s ON s.id = f.stud_id
+                WHERE s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                   OR CAST(f.amount_due AS CHAR) LIKE %s ESCAPE '\\\\'
+                   OR CAST(f.amount_paid AS CHAR) LIKE %s ESCAPE '\\\\'
+                ORDER BY f.created_at DESC
+                LIMIT %s
+            """, (safe_like, safe_like, safe_like, safe_like, limit))
+            f_rows = cursor.fetchall()
+            for r in f_rows:
+                paid = float(r["amount_paid"])
+                due = float(r["amount_due"])
+                st = "Paid" if paid >= due else ("Partial" if paid > 0 else "Due")
+                results["fees"].append({
+                    "id": r["id"],
+                    "title": f"Fee Record: {r['student_name']} ({r['student_id']})",
+                    "subtitle": f"Status: {st} • Due: ₹{due:.0f} • Paid: ₹{paid:.0f}",
+                    "detail": f"Due Date: {r['due_date']}",
+                    "url": f"/students/{r['stud_pk']}",
+                    "action_text": "View Fees"
+                })
+        elif role == "student" and student_pk:
+            cursor.execute("""
+                SELECT f.id, f.amount_due, f.amount_paid, f.due_date, s.id AS stud_pk, s.student_id, s.student_name
+                FROM fees f
+                JOIN students s ON s.id = f.stud_id
+                WHERE s.id = %s AND (
+                      CAST(f.amount_due AS CHAR) LIKE %s ESCAPE '\\\\'
+                   OR CAST(f.amount_paid AS CHAR) LIKE %s ESCAPE '\\\\'
+                   OR s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                )
+                ORDER BY f.created_at DESC
+                LIMIT %s
+            """, (student_pk, safe_like, safe_like, safe_like, safe_like, limit))
+            f_rows = cursor.fetchall()
+            for r in f_rows:
+                paid = float(r["amount_paid"])
+                due = float(r["amount_due"])
+                st = "Paid" if paid >= due else ("Partial" if paid > 0 else "Due")
+                results["fees"].append({
+                    "id": r["id"],
+                    "title": f"My Fee Record",
+                    "subtitle": f"Status: {st} • Due: ₹{due:.0f} • Paid: ₹{paid:.0f}",
+                    "detail": f"Due Date: {r['due_date']}",
+                    "url": f"/students/{r['stud_pk']}",
+                    "action_text": "View Fees"
+                })
+
+        # 5. NOTICES SEARCH (ALL LOGGED-IN ROLES)
+        if role in ("admin", "teacher", "student"):
+            cursor.execute("""
+                SELECT n.id, n.title, n.body, n.created_at, u.username
+                FROM notices n
+                LEFT JOIN users u ON u.id = n.posted_by
+                WHERE n.title LIKE %s ESCAPE '\\\\'
+                   OR n.body LIKE %s ESCAPE '\\\\'
+                ORDER BY n.created_at DESC
+                LIMIT %s
+            """, (safe_like, safe_like, limit))
+            n_rows = cursor.fetchall()
+            for r in n_rows:
+                body_snippet = (r["body"] or "")[:80] + ("..." if len(r["body"] or "") > 80 else "")
+                results["notices"].append({
+                    "id": r["id"],
+                    "title": r["title"],
+                    "subtitle": f"Posted by {r['username'] or 'System'} on {r['created_at']}",
+                    "detail": body_snippet,
+                    "url": "/notices",
+                    "action_text": "View Notice"
+                })
+
+        # 6. CERTIFICATES SEARCH
+        if role in ("admin", "teacher"):
+            cursor.execute("""
+                SELECT s.id, s.student_id, s.student_name, s.course, s.semester
+                FROM students s
+                WHERE s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                   OR s.course LIKE %s ESCAPE '\\\\'
+                ORDER BY s.student_name ASC
+                LIMIT %s
+            """, (safe_like, safe_like, safe_like, limit))
+            c_rows = cursor.fetchall()
+            for r in c_rows:
+                results["certificates"].append({
+                    "id": r["id"],
+                    "title": f"Bonafide Certificate: {r['student_name']}",
+                    "subtitle": f"ID: {r['student_id']} • {r['course']} Sem {r['semester']}",
+                    "detail": "Enrollment & Bonafide Certificate",
+                    "url": f"/students/{r['id']}/certificate",
+                    "action_text": "View Certificate"
+                })
+        elif role == "student" and student_pk:
+            cursor.execute("""
+                SELECT s.id, s.student_id, s.student_name, s.course, s.semester
+                FROM students s
+                WHERE s.id = %s AND (
+                      s.student_name LIKE %s ESCAPE '\\\\'
+                   OR s.student_id LIKE %s ESCAPE '\\\\'
+                   OR s.course LIKE %s ESCAPE '\\\\'
+                )
+                LIMIT 1
+            """, (student_pk, safe_like, safe_like, safe_like))
+            c_rows = cursor.fetchall()
+            for r in c_rows:
+                results["certificates"].append({
+                    "id": r["id"],
+                    "title": "My Bonafide Certificate",
+                    "subtitle": f"ID: {r['student_id']} • {r['course']} Sem {r['semester']}",
+                    "detail": "Enrollment & Bonafide Certificate",
+                    "url": f"/students/{r['id']}/certificate",
+                    "action_text": "View Certificate"
+                })
+
+        # 7. AUDIT LOGS SEARCH (ADMIN ONLY or STUDENT OWN)
+        if role == "admin":
+            all_audit = get_audit_log(limit=100)
+            q_lower = q_trimmed.lower()
+            matching_audit = []
+            for item in all_audit:
+                desc = str(item.get("description", ""))
+                actor = str(item.get("actor", ""))
+                etype = str(item.get("event_type", ""))
+                if q_lower in desc.lower() or q_lower in actor.lower() or q_lower in etype.lower():
+                    matching_audit.append({
+                        "id": len(matching_audit) + 1,
+                        "title": desc,
+                        "subtitle": f"By {actor} • {etype.capitalize()}",
+                        "detail": f"Time: {item.get('event_time')}",
+                        "url": "/audit-log",
+                        "action_text": "View Audit Log"
+                    })
+                    if len(matching_audit) >= limit:
+                        break
+            results["audit_logs"] = matching_audit
+        elif role == "student" and student_pk:
+            student_audit = get_student_audit_log(student_pk, limit=20)
+            q_lower = q_trimmed.lower()
+            matching_audit = []
+            for item in student_audit:
+                desc = str(item.get("description", ""))
+                actor = str(item.get("actor", ""))
+                etype = str(item.get("event_type", ""))
+                if q_lower in desc.lower() or q_lower in actor.lower() or q_lower in etype.lower():
+                    matching_audit.append({
+                        "id": len(matching_audit) + 1,
+                        "title": desc,
+                        "subtitle": f"By {actor} • {etype.capitalize()}",
+                        "detail": f"Time: {item.get('event_time')}",
+                        "url": f"/students/{student_pk}",
+                        "action_text": "View Audit Log"
+                    })
+                    if len(matching_audit) >= limit:
+                        break
+            results["audit_logs"] = matching_audit
+
+        return {
+            "query": q_trimmed,
+            "results": results
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
 

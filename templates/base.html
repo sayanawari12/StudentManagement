@@ -218,7 +218,21 @@
     </aside>
 
     <main class="main">
+      {% if session.get('role') %}
+        <div class="global-search-bar-wrap">
+          <div class="global-search-input-box">
+            <svg class="global-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="globalSearchInput" class="global-search-input" placeholder="Search anything..." autocomplete="off" aria-label="Search anything">
+            <button type="button" id="globalSearchClear" class="global-search-clear" style="display:none;" aria-label="Clear search">&times;</button>
+          </div>
+          <div id="globalSearchResults" class="global-search-dropdown" style="display:none;"></div>
+        </div>
+      {% endif %}
+
       {% with messages = get_flashed_messages(with_categories=true) %}
+
         {% if messages %}
           <ul class="flash-list">
             {% for category, message in messages %}
