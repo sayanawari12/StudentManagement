@@ -105,6 +105,8 @@ except Exception as _e:
 # Student Document Management Config & Validation Helpers
 # ---------------------------------------------------------------------------
 
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB global request limit (allowing multipart overhead)
+
 DOCUMENT_UPLOAD_DIR = os.path.abspath(os.path.join(app.root_path, "uploads", "documents"))
 os.makedirs(DOCUMENT_UPLOAD_DIR, exist_ok=True)
 
@@ -125,13 +127,13 @@ ALLOWED_DOC_TYPES = {
     'Passport Photo',
     'Other'
 }
-MAX_DOC_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+MAX_DOC_FILE_SIZE = 5 * 1024 * 1024  # 5 MB per-file limit
 
 
 def _validate_document_file(file_obj):
     """
     Validates an uploaded document file object.
-    Checks presence, extension, MIME type, file size, and magic byte headers.
+    Checks presence, extension, MIME type, file size, and strict magic byte headers consistency.
     Returns (is_valid, error_message).
     """
     if not file_obj or not file_obj.filename:
@@ -156,16 +158,27 @@ def _validate_document_file(file_obj):
     if size > MAX_DOC_FILE_SIZE:
         return False, f"File size ({round(size / (1024*1024), 2)} MB) exceeds maximum limit of 5 MB."
 
-    # Magic byte inspection
+    # Magic byte inspection & strict consistency verification
     header = file_obj.read(16)
     file_obj.seek(0)
 
-    is_pdf = header.startswith(b"%PDF-")
-    is_jpeg = header.startswith(b"\xff\xd8\xff")
-    is_png = header.startswith(b"\x89PNG")
-
-    if not (is_pdf or is_jpeg or is_png):
-        return False, "File content header does not match a valid PDF, JPEG, or PNG format."
+    if ext == ".pdf":
+        if content_type != "application/pdf":
+            return False, f"MIME type '{file_obj.content_type}' does not match .pdf extension."
+        if not header.startswith(b"%PDF-"):
+            return False, "File content header does not match PDF signature."
+    elif ext in (".jpg", ".jpeg"):
+        if content_type not in ("image/jpeg", "image/jpg"):
+            return False, f"MIME type '{file_obj.content_type}' does not match {ext} extension."
+        if not header.startswith(b"\xff\xd8\xff"):
+            return False, "File content header does not match JPEG signature."
+    elif ext == ".png":
+        if content_type != "image/png":
+            return False, f"MIME type '{file_obj.content_type}' does not match .png extension."
+        if not header.startswith(b"\x89PNG"):
+            return False, "File content header does not match PNG signature."
+    else:
+        return False, f"Invalid file extension '{ext}'."
 
     return True, None
 
@@ -2630,7 +2643,9 @@ def upload_student_document(student_id):
         flash(err_msg, "error")
         return redirect(url_for("student_details", record_id=student_pk))
 
-    original_filename = os.path.basename(file_obj.filename.strip())
+    raw_name = file_obj.filename.strip().replace("\\", "/").split("/")[-1]
+    clean_name = "".join(ch for ch in raw_name if ord(ch) >= 32 and ord(ch) != 127)
+    original_filename = clean_name[:255] if clean_name else "uploaded_document"
     ext = os.path.splitext(original_filename)[1].lower()
     stored_filename = f"doc_{uuid.uuid4().hex}{ext}"
 
@@ -2675,7 +2690,9 @@ def preview_student_document(student_id, doc_id):
     _assert_own_record(student_pk)
 
     doc = database.get_document_by_id(doc_id)
-    if not doc or str(doc["stud_id"]) != str(student_pk):
+    if not doc:
+        abort(404)
+    if str(doc["stud_id"]) != str(student_pk):
         abort(403)
 
     full_path = _get_safe_document_path(doc["stored_filename"])
@@ -2697,7 +2714,9 @@ def download_student_document(student_id, doc_id):
     _assert_own_record(student_pk)
 
     doc = database.get_document_by_id(doc_id)
-    if not doc or str(doc["stud_id"]) != str(student_pk):
+    if not doc:
+        abort(404)
+    if str(doc["stud_id"]) != str(student_pk):
         abort(403)
 
     full_path = _get_safe_document_path(doc["stored_filename"])
@@ -2717,7 +2736,9 @@ def download_student_document(student_id, doc_id):
 def verify_student_document(student_id, doc_id):
     student_pk = database._resolve_student_pk(student_id)
     doc = database.get_document_by_id(doc_id)
-    if not doc or str(doc["stud_id"]) != str(student_pk):
+    if not doc:
+        abort(404)
+    if str(doc["stud_id"]) != str(student_pk):
         abort(403)
 
     database.update_document_status(doc_id, "Verified", session["user_id"])
@@ -2730,7 +2751,9 @@ def verify_student_document(student_id, doc_id):
 def reject_student_document(student_id, doc_id):
     student_pk = database._resolve_student_pk(student_id)
     doc = database.get_document_by_id(doc_id)
-    if not doc or str(doc["stud_id"]) != str(student_pk):
+    if not doc:
+        abort(404)
+    if str(doc["stud_id"]) != str(student_pk):
         abort(403)
 
     rejection_reason = request.form.get("rejection_reason", "").strip()
@@ -2748,7 +2771,9 @@ def reject_student_document(student_id, doc_id):
 def delete_student_document(student_id, doc_id):
     student_pk = database._resolve_student_pk(student_id)
     doc = database.get_document_by_id(doc_id)
-    if not doc or str(doc["stud_id"]) != str(student_pk):
+    if not doc:
+        abort(404)
+    if str(doc["stud_id"]) != str(student_pk):
         abort(403)
 
     full_path = _get_safe_document_path(doc["stored_filename"])
@@ -2887,6 +2912,11 @@ def forbidden(e):
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
+
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    return render_template("413.html"), 413
 
 
 @app.errorhandler(429)

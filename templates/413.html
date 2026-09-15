@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}413 Request Too Large — Student Management System{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Request Entity Too Large</h1>
+      <p>The uploaded payload or document exceeds the maximum permitted size.</p>
+    </div>
+  </div>
+  <div class="card" style="text-align: center; padding: 48px 24px;">
+    <div style="font-family: var(--font-heading); font-size: 72px; font-style: italic; color: var(--accent); line-height: 1;">413</div>
+    <p style="color: var(--text-secondary); margin-top: 12px;">
+      The total size of the uploaded request exceeds the server limit. Please reduce the size of your file and try again.
+    </p>
+    {% if session.get('role') == 'student' and session.get('linked_student_id') %}
+      <a href="{{ url_for('student_details', record_id=session.linked_student_id) }}" class="btn btn-outline">Back to My Profile</a>
+    {% elif session.get('role') in ('admin', 'teacher') %}
+      <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Back to Dashboard</a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-outline">Back to Login</a>
+    {% endif %}
+  </div>
+{% endblock %}
