@@ -21,7 +21,7 @@
         Select Semester:
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        {% for sem_num in [2, 4, 5, 6] %}
+        {% for sem_num in range(1, 7) %}
           <a href="{{ url_for('rankings') }}?semester={{ sem_num }}"
              class="btn {% if sem_num == selected_semester %}btn-primary{% else %}btn-outline{% endif %}"
              style="padding: 6px 14px; font-size: 13px;">

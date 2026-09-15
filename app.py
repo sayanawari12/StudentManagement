@@ -453,9 +453,9 @@ def dashboard():
         app.logger.warning("DB error loading recent notices for dashboard: %s", e)
         recent_notices = []
 
-    sem_param = request.args.get("semester", default=2, type=int)
-    if sem_param not in (2, 4, 5, 6):
-        sem_param = 2
+    sem_param = request.args.get("semester", default=1, type=int)
+    if sem_param < 1 or sem_param > 6:
+        sem_param = 1
     top_performers = []
     try:
         top_performers = database.get_semester_rankings(sem_param)[:3]
@@ -2689,11 +2689,11 @@ def api_global_search():
 @role_required("admin", "teacher", "student")
 def rankings():
     try:
-        semester = request.args.get("semester", default=2, type=int)
-        if semester not in (2, 4, 5, 6):
-            semester = 2
+        semester = request.args.get("semester", default=1, type=int)
+        if semester < 1 or semester > 6:
+            semester = 1
     except (ValueError, TypeError):
-        semester = 2
+        semester = 1
 
     user_role = session.get("role")
     linked_student_id = session.get("linked_student_id")
@@ -2730,17 +2730,11 @@ def rankings():
 @role_required("admin", "teacher", "student")
 def api_student_rankings():
     try:
-        semester = request.args.get("semester", default=2, type=int)
-        if semester not in (2, 4, 5, 6):
-            return jsonify({
-                "success": False,
-                "error": "Rankings are unavailable for this semester",
-                "semester": semester,
-                "rankings": [],
-                "role": session.get("role")
-            }), 400
+        semester = request.args.get("semester", default=1, type=int)
+        if semester < 1 or semester > 6:
+            semester = 1
     except (ValueError, TypeError):
-        semester = 2
+        semester = 1
 
     user_role = session.get("role")
     linked_student_id = session.get("linked_student_id")

@@ -1,7 +1,8 @@
 """
 test_student_ranking.py — Unit and integration security tests for the Student Performance / Ranking module.
-Verifies that Semesters 1 and 3 are completely excluded from rankings while Semesters 2, 4, 5, 6 work properly,
-and that DB records for Semesters 1 and 3 remain untouched.
+Verifies that all 6 semester selectors (1-6) are restored and present in the UI,
+that Semesters 1 and 3 load valid HTTP 200 responses with empty ranking data,
+and that DB academic records for Semesters 1 and 3 remain 100% intact.
 """
 
 import pytest
@@ -80,83 +81,69 @@ def test_competition_tie_handling():
     assert test_data[3]["rank"] == 4
 
 
-def test_empty_semester_ranking_handling():
-    """Verify clean empty state when no results exist for a semester."""
-    rankings = database.get_semester_rankings(999)
-    assert isinstance(rankings, list)
-    assert len(rankings) == 0
+def test_all_six_semester_selectors_exist(auth_admin):
+    """Verify that all six semester selectors (1, 2, 3, 4, 5, 6) exist in ranking UI."""
+    response = auth_admin.get("/rankings?semester=1")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    for sem in range(1, 7):
+        assert f"Semester {sem}" in html
 
 
-def test_sem_1_and_sem_3_backend_rejection():
-    """Verify database.get_semester_rankings strictly returns empty list for Sem 1 and Sem 3."""
+def test_sem_1_and_sem_3_rankings_return_empty_list():
+    """Verify get_semester_rankings for sem 1 and 3 returns empty list []."""
     assert database.get_semester_rankings(1) == []
     assert database.get_semester_rankings(3) == []
 
 
-def test_allowed_semesters_rankings_work():
-    """Verify database.get_semester_rankings works for allowed semesters 2, 4, 5, 6."""
+def test_rankings_route_sem_1_and_3_http_200_empty(auth_admin):
+    """Verify /rankings?semester=1 and 3 load HTTP 200 with empty state message."""
+    res1 = auth_admin.get("/rankings?semester=1")
+    assert res1.status_code == 200
+    html1 = res1.data.decode("utf-8")
+    assert "Semester 1" in html1
+    assert "No ranking available for Semester 1 yet." in html1
+
+    res3 = auth_admin.get("/rankings?semester=3")
+    assert res3.status_code == 200
+    html3 = res3.data.decode("utf-8")
+    assert "Semester 3" in html3
+    assert "No ranking available for Semester 3 yet." in html3
+
+
+def test_api_student_rankings_sem_1_and_3_http_200_empty(auth_admin):
+    """Verify /api/student-rankings?semester=1 and 3 return valid HTTP 200 JSON with rankings: []."""
+    res1 = auth_admin.get("/api/student-rankings?semester=1")
+    assert res1.status_code == 200
+    json1 = res1.get_json()
+    assert json1["success"] is True
+    assert json1["semester"] == 1
+    assert json1["rankings"] == []
+
+    res3 = auth_admin.get("/api/student-rankings?semester=3")
+    assert res3.status_code == 200
+    json3 = res3.get_json()
+    assert json3["success"] is True
+    assert json3["semester"] == 3
+    assert json3["rankings"] == []
+
+
+def test_rankings_work_for_allowed_semesters():
+    """Verify database.get_semester_rankings returns list for semesters 2, 4, 5, 6."""
     for sem in (2, 4, 5, 6):
         res = database.get_semester_rankings(sem)
         assert isinstance(res, list)
 
 
-def test_sem_1_and_sem_3_not_in_ranking_selector_html(auth_admin):
-    """Verify Semester 1 and Semester 3 options are not present in ranking UI selector."""
-    response = auth_admin.get("/rankings?semester=2")
-    assert response.status_code == 200
-    html = response.data.decode("utf-8")
-    assert "Semester 2" in html
-    assert "Semester 4" in html
-    assert "Semester 5" in html
-    assert "Semester 6" in html
-    # Semester 1 and Semester 3 must NOT appear in selector buttons
-    assert 'semester=1"' not in html
-    assert 'semester=3"' not in html
-
-
-def test_direct_route_access_sem_1_and_3_redirects_or_defaults(auth_admin):
-    """Direct route access for sem 1 or 3 redirects/defaults to semester 2 and does not leak sem 1/3 ranking data."""
-    res1 = auth_admin.get("/rankings?semester=1")
-    assert res1.status_code in (200, 302)
-    res3 = auth_admin.get("/rankings?semester=3")
-    assert res3.status_code in (200, 302)
-
-
-def test_direct_api_access_sem_1_and_3_rejected(auth_admin):
-    """API access for sem 1 or 3 returns 400 error and empty rankings array."""
-    res1 = auth_admin.get("/api/student-rankings?semester=1")
-    assert res1.status_code == 400
-    json1 = res1.get_json()
-    assert json1["success"] is False
-    assert json1["rankings"] == []
-
-    res3 = auth_admin.get("/api/student-rankings?semester=3")
-    assert res3.status_code == 400
-    json3 = res3.get_json()
-    assert json3["success"] is False
-    assert json3["rankings"] == []
-
-
-def test_api_student_rankings_allowed_semesters(auth_admin):
-    """API access for allowed semester (e.g. sem 2) succeeds."""
-    res = auth_admin.get("/api/student-rankings?semester=2")
-    assert res.status_code == 200
-    json_data = res.get_json()
-    assert json_data["success"] is True
-    assert json_data["semester"] == 2
-    assert "rankings" in json_data
-
-
-def test_dashboard_widget_defaults_to_sem_2(auth_admin):
-    """Verify Dashboard Top Performers widget defaults to Semester 2 and only offers allowed semesters."""
+def test_dashboard_widget_renders_all_six_semesters(auth_admin):
+    """Verify Dashboard Top Performers widget dropdown renders all six semesters."""
     response = auth_admin.get("/dashboard")
     assert response.status_code == 200
     html = response.data.decode("utf-8")
     assert "Top Performers" in html
     assert "topPerformersSemSelect" in html
-    assert 'value="2"' in html
-    assert 'value="1"' not in html
-    assert 'value="3"' not in html
+    for sem in range(1, 7):
+        assert f'value="{sem}"' in html
 
 
 def test_student_privacy_restriction(auth_student):

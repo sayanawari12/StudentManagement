@@ -2216,28 +2216,23 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
 # Student Performance & Ranking Helpers
 # ---------------------------------------------------------------------------
 
-ALLOWED_RANKING_SEMESTERS = (2, 4, 5, 6)
-
-
 def get_semester_rankings(semester):
     """
     Calculates student rankings for a given semester strictly following Data Integrity Rules:
-      1. Allowed Semesters: Only Semesters 2, 4, 5, 6 are eligible for ranking. (Sem 1 and Sem 3 excluded).
-      2. Exam & Result Management (exam_marks + exams + subjects) is authoritative.
-      3. Maximum marks resolution chain: exam.max_marks -> exam_marks.max_marks -> subject.max_marks.
-         No hardcoded fallback (100, 500, 600, etc.) is assumed if unresolvable.
-      4. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
-      5. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
-      6. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
-      7. Grades table is used as fallback ONLY when no exam_marks record exists for the student.
+      1. Semesters 1 and 3 are valid semester selections but return no student ranking records.
+      2. Semesters 2, 4, 5, 6 compute rankings based on authoritative exam_marks and dynamic max marks.
+      3. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
+      4. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
+      5. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
+      6. Grades table is used as fallback ONLY when no exam_marks record exists for the student.
     """
     try:
         sem_int = int(semester)
     except (ValueError, TypeError):
-        sem_int = 2
+        sem_int = 1
 
-    # Server-side restriction: Semesters 1 and 3 are strictly excluded from ranking
-    if sem_int not in ALLOWED_RANKING_SEMESTERS:
+    # Semesters 1 and 3 return zero ranking rows for the Student Ranking feature
+    if sem_int in (1, 3):
         return []
 
     conn = get_db_connection()
