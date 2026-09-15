@@ -331,6 +331,8 @@ def index():
 MAX_FAILED_ATTEMPTS = 5    # defined near login(), easy to change
 LOCKOUT_MINUTES = 15
 
+DUMMY_HASH = generate_password_hash("dummy_password_for_timing_mitigation")
+
 
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
@@ -368,12 +370,17 @@ def login():
                 session["pending_2fa_user_id"] = user["id"]
                 session["pending_2fa_attempts"] = 0
                 return redirect(url_for("login_2fa"))
-            # No 2FA — proceed as normal
+            # No 2FA — clear session first to prevent fixation, then set authenticated keys
+            session.clear()
             session["user_id"] = user["id"]
             session["admin"]   = user["username"]          # kept for any legacy checks
             session["role"]    = user["role"]
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
             return redirect(_get_default_home_url())
+
+        # Timing attack mitigation: run dummy password hash check if user does not exist
+        if not user:
+            check_password_hash(DUMMY_HASH, password)
 
         # 3. Failed password or invalid user
         app.logger.warning("Failed login attempt for user %r from %s", username, request.remote_addr)
@@ -403,6 +410,7 @@ def logout():
 
 @app.route("/change-password", methods=["GET", "POST"])
 @login_required
+@limiter.limit("5 per minute")
 def change_password():
     user_id = _get_user_id()
     if not user_id:
@@ -1680,6 +1688,7 @@ MAX_2FA_ATTEMPTS = 5  # consecutive wrong codes before the pending session is cl
 
 
 @app.route("/login/2fa", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login_2fa():
     """Second step of login for users who have TOTP enabled.
 
@@ -1709,9 +1718,8 @@ def login_2fa():
 
         totp = pyotp.TOTP(user["totp_secret"])
         if totp.verify(code, valid_window=1):
-            # Success — establish the full session
-            session.pop("pending_2fa_user_id", None)
-            session.pop("pending_2fa_attempts", None)
+            # Success — clear temporary pending session state and establish full session
+            session.clear()
             session["user_id"] = user["id"]
             session["admin"]   = user["username"]
             session["role"]    = user["role"]
@@ -1736,6 +1744,7 @@ def login_2fa():
 
 @app.route("/2fa/setup", methods=["GET", "POST"])
 @login_required
+@limiter.limit("10 per minute")
 def totp_setup():
     """GET/POST /2fa/setup — opt-in TOTP setup for any logged-in user.
 
@@ -1823,6 +1832,7 @@ def _totp_qr_uri(user):
 
 @app.route("/2fa/disable", methods=["POST"])
 @login_required
+@limiter.limit("5 per minute")
 def totp_disable():
     """Disable TOTP for the current user, requiring current password as confirmation."""
     user_id = _get_user_id()
@@ -2944,6 +2954,14 @@ def server_error(e):
     if _wants_json_response():
         return jsonify({"success": False, "error": "An internal server error occurred."}), 500
     return render_template("500.html"), 500
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 if __name__ == "__main__":

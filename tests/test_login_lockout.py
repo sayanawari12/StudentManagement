@@ -15,6 +15,24 @@ import pytest
 import database
 
 
+@pytest.fixture(autouse=True)
+def reset_lockout_state(db):
+    """Ensure account lockout counters are cleared for all test users before AND after every test."""
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    yield
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL")
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
 class TestAccountLockout:
     def test_five_failed_attempts_triggers_lockout(self, client, db):
         # Clean state for admin
@@ -120,3 +138,8 @@ class TestIpRateLimiting:
             assert 429 in responses
         finally:
             limiter.enabled = False
+            try:
+                limiter.reset()
+            except Exception:
+                pass
+

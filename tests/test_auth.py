@@ -326,3 +326,70 @@ class TestSeedUsersGuard:
         assert teacher_p == "SecureTeacherPass123!"
         assert student_p == "SecureStudentPass123!"
 
+
+# ---------------------------------------------------------------------------
+# Step 2D — Authentication & Security Hardening Tests
+# ---------------------------------------------------------------------------
+
+class TestStep2DSecurityHardening:
+    """Security verification tests for Step 2D hardening."""
+
+    def test_session_fixation_protection(self, client):
+        """Pre-authentication session data must be purged upon successful login."""
+        with client.session_transaction() as sess:
+            sess["attacker_key"] = "evil_fixed_session_data"
+
+        resp = client.post(
+            "/login",
+            data={"username": "admin", "password": "admin123"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+        with client.session_transaction() as sess:
+            assert "attacker_key" not in sess
+            assert sess.get("role") == "admin"
+            assert sess.get("user_id") is not None
+
+    def test_account_enumeration_prevention(self, client):
+        """Nonexistent username and wrong password must return identical user-facing error messages."""
+        resp_nonexistent = client.post(
+            "/login",
+            data={"username": "definitely_nonexistent_user_xyz", "password": "wrong_password_123"},
+            follow_redirects=True,
+        )
+        assert resp_nonexistent.status_code == 200
+        assert b"Invalid username or password." in resp_nonexistent.data
+
+        resp_wrongpass = client.post(
+            "/login",
+            data={"username": "admin", "password": "wrong_password_123"},
+            follow_redirects=True,
+        )
+        assert resp_wrongpass.status_code == 200
+        assert b"Invalid username or password." in resp_wrongpass.data
+
+    def test_security_headers_present(self, client):
+        """Responses must include standard security headers."""
+        resp = client.get("/login")
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+        assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"
+        assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+    def test_auth_failure_no_sensitive_leakage(self, client):
+        """Login failures must not leak internal database details, tracebacks, or password hashes."""
+        resp = client.post(
+            "/login",
+            data={"username": "admin", "password": "wrong_password_123"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        body = resp.data.decode("utf-8")
+        assert "mysql" not in body.lower()
+        assert "traceback" not in body.lower()
+        assert "scrypt:" not in body
+        assert "pbkdf2:" not in body
+        assert "totp_secret" not in body
+
+

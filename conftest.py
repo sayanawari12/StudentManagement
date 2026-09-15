@@ -26,6 +26,7 @@ os.environ.setdefault("SECRET_KEY",  "test-secret-key-not-for-production")
 os.environ["DB_NAME"] = "student_management_test"
 
 import config                # noqa: E402  (must come after os.environ patch)
+config.DB_NAME = "student_management_test"
 import database              # noqa: E402
 
 
@@ -141,6 +142,7 @@ def db():
     }
 
     database.ensure_exam_tables_exist()
+    database.ensure_document_table_exists()
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +160,16 @@ def app(db):
         SECRET_KEY="test-secret-key-not-for-production",
     )
     limiter.enabled = False
+    try:
+        limiter.reset()
+    except Exception:
+        pass
     yield flask_app
     limiter.enabled = True
+    try:
+        limiter.reset()
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="function")
