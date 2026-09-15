@@ -176,11 +176,11 @@
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <select id="topPerformersSemSelect" class="form-select" style="padding: 3px 6px; font-size: 12px; height: auto; width: auto; border: 1px solid var(--border-dark);">
-              {% for sem_num in range(1, 7) %}
+              {% for sem_num in [2, 4, 5, 6] %}
                 <option value="{{ sem_num }}" {% if sem_num == selected_ranking_semester %}selected{% endif %}>Semester {{ sem_num }}</option>
               {% endfor %}
             </select>
-            <a href="{{ url_for('rankings') }}?semester={{ selected_ranking_semester or 1 }}" id="viewFullRankingLink" style="font-size: 12px; font-weight: 500; color: var(--accent);">View Full Ranking &rarr;</a>
+            <a href="{{ url_for('rankings') }}?semester={{ selected_ranking_semester or 2 }}" id="viewFullRankingLink" style="font-size: 12px; font-weight: 500; color: var(--accent);">View Full Ranking &rarr;</a>
           </div>
         </div>
 
