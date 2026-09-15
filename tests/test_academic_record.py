@@ -409,17 +409,14 @@ class TestPassMarkGradeConsistency:
         assert sub["status"] == "PASS"
         assert sub["grade"] == "D"
 
-    def test_historical_100_40_compatibility(self):
-        """6. Historical 100-mark record (pass=None): 39.9 -> FAIL+F, 40 -> PASS+D."""
-        fail_marks = [{"subject_name": "Hist", "obtained_marks": 39.9, "max_marks": 100.0, "pass_marks": None}]
-        s_fail = exam_service.compute_student_result_summary(fail_marks)
-        assert s_fail["subject_results"][0]["status"] == "FAIL"
-        assert s_fail["subject_results"][0]["grade"] == "F"
-
-        pass_marks = [{"subject_name": "Hist", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": None}]
-        s_pass = exam_service.compute_student_result_summary(pass_marks)
-        assert s_pass["subject_results"][0]["status"] == "PASS"
-        assert s_pass["subject_results"][0]["grade"] == "D"
+    def test_missing_pass_marks_100_mark_returns_unconfigured(self):
+        """Historical 100-mark record without pass_marks (pass=None) returns UNCONFIGURED status."""
+        marks = [{"subject_name": "Hist", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": None}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] is None
+        assert sub["status"] == "UNCONFIGURED"
+        assert sub["grade"] == "N/A"
 
     def test_custom_max_marks_and_pass_marks(self):
         """7. max=50, pass=18, obtained=20 -> 40%, PASS, grade D."""

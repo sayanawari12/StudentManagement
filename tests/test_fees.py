@@ -27,15 +27,14 @@ class TestInsertAndPayFee:
     """insert_fee_due + update_fee_payment correctness."""
 
     def _insert_fee(self, stud_id, amount_due="200.00", due_date="2025-06-30"):
-        database.insert_fee_due({
+        fee_id = database.insert_fee_due({
             "stud_id":    stud_id,
             "amount_due": Decimal(amount_due),
             "due_date":   due_date,
         })
-        # Return the newest fee for this student
-        fees = database.get_student_fees(stud_id)
-        assert fees, "insert_fee_due must have created a row"
-        return fees[0]  # ordered by due_date DESC → newest first
+        fee = database.get_fee_by_id(fee_id)
+        assert fee, "insert_fee_due must have created a row"
+        return fee
 
     def test_initial_amount_paid_is_zero(self, db):
         stud_id = db["linked_pk"]

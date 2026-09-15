@@ -207,11 +207,8 @@ def compute_student_result_summary(*args, **kwargs) -> dict:
         # Explicit check: respect explicit values including 0 or 0.0
         if pass_val is not None:
             pass_cutoff = float(pass_val)
-        elif mx == 100.0:
-            # Backward compatibility for legitimate historical records created under the standard 100-mark rule
-            pass_cutoff = 40.0
         else:
-            # Unconfigured passing marks — do not invent an unauthoritative 40% rule
+            # Unconfigured passing marks — do not invent an unauthoritative fallback
             pass_cutoff = None
 
         if mx is None or mx <= 0:

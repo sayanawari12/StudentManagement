@@ -2287,8 +2287,8 @@ def edit_exam_route(exam_id):
             orig_type = str(exam.get("exam_type") or "").strip()
             orig_course = str(exam.get("course") or "").strip()
             orig_sem = int(exam.get("semester")) if exam.get("semester") is not None else None
-            orig_max = float(exam.get("max_marks")) if exam.get("max_marks") is not None else 100.0
-            orig_pass = float(exam.get("pass_marks")) if exam.get("pass_marks") is not None else 40.0
+            orig_max = float(exam.get("max_marks")) if exam.get("max_marks") is not None else None
+            orig_pass = float(exam.get("pass_marks")) if exam.get("pass_marks") is not None else None
 
             locked_changed = False
             if exam_type and exam_type != orig_type:

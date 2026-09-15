@@ -608,6 +608,7 @@ def insert_fee_due(data):
             (data["stud_id"], data["amount_due"], data["due_date"])
         )
         conn.commit()
+        return cursor.lastrowid
     finally:
         cursor.close()
         conn.close()

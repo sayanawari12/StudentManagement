@@ -184,6 +184,12 @@ def test_database_academic_records_sem_1_and_3_not_deleted():
         conn.close()
 
 
+def _clean_student(student_id):
+    existing = database.get_student_by_student_id(student_id)
+    if existing:
+        database.delete_student(existing["id"])
+
+
 def test_ranking_completeness_rules(db):
     """
     Verify that incomplete students (missing subjects) are excluded from ranking,
@@ -193,6 +199,7 @@ def test_ranking_completeness_rules(db):
     subjects = database.get_subjects_by_course_and_semester("BCA", 2)
     assert len(subjects) == 6, "Semester 2 must have 6 required subjects"
 
+    _clean_student("TEST_INCOMPLETE")
     database.insert_student({
         "student_id": "TEST_INCOMPLETE",
         "student_name": "Incomplete Student A",
@@ -207,6 +214,7 @@ def test_ranking_completeness_rules(db):
     stud_a = database.get_student_by_student_id("TEST_INCOMPLETE")
     stud_a_id = stud_a["id"]
 
+    _clean_student("TEST_COMPLETE")
     database.insert_student({
         "student_id": "TEST_COMPLETE",
         "student_name": "Complete Student B",
@@ -248,6 +256,7 @@ def test_ranking_missing_one_subject_excluded(db):
     admin_id = db["users"]["admin"]["id"]
     subjects = database.get_subjects_by_course_and_semester("BCA", 2)
 
+    _clean_student("TEST_MISSING1")
     database.insert_student({
         "student_id": "TEST_MISSING1",
         "student_name": "Missing One Subject Student",
@@ -279,6 +288,7 @@ def test_ranking_does_not_use_grades_fallback(db):
     is NOT included in semester rankings (exam_marks is single source of truth).
     """
     admin_id = db["users"]["admin"]["id"]
+    _clean_student("STU_GRADES_1")
     database.insert_student({
         "student_id": "STU_GRADES_1",
         "student_name": "Grades Only Student",
@@ -316,6 +326,7 @@ def test_dashboard_academic_performance_does_not_use_grades_fallback(db):
     from the grades table when exam_marks are missing.
     """
     admin_id = db["users"]["admin"]["id"]
+    _clean_student("STU_GRADES_2")
     database.insert_student({
         "student_id": "STU_GRADES_2",
         "student_name": "Dashboard Grades Student",
@@ -353,6 +364,7 @@ def test_legitimate_grades_feature_preserved(db):
     remains completely functional and unaffected by source-of-truth cleanup.
     """
     admin_id = db["users"]["admin"]["id"]
+    _clean_student("STU_GRADES_3")
     database.insert_student({
         "student_id": "STU_GRADES_3",
         "student_name": "Legitimate Grades Student",

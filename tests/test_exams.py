@@ -476,12 +476,12 @@ class TestMarksValidationAndCalculation:
 
     def test_result_summary_computation(self, db):
         raw_marks = [
-            {"subject_name": "Software Engineering (SE)", "obtained_marks": Decimal("80"), "max_marks": Decimal("100")},
-            {"subject_name": "Database Management System (DBMS)", "obtained_marks": Decimal("75"), "max_marks": Decimal("100")},
-            {"subject_name": "Python", "obtained_marks": Decimal("90"), "max_marks": Decimal("100")},
-            {"subject_name": "Probability and Statistics", "obtained_marks": Decimal("60"), "max_marks": Decimal("100")},
-            {"subject_name": "Future Engineering", "obtained_marks": Decimal("70"), "max_marks": Decimal("100")},
-            {"subject_name": "Basics of Data Analytics Using Spreadsheet", "obtained_marks": Decimal("85"), "max_marks": Decimal("100")},
+            {"subject_name": "Software Engineering (SE)", "obtained_marks": Decimal("80"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
+            {"subject_name": "Database Management System (DBMS)", "obtained_marks": Decimal("75"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
+            {"subject_name": "Python", "obtained_marks": Decimal("90"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
+            {"subject_name": "Probability and Statistics", "obtained_marks": Decimal("60"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
+            {"subject_name": "Future Engineering", "obtained_marks": Decimal("70"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
+            {"subject_name": "Basics of Data Analytics Using Spreadsheet", "obtained_marks": Decimal("85"), "max_marks": Decimal("100"), "pass_marks": Decimal("40")},
         ]
         summary = exam_service.compute_student_result_summary(raw_marks)
         assert summary["total_obtained"] == 460.0
@@ -663,14 +663,46 @@ class TestExamMarksFallbackHardening:
         assert sub["status"] == "UNCONFIGURED"
         assert summary["overall_status"] == "FAIL"
 
-    def test_historical_100_max_marks_backward_compatibility(self):
-        """Historical 100-mark records without explicit pass_marks retain 40.0 passing threshold."""
-        marks = [{"subject_name": "Historical Math", "obtained_marks": 45.0, "max_marks": 100.0}]
+    def test_explicit_100_40_pass_marks_configuration(self):
+        """Test 1 — Explicit 100/40 configuration: obtained 40 yields PASS."""
+        marks = [{"subject_name": "Math", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": 40.0}]
         summary = exam_service.compute_student_result_summary(marks)
         sub = summary["subject_results"][0]
         assert sub["pass_marks"] == 40.0
         assert sub["status"] == "PASS"
-        assert summary["overall_status"] == "PASS"
+
+    def test_explicit_100_50_pass_marks_configuration(self):
+        """Test 2 — Explicit 100/50 configuration: obtained 40 yields FAIL (proves not hardcoded to 40)."""
+        marks = [{"subject_name": "Physics", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": 50.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] == 50.0
+        assert sub["status"] == "FAIL"
+
+    def test_explicit_80_32_pass_marks_configuration(self):
+        """Test 3 — Explicit 80/32 configuration: obtained 32 yields PASS."""
+        marks = [{"subject_name": "Chemistry", "obtained_marks": 32.0, "max_marks": 80.0, "pass_marks": 32.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] == 32.0
+        assert sub["status"] == "PASS"
+
+    def test_explicit_60_24_pass_marks_configuration(self):
+        """Test 4 — Explicit 60/24 configuration: obtained 23 yields FAIL."""
+        marks = [{"subject_name": "Biology", "obtained_marks": 23.0, "max_marks": 60.0, "pass_marks": 24.0}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] == 24.0
+        assert sub["status"] == "FAIL"
+
+    def test_missing_pass_marks_returns_unconfigured(self):
+        """Test 5 — Missing pass_marks on 100-mark exam returns UNCONFIGURED (no silent 40.0 fallback)."""
+        marks = [{"subject_name": "Unconfigured Exam", "obtained_marks": 40.0, "max_marks": 100.0, "pass_marks": None}]
+        summary = exam_service.compute_student_result_summary(marks)
+        sub = summary["subject_results"][0]
+        assert sub["pass_marks"] is None
+        assert sub["status"] == "UNCONFIGURED"
+        assert summary["overall_status"] == "FAIL"
 
 
 class TestDatabaseStartupErrorLogging:

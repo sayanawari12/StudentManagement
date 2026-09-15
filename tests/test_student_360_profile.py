@@ -115,6 +115,9 @@ class TestStudent360Profile:
 
     def test_missing_data_empty_states(self, admin_client, db):
         stud_code = "STU9999"
+        existing = database.get_student_by_student_id(stud_code)
+        if existing:
+            database.delete_student(existing["id"])
         database.insert_student({
             "student_id": stud_code,
             "student_name": "Test Empty Profile",
