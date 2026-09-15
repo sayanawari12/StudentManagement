@@ -2151,6 +2151,86 @@ body.drawer-open {
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Notice Board & Announcement System                                      */
+/* ---------------------------------------------------------------------- */
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.notice-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dark);
+  padding: 24px;
+  transition: border-color 0.15s;
+}
+
+.card-urgent {
+  border-left: 4px solid var(--accent) !important;
+}
+
+.notice-badge {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 0;
+  border: 1px solid var(--border-dark);
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.badge-academic {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.badge-exam {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.badge-fee {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.badge-general {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  border-color: var(--border-dark);
+}
+
+.badge-urgent {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+@media (max-width: 860px) {
+  .filter-bar {
+    gap: 6px;
+  }
+  .filter-bar .btn {
+    flex: 1 1 auto;
+    text-align: center;
+    justify-content: center;
+  }
+  .notice-card {
+    padding: 16px;
+  }
+}
+
+
 
 
 

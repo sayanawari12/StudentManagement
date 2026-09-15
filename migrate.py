@@ -107,14 +107,27 @@ def migrate():
     # 8 — notices table
     run(cursor, """
         CREATE TABLE IF NOT EXISTS notices (
-            id          INT AUTO_INCREMENT PRIMARY KEY,
-            title       VARCHAR(150) NOT NULL,
-            body        TEXT NOT NULL,
-            posted_by   INT NOT NULL,
-            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            id              INT AUTO_INCREMENT PRIMARY KEY,
+            title           VARCHAR(150) NOT NULL,
+            body            TEXT NOT NULL,
+            category        VARCHAR(50) NOT NULL DEFAULT 'General',
+            priority        VARCHAR(20) NOT NULL DEFAULT 'Normal',
+            target_course   VARCHAR(50) NULL,
+            target_semester INT NULL,
+            status          VARCHAR(20) NOT NULL DEFAULT 'Published',
+            posted_by       INT NOT NULL,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (posted_by) REFERENCES users(id)
         )
     """, "CREATE TABLE notices")
+
+    # 8b — notices table column extensions
+    run(cursor, "ALTER TABLE notices ADD COLUMN category VARCHAR(50) NOT NULL DEFAULT 'General'", "ADD COLUMN notices.category")
+    run(cursor, "ALTER TABLE notices ADD COLUMN priority VARCHAR(20) NOT NULL DEFAULT 'Normal'", "ADD COLUMN notices.priority")
+    run(cursor, "ALTER TABLE notices ADD COLUMN target_course VARCHAR(50) NULL", "ADD COLUMN notices.target_course")
+    run(cursor, "ALTER TABLE notices ADD COLUMN target_semester INT NULL", "ADD COLUMN notices.target_semester")
+    run(cursor, "ALTER TABLE notices ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Published'", "ADD COLUMN notices.status")
+
 
     # 9 — users.totp_secret column (2FA)
     run(cursor,

@@ -742,14 +742,18 @@ def get_grade_summary(stud_id):
 # Notices queries
 # ---------------------------------------------------------------------------
 
-def insert_notice(title, body, posted_by):
+def insert_notice(title, body, posted_by, category='General', priority='Normal', target_course=None, target_semester=None, status='Published'):
     """Insert a new notice row. Returns the new row's auto-increment id."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO notices (title, body, posted_by) VALUES (%s, %s, %s)",
-            (title, body, posted_by)
+            """INSERT INTO notices (title, body, category, priority, target_course, target_semester, status, posted_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (title, body, category or 'General', priority or 'Normal',
+             target_course if target_course else None,
+             int(target_semester) if target_semester and str(target_semester).isdigit() else None,
+             status or 'Published', posted_by)
         )
         conn.commit()
         return cursor.lastrowid
@@ -758,28 +762,87 @@ def insert_notice(title, body, posted_by):
         conn.close()
 
 
-def get_all_notices(limit=10):
-    """Return the most recent notices joined with the poster's username.
+def get_notice_by_id(notice_id):
+    """Return a single notice row by ID joined with poster username, or None if not found."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT n.id, n.title, n.body, n.category, n.priority,
+                      n.target_course, n.target_semester, n.status,
+                      n.posted_by, n.created_at, u.username
+               FROM notices n
+               LEFT JOIN users u ON u.id = n.posted_by
+               WHERE n.id = %s""",
+            (notice_id,)
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
 
-    Each row has: id, title, body, posted_by (user id), created_at, username.
+
+def get_filtered_notices(category=None, role='admin', student_course=None, student_semester=None, search=None, limit=50):
+    """Return notices filtered by category, search term, and role-based audience constraints.
+
+    Category options: 'All', 'Academic', 'Exam', 'Fee', 'General', 'Urgent'.
+    For students, restricts results to status='Published' and matching target_course/target_semester.
     Ordered newest-first and capped at `limit` rows.
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(
-            """SELECT n.id, n.title, n.body, n.posted_by, n.created_at,
-                      u.username
-               FROM notices n
-               JOIN users u ON u.id = n.posted_by
-               ORDER BY n.created_at DESC
-               LIMIT %s""",
-            (limit,)
-        )
+        where_clauses = []
+        params = []
+
+        if role == 'student':
+            where_clauses.append("n.status = 'Published'")
+            if student_course:
+                where_clauses.append("(n.target_course IS NULL OR n.target_course = %s)")
+                params.append(student_course)
+            else:
+                where_clauses.append("n.target_course IS NULL")
+
+            if student_semester is not None and str(student_semester).isdigit():
+                where_clauses.append("(n.target_semester IS NULL OR n.target_semester = %s)")
+                params.append(int(student_semester))
+            else:
+                where_clauses.append("n.target_semester IS NULL")
+
+        if category and category.strip() and category.strip().lower() != 'all':
+            cat_val = category.strip()
+            if cat_val.lower() == 'urgent':
+                where_clauses.append("(n.category = 'Urgent' OR n.priority = 'Urgent')")
+            else:
+                where_clauses.append("n.category = %s")
+                params.append(cat_val)
+
+        if search and search.strip():
+            safe_like = f"%{_escape_like_query(search.strip())}%"
+            where_clauses.append("(n.title LIKE %s ESCAPE '\\\\' OR n.body LIKE %s ESCAPE '\\\\')")
+            params.extend([safe_like, safe_like])
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        sql = f"""SELECT n.id, n.title, n.body, n.category, n.priority,
+                         n.target_course, n.target_semester, n.status,
+                         n.posted_by, n.created_at, u.username
+                  FROM notices n
+                  LEFT JOIN users u ON u.id = n.posted_by
+                  {where_sql}
+                  ORDER BY n.created_at DESC
+                  LIMIT %s"""
+        params.append(limit)
+        cursor.execute(sql, tuple(params))
         return cursor.fetchall()
     finally:
         cursor.close()
         conn.close()
+
+
+def get_all_notices(limit=10, role='admin', student_course=None, student_semester=None):
+    """Return recent notices, respecting audience filters if role is student."""
+    return get_filtered_notices(category=None, role=role, student_course=student_course, student_semester=student_semester, limit=limit)
 
 
 def delete_notice(notice_id):
@@ -2097,15 +2160,31 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
 
         # 5. NOTICES SEARCH (ALL LOGGED-IN ROLES)
         if role in ("admin", "teacher", "student"):
-            cursor.execute("""
+            where_clauses = ["(n.title LIKE %s ESCAPE '\\\\' OR n.body LIKE %s ESCAPE '\\\\')"]
+            n_params = [safe_like, safe_like]
+            if role == "student":
+                where_clauses.append("n.status = 'Published'")
+                stud = get_student_by_id(linked_student_id) if linked_student_id else None
+                if stud and stud.get("course"):
+                    where_clauses.append("(n.target_course IS NULL OR n.target_course = %s)")
+                    n_params.append(stud["course"])
+                else:
+                    where_clauses.append("n.target_course IS NULL")
+                if stud and stud.get("semester"):
+                    where_clauses.append("(n.target_semester IS NULL OR n.target_semester = %s)")
+                    n_params.append(stud["semester"])
+                else:
+                    where_clauses.append("n.target_semester IS NULL")
+            where_sql = " AND ".join(where_clauses)
+            n_params.append(limit)
+            cursor.execute(f"""
                 SELECT n.id, n.title, n.body, n.created_at, u.username
                 FROM notices n
                 LEFT JOIN users u ON u.id = n.posted_by
-                WHERE n.title LIKE %s ESCAPE '\\\\'
-                   OR n.body LIKE %s ESCAPE '\\\\'
+                WHERE {where_sql}
                 ORDER BY n.created_at DESC
                 LIMIT %s
-            """, (safe_like, safe_like, limit))
+            """, tuple(n_params))
             n_rows = cursor.fetchall()
             for r in n_rows:
                 body_snippet = (r["body"] or "")[:80] + ("..." if len(r["body"] or "") > 80 else "")
@@ -2114,7 +2193,7 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
                     "title": r["title"],
                     "subtitle": f"Posted by {r['username'] or 'System'} on {r['created_at']}",
                     "detail": body_snippet,
-                    "url": "/notices",
+                    "url": f"/notices/{r['id']}",
                     "action_text": "View Notice"
                 })
 

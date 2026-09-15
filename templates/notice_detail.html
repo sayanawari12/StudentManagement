@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ notice.title }} — Notice Board{% endblock %}
+
+{% block content %}
+  <div class="topbar">
+    <div>
+      <h1>Announcement Detail</h1>
+      <p>Official institutional notice</p>
+    </div>
+    <div class="actions-row">
+      <a href="{{ url_for('notices') }}" class="btn btn-outline" id="btn-back-notices">← Back to Notices</a>
+    </div>
+  </div>
+
+  {% set is_urgent = (notice.priority == 'Urgent' or notice.category == 'Urgent') %}
+  <div class="card notice-detail-card {% if is_urgent %}card-urgent{% endif %}" id="notice-detail-{{ notice.id }}" style="{% if is_urgent %}border-left: 5px solid var(--accent, #9b4d24);{% endif %} padding: 2rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <span class="notice-badge badge-{{ (notice.category or 'General').lower() }}"
+              style="display: inline-block; padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border: 1px solid var(--border-color, #ccc); border-radius: 2px;">
+          {{ notice.category or 'GENERAL' }}
+        </span>
+        {% if is_urgent and notice.category != 'Urgent' %}
+          <span class="notice-badge badge-urgent"
+                style="display: inline-block; padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; background-color: var(--accent, #9b4d24); color: #fff; border-radius: 2px;">
+            URGENT
+          </span>
+        {% endif %}
+        {% if notice.status and notice.status != 'Published' %}
+          <span style="display: inline-block; padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; background: #ece0d1; color: #555; border-radius: 2px;">
+            {{ notice.status }}
+          </span>
+        {% endif %}
+      </div>
+      <span style="font-size: 0.875rem; color: var(--muted, #777);">
+        Published: <strong>{{ notice.created_at.strftime('%d %B %Y') if notice.created_at else '—' }}</strong>
+      </span>
+    </div>
+
+    <h1 style="font-size: 1.6rem; margin-top: 0.5rem; margin-bottom: 1rem; color: var(--text-color, #222);">
+      {{ notice.title }}
+    </h1>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; font-size: 0.9rem; padding: 0.75rem 1rem; background-color: var(--bg-subtle, #fcfbfa); border: 1px solid var(--border-color, #eee); border-radius: 4px; margin-bottom: 1.5rem; color: var(--muted, #555);">
+      <div>
+        <strong>For:</strong>
+        {% if notice.target_course and notice.target_semester %}
+          {{ notice.target_course }} — Semester {{ notice.target_semester }}
+        {% elif notice.target_course %}
+          {{ notice.target_course }} (All Semesters)
+        {% elif notice.target_semester %}
+          All Courses — Semester {{ notice.target_semester }}
+        {% else %}
+          All Students
+        {% endif %}
+      </div>
+      <div>
+        <strong>Posted by:</strong> {{ notice.username or 'Institution' }}
+      </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color, #eee); margin-bottom: 1.5rem;">
+
+    <div class="notice-body-content" style="white-space: pre-wrap; font-size: 1rem; line-height: 1.7; color: var(--text-color, #333); margin-bottom: 2rem;">
+      {{ notice.body }}
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color, #eee); margin-bottom: 1.5rem;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+      <a href="{{ url_for('notices') }}" class="btn btn-outline" id="btn-back-bottom">← Back to Notices</a>
+
+      {% if session.get('role') == 'admin' %}
+        <form method="POST"
+              action="{{ url_for('notice_delete', notice_id=notice.id) }}"
+              onsubmit="return confirm('Delete this notice permanently?');"
+              style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="btn btn-outline"
+                  style="color: #a00; border-color: #fcc;"
+                  id="btn-delete-notice-detail">Delete Announcement</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

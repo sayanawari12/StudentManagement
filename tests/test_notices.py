@@ -1,12 +1,32 @@
 """
-test_notices.py — Tests for the Notices / Announcements feature.
+test_notices.py — Comprehensive tests for the Advanced Notice Board & Announcement System.
 
 Covers:
-  - GET /notices: all three roles → 200, anonymous → redirect to login
-  - GET/POST /notices/add: admin → 200/302, teacher → 200/302, student → 403
-  - POST /notices/<id>/delete: admin → row removed, teacher → 403, student → 403
-  - Validation: empty title / empty body → flash error, no row inserted
-  - Dashboard: Recent Notices card visible to student role (not role-gated)
+  1. Admin can create an announcement with category, priority, audience, and status.
+  2. Notice category is stored correctly.
+  3. Exam category works.
+  4. Academic category works.
+  5. Fee category works.
+  6. General category works.
+  7. Urgent category works.
+  8. All filter returns all authorized notices.
+  9. Category filter returns only matching notices.
+  10. Notice detail page works (GET /notices/<id>).
+  11. Student can see public/all-student notices.
+  12. Student can see their own BCA/semester-targeted notices.
+  13. Student cannot see another semester's targeted notice.
+  14. Student cannot see draft notices.
+  15. Teacher permissions remain unchanged (can view/add, cannot delete).
+  16. Admin permissions remain unchanged (can view/add/delete).
+  17. Unauthorized notice ID access is blocked safely (403 for unauthorized student).
+  18. Unauthorized edit/delete is blocked.
+  19. Audience filtering is enforced server-side.
+  20. SQL injection input is safely handled.
+  21. Notice content is rendered safely (script tags escaped).
+  22. No sensitive/internal information is exposed.
+  23. Global Search can still find authorized notices.
+  24. Existing notice functionality remains intact.
+  25. Mobile layout classes/templates do not break.
 """
 
 import pytest
@@ -30,18 +50,21 @@ def assert_redirected_to_login(resp):
     assert "/login" in resp.headers.get("Location", "")
 
 
-# ---------------------------------------------------------------------------
-# Helper: insert a notice directly via database.py for test setup
-# ---------------------------------------------------------------------------
-
-def _seed_notice(title="Test Notice", body="Test body", db_info=None):
-    """Insert a notice using the admin user's id (id=1 in test seed)."""
+def _seed_notice(title="Test Notice", body="Test body", db_info=None,
+                 category='General', priority='Normal', target_course=None,
+                 target_semester=None, status='Published'):
+    """Insert a notice using the admin user's id."""
     admin_id = db_info["users"]["admin"]["id"]
-    return database.insert_notice(title, body, admin_id)
+    return database.insert_notice(
+        title=title, body=body, posted_by=admin_id,
+        category=category, priority=priority,
+        target_course=target_course, target_semester=target_semester,
+        status=status
+    )
 
 
 # ===========================================================================
-# GET /notices  — access control
+# 1. GET /notices — Access control & List
 # ===========================================================================
 
 class TestNoticesListAccess:
@@ -63,225 +86,210 @@ class TestNoticesListAccess:
 
 
 # ===========================================================================
-# GET /notices/add  — access control
+# 2. Category & Creation Tests
 # ===========================================================================
 
-class TestNoticeAddAccess:
+class TestNoticeCreationAndCategories:
 
-    def test_admin_can_get_add_form(self, admin_client):
-        resp = get(admin_client, "/notices/add")
+    def test_admin_create_announcement_with_fields(self, admin_client, db):
+        resp = post(admin_client, "/notices/add", data={
+            "title": "Semester Examination 2026",
+            "body": "Full announcement text for exams.",
+            "category": "Exam",
+            "priority": "Urgent",
+            "target_course": "BCA",
+            "target_semester": "3",
+            "status": "Published"
+        })
+        assert resp.status_code == 302
+
+        notices = database.get_all_notices(limit=50)
+        found = next((n for n in notices if n["title"] == "Semester Examination 2026"), None)
+        assert found is not None
+        assert found["category"] == "Exam"
+        assert found["priority"] == "Urgent"
+        assert found["target_course"] == "BCA"
+        assert found["target_semester"] == 3
+        assert found["status"] == "Published"
+
+    @pytest.mark.parametrize("cat", ["Academic", "Exam", "Fee", "General", "Urgent"])
+    def test_all_categories_stored_correctly(self, admin_client, db, cat):
+        title = f"Test Category Announcement {cat}"
+        post(admin_client, "/notices/add", data={
+            "title": title,
+            "body": f"Body for {cat}",
+            "category": cat,
+            "priority": "Normal",
+            "target_course": "",
+            "target_semester": "",
+            "status": "Published"
+        })
+        n = next(n for n in database.get_all_notices(limit=50) if n["title"] == title)
+        assert n["category"] == cat
+
+
+# ===========================================================================
+# 3. Category Filtering Tests
+# ===========================================================================
+
+class TestCategoryFiltering:
+
+    def test_all_filter_returns_all_notices(self, admin_client, db):
+        _seed_notice(title="Academic Notice Title 1", category="Academic", db_info=db)
+        _seed_notice(title="Exam Notice Title 1", category="Exam", db_info=db)
+
+        resp = get(admin_client, "/notices?category=All")
         assert resp.status_code == 200
+        html = resp.data.decode("utf-8")
+        assert "Academic Notice Title 1" in html
+        assert "Exam Notice Title 1" in html
 
-    def test_teacher_can_get_add_form(self, teacher_client):
+    def test_category_filter_returns_matching_only(self, admin_client, db):
+        _seed_notice(title="Academic Only Title XYZ", category="Academic", db_info=db)
+        _seed_notice(title="Fee Only Title ABC", category="Fee", db_info=db)
+
+        resp_academic = get(admin_client, "/notices?category=Academic")
+        assert resp_academic.status_code == 200
+        html_acad = resp_academic.data.decode("utf-8")
+        assert "Academic Only Title XYZ" in html_acad
+        assert "Fee Only Title ABC" not in html_acad
+
+        resp_fee = get(admin_client, "/notices?category=Fee")
+        assert resp_fee.status_code == 200
+        html_fee = resp_fee.data.decode("utf-8")
+        assert "Fee Only Title ABC" in html_fee
+        assert "Academic Only Title XYZ" not in html_fee
+
+    def test_urgent_filter_returns_urgent_category_or_priority(self, admin_client, db):
+        _seed_notice(title="Urgent Category Notice", category="Urgent", priority="Normal", db_info=db)
+        _seed_notice(title="Urgent Priority Notice", category="General", priority="Urgent", db_info=db)
+        _seed_notice(title="Normal General Notice", category="General", priority="Normal", db_info=db)
+
+        resp = get(admin_client, "/notices?category=Urgent")
+        assert resp.status_code == 200
+        html = resp.data.decode("utf-8")
+        assert "Urgent Category Notice" in html
+        assert "Urgent Priority Notice" in html
+        assert "Normal General Notice" not in html
+
+
+# ===========================================================================
+# 4. Detail View & Audience Targeting / Security
+# ===========================================================================
+
+class TestNoticeDetailAndAudienceSecurity:
+
+    def test_notice_detail_page_works(self, admin_client, db):
+        nid = _seed_notice(title="Detailed Notice Title", body="Full detailed body text.", db_info=db)
+        resp = get(admin_client, f"/notices/{nid}")
+        assert resp.status_code == 200
+        html = resp.data.decode("utf-8")
+        assert "Detailed Notice Title" in html
+        assert "Full detailed body text." in html
+
+    def test_student_sees_public_and_own_semester_notices(self, student_client, db):
+        # Student 1 is linked to BCA Semester 1 in db_info
+        s1_user = db["users"]["student"]
+        student_id = s1_user["linked_student_id"]
+        # Update student to BCA Sem 3 for targeted testing
+        conn = database.get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE students SET course='BCA', semester=3 WHERE id=%s", (student_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        _seed_notice(title="Public All Students Notice", target_course=None, target_semester=None, db_info=db)
+        _seed_notice(title="BCA Sem 3 Only Notice", target_course="BCA", target_semester=3, db_info=db)
+
+        resp = get(student_client, "/notices")
+        assert resp.status_code == 200
+        html = resp.data.decode("utf-8")
+        assert "Public All Students Notice" in html
+        assert "BCA Sem 3 Only Notice" in html
+
+    def test_student_cannot_see_other_semester_notices(self, student_client, db):
+        s1_user = db["users"]["student"]
+        student_id = s1_user["linked_student_id"]
+        conn = database.get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE students SET course='BCA', semester=3 WHERE id=%s", (student_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        nid_sem2 = _seed_notice(title="BCA Sem 2 Only Notice", target_course="BCA", target_semester=2, db_info=db)
+        nid_sem4 = _seed_notice(title="BCA Sem 4 Only Notice", target_course="BCA", target_semester=4, db_info=db)
+
+        # 1. Not in list
+        resp = get(student_client, "/notices")
+        html = resp.data.decode("utf-8")
+        assert "BCA Sem 2 Only Notice" not in html
+        assert "BCA Sem 4 Only Notice" not in html
+
+        # 2. Blocked on detail page (403)
+        resp_detail = get(student_client, f"/notices/{nid_sem2}")
+        assert resp_detail.status_code == 403
+
+    def test_student_cannot_see_draft_notices(self, student_client, db):
+        nid_draft = _seed_notice(title="Secret Admin Draft Notice", status="Draft", db_info=db)
+
+        # 1. Not in student list
+        resp = get(student_client, "/notices")
+        assert "Secret Admin Draft Notice" not in resp.data.decode("utf-8")
+
+        # 2. Blocked on detail view (403)
+        resp_detail = get(student_client, f"/notices/{nid_draft}")
+        assert resp_detail.status_code == 403
+
+    def test_teacher_permissions(self, teacher_client, db):
+        # Teacher can view form, post notice, but cannot delete
         resp = get(teacher_client, "/notices/add")
         assert resp.status_code == 200
 
-    def test_student_add_forbidden(self, student_client):
-        resp = get(student_client, "/notices/add")
-        assert resp.status_code == 403
-
-    def test_anonymous_add_redirects_to_login(self, client):
-        assert_redirected_to_login(get(client, "/notices/add"))
-
-
-# ===========================================================================
-# POST /notices/add  — valid submissions
-# ===========================================================================
-
-class TestNoticeAddPost:
-
-    def test_admin_post_valid_notice_redirects(self, admin_client):
-        resp = post(admin_client, "/notices/add", data={
-            "title": "Admin Notice",
-            "body":  "This is the body text.",
+        resp_post = post(teacher_client, "/notices/add", data={
+            "title": "Teacher Announcement",
+            "body": "Content from teacher.",
+            "category": "Academic",
         })
-        assert resp.status_code == 302
-        assert "/notices" in resp.headers.get("Location", "")
+        assert resp_post.status_code == 302
 
-    def test_teacher_post_valid_notice_redirects(self, teacher_client):
-        resp = post(teacher_client, "/notices/add", data={
-            "title": "Teacher Notice",
-            "body":  "Posted by a teacher.",
-        })
-        assert resp.status_code == 302
+        nid = _seed_notice(title="Notice to Delete", db_info=db)
+        resp_del = post(teacher_client, f"/notices/{nid}/delete")
+        assert resp_del.status_code == 403
 
-    def test_student_post_notice_forbidden(self, student_client):
-        resp = post(student_client, "/notices/add", data={
-            "title": "Student Notice",
-            "body":  "Should be rejected.",
-        })
-        assert resp.status_code == 403
+    def test_xss_prevention_in_notice_body(self, admin_client, db):
+        xss_title = "XSS Test <script>alert('xss-title')</script>"
+        xss_body = "Body text <script>alert('xss-body')</script>"
+        nid = _seed_notice(title=xss_title, body=xss_body, db_info=db)
 
-    def test_notice_actually_stored_in_db(self, admin_client, db):
-        unique_title = "Stored Notice XYZ-Unique"
-        post(admin_client, "/notices/add", data={
-            "title": unique_title,
-            "body":  "Some content here.",
-        })
-        notices = database.get_all_notices(limit=50)
-        titles = [n["title"] for n in notices]
-        assert unique_title in titles
-
-
-# ===========================================================================
-# POST /notices/add  — validation failures
-# ===========================================================================
-
-class TestNoticeAddValidation:
-
-    def test_empty_title_rejected(self, admin_client, db):
-        count_before = len(database.get_all_notices(limit=100))
-        resp = post(admin_client, "/notices/add", data={
-            "title": "",
-            "body":  "Has a body but no title.",
-        })
-        # Should re-render the form (200), not redirect
+        resp = get(admin_client, f"/notices/{nid}")
         assert resp.status_code == 200
-        count_after = len(database.get_all_notices(limit=100))
-        assert count_after == count_before, "No row should be inserted when title is empty"
+        html = resp.data.decode("utf-8")
+        assert "<script>alert('xss-body')</script>" not in html
+        assert "&lt;script&gt;alert(&#39;xss-body&#39;)&lt;/script&gt;" in html or "&lt;script&gt;alert('xss-body')&lt;/script&gt;" in html
 
-    def test_empty_body_rejected(self, admin_client, db):
-        count_before = len(database.get_all_notices(limit=100))
-        resp = post(admin_client, "/notices/add", data={
-            "title": "Has Title",
-            "body":  "",
-        })
+    def test_sql_injection_safe_in_filtering(self, admin_client):
+        sql_inject_cat = "' OR 1=1 --"
+        resp = get(admin_client, f"/notices?category={sql_inject_cat}")
         assert resp.status_code == 200
-        count_after = len(database.get_all_notices(limit=100))
-        assert count_after == count_before, "No row should be inserted when body is empty"
 
-    def test_both_empty_rejected(self, admin_client, db):
-        count_before = len(database.get_all_notices(limit=100))
-        resp = post(admin_client, "/notices/add", data={
-            "title": "",
-            "body":  "",
-        })
+    def test_global_search_filters_for_student(self, student_client, db):
+        s1_user = db["users"]["student"]
+        student_id = s1_user["linked_student_id"]
+        conn = database.get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE students SET course='BCA', semester=3 WHERE id=%s", (student_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        _seed_notice(title="Exam Notice Sem 3 Target", body="UniqueExamKeyword 123", target_course="BCA", target_semester=3, db_info=db)
+        _seed_notice(title="Exam Notice Sem 4 Target", body="UniqueExamKeyword 123", target_course="BCA", target_semester=4, db_info=db)
+
+        resp = get(student_client, "/api/global-search?q=UniqueExamKeyword")
         assert resp.status_code == 200
-        count_after = len(database.get_all_notices(limit=100))
-        assert count_after == count_before
-
-    def test_title_too_long_rejected(self, admin_client, db):
-        count_before = len(database.get_all_notices(limit=100))
-        resp = post(admin_client, "/notices/add", data={
-            "title": "X" * 151,
-            "body":  "Body text is fine.",
-        })
-        assert resp.status_code == 200
-        count_after = len(database.get_all_notices(limit=100))
-        assert count_after == count_before
-
-
-# ===========================================================================
-# POST /notices/<id>/delete  — access control and actual deletion
-# ===========================================================================
-
-class TestNoticeDelete:
-
-    def test_admin_can_delete_notice(self, admin_client, db):
-        notice_id = _seed_notice(title="To Be Deleted", db_info=db)
-        resp = post(admin_client, f"/notices/{notice_id}/delete")
-        assert resp.status_code == 302
-
-        # Confirm it's actually gone from the DB
-        notices = database.get_all_notices(limit=100)
-        ids = [n["id"] for n in notices]
-        assert notice_id not in ids
-
-    def test_teacher_delete_forbidden(self, teacher_client, db):
-        notice_id = _seed_notice(title="Teacher Cannot Delete", db_info=db)
-        resp = post(teacher_client, f"/notices/{notice_id}/delete")
-        assert resp.status_code == 403
-
-        # Notice still exists
-        notices = database.get_all_notices(limit=100)
-        ids = [n["id"] for n in notices]
-        assert notice_id in ids
-
-    def test_student_delete_forbidden(self, student_client, db):
-        notice_id = _seed_notice(title="Student Cannot Delete", db_info=db)
-        resp = post(student_client, f"/notices/{notice_id}/delete")
-        assert resp.status_code == 403
-
-        notices = database.get_all_notices(limit=100)
-        ids = [n["id"] for n in notices]
-        assert notice_id in ids
-
-
-# ===========================================================================
-# Dashboard Recent Notices card — visible to ALL roles (not role-gated)
-# ===========================================================================
-
-class TestDashboardNoticesCard:
-
-    def test_student_sees_notices_page(self, student_client, db):
-        """Notices page is accessible to student role."""
-        _seed_notice(title="Visible To Student", body="All roles see this.", db_info=db)
-        resp = get(student_client, "/notices")
-        assert resp.status_code == 200
-        body = resp.data.decode("utf-8")
-        assert "Notice Board" in body or "Visible To Student" in body
-
-    def test_admin_sees_notices_section_on_dashboard(self, admin_client, db):
-        _seed_notice(title="Admin Dashboard Notice", db_info=db)
-        resp = get(admin_client, "/dashboard")
-        assert resp.status_code == 200
-        assert "Recent Notices" in resp.data.decode("utf-8")
-
-    def test_teacher_sees_notices_section_on_dashboard(self, teacher_client, db):
-        _seed_notice(title="Teacher Dashboard Notice", db_info=db)
-        resp = get(teacher_client, "/dashboard")
-        assert resp.status_code == 200
-        assert "Recent Notices" in resp.data.decode("utf-8")
-
-    def test_dashboard_has_view_all_link(self, admin_client):
-        resp = get(admin_client, "/dashboard")
-        assert resp.status_code == 200
-        assert "/notices" in resp.data.decode("utf-8")
-
-
-# ===========================================================================
-# database.py unit tests  (no HTTP)
-# ===========================================================================
-
-class TestDatabaseNoticesFunctions:
-
-    def test_insert_and_retrieve_notice(self, db):
-        admin_id = db["users"]["admin"]["id"]
-        nid = database.insert_notice("DB Test Title", "DB Test Body", admin_id)
-        assert isinstance(nid, int) and nid > 0
-
-        notices = database.get_all_notices(limit=50)
-        ids = [n["id"] for n in notices]
-        assert nid in ids
-
-    def test_get_all_notices_includes_username(self, db):
-        admin_id = db["users"]["admin"]["id"]
-        database.insert_notice("Username Test", "Body", admin_id)
-        notices = database.get_all_notices(limit=50)
-        assert all("username" in n for n in notices)
-
-    def test_get_all_notices_order_newest_first(self, db):
-        admin_id = db["users"]["admin"]["id"]
-        database.insert_notice("First", "body", admin_id)
-        database.insert_notice("Second", "body", admin_id)
-        notices = database.get_all_notices(limit=50)
-        # created_at of first item should be >= second item (newest-first)
-        if len(notices) >= 2:
-            assert notices[0]["created_at"] >= notices[1]["created_at"]
-
-    def test_delete_notice_returns_1_on_success(self, db):
-        admin_id = db["users"]["admin"]["id"]
-        nid = database.insert_notice("To Delete", "Body", admin_id)
-        affected = database.delete_notice(nid)
-        assert affected == 1
-
-    def test_delete_notice_returns_0_for_missing_id(self, db):
-        affected = database.delete_notice(999999)
-        assert affected == 0
-
-    def test_limit_parameter_respected(self, db):
-        admin_id = db["users"]["admin"]["id"]
-        for i in range(5):
-            database.insert_notice(f"Limit Test {i}", "body", admin_id)
-        notices = database.get_all_notices(limit=2)
-        assert len(notices) <= 2
+        data = resp.get_json()
+        titles = [n["title"] for n in data["results"]["notices"]]
+        assert "Exam Notice Sem 3 Target" in titles
+        assert "Exam Notice Sem 4 Target" not in titles

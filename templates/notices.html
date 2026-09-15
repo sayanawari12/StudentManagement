@@ -1,50 +1,114 @@
 {% extends "base.html" %}
-{% block title %}Notices — Student Management System{% endblock %}
+{% block title %}Notice Board — Student Management System{% endblock %}
 
 {% block content %}
   <div class="topbar">
     <div>
-      <h1>Notices</h1>
-      <p>Announcements and updates from the institution.</p>
+      <h1>Notice Board</h1>
+      <p>Institutional announcements and updates.</p>
     </div>
     {% if session.get('role') in ('admin', 'teacher') %}
       <div class="actions-row">
-        <a href="{{ url_for('notice_add') }}" class="btn btn-primary" id="btn-add-notice">Add Notice</a>
+        <a href="{{ url_for('notice_add') }}" class="btn btn-primary" id="btn-add-notice">+ Create Announcement</a>
       </div>
     {% endif %}
   </div>
 
-  {% if notices %}
-    {% for n in notices %}
-      <div class="card" id="notice-{{ n.id }}">
-        <h2 class="section-title">{{ n.title }}</h2>
-        <p style="white-space: pre-wrap; margin-bottom: 1rem;">{{ n.body }}</p>
-        <p style="font-size: 0.85rem; color: var(--muted, #888);">
-          Posted by <strong>{{ n.username }}</strong>
-          on {{ n.created_at.strftime('%d %b %Y, %H:%M') if n.created_at else '—' }}
-        </p>
-
-        {% if session.get('role') == 'admin' %}
-          <div class="form-footer">
-            <form method="POST"
-                  action="{{ url_for('notice_delete', notice_id=n.id) }}"
-                  onsubmit="return confirm('Delete this notice?');"
-                  style="display:inline;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit"
-                      class="btn btn-outline"
-                      id="btn-delete-notice-{{ n.id }}">Delete</button>
-            </form>
-          </div>
-        {% endif %}
-      </div>
+  <!-- Filter Bar -->
+  <div class="filter-bar" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    {% set current_cat = active_category or 'All' %}
+    {% for cat in categories or ['All', 'Academic', 'Exam', 'Fee', 'General', 'Urgent'] %}
+      <a href="{{ url_for('notices', category=cat, q=search) }}"
+         class="btn {% if current_cat.lower() == cat.lower() %}btn-primary{% else %}btn-outline{% endif %} filter-btn-{{ cat.lower() }}"
+         style="padding: 0.4rem 0.9rem; font-size: 0.85rem; text-decoration: none;">
+        {{ cat }}
+      </a>
     {% endfor %}
+  </div>
+
+  {% if notices %}
+    <div class="notices-grid" style="display: flex; flex-direction: column; gap: 1.25rem;">
+      {% for n in notices %}
+        {% set is_urgent = (n.priority == 'Urgent' or n.category == 'Urgent') %}
+        <div class="card notice-card {% if is_urgent %}card-urgent{% endif %}" id="notice-{{ n.id }}" style="position: relative; {% if is_urgent %}border-left: 4px solid var(--accent, #9b4d24);{% endif %}">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <span class="notice-badge badge-{{ (n.category or 'General').lower() }}"
+                    style="display: inline-block; padding: 0.2rem 0.55rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; border: 1px solid var(--border-color, #ccc); border-radius: 2px;">
+                {{ n.category or 'GENERAL' }}
+              </span>
+              {% if is_urgent and n.category != 'Urgent' %}
+                <span class="notice-badge badge-urgent"
+                      style="display: inline-block; padding: 0.2rem 0.55rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; background-color: var(--accent, #9b4d24); color: #fff; border-radius: 2px;">
+                  URGENT
+                </span>
+              {% endif %}
+              {% if n.status and n.status != 'Published' %}
+                <span style="display: inline-block; padding: 0.2rem 0.55rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; background: #ece0d1; color: #555; border-radius: 2px;">
+                  {{ n.status }}
+                </span>
+              {% endif %}
+            </div>
+            <span style="font-size: 0.825rem; color: var(--muted, #777);">
+              Published: {{ n.created_at.strftime('%d %b %Y') if n.created_at else '—' }}
+            </span>
+          </div>
+
+          <h2 class="section-title" style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.25rem;">
+            <a href="{{ url_for('notice_detail', notice_id=n.id) }}" style="color: inherit; text-decoration: none;">{{ n.title }}</a>
+          </h2>
+
+          <div style="font-size: 0.875rem; color: var(--muted, #666); margin-bottom: 0.75rem;">
+            <strong>For:</strong>
+            {% if n.target_course and n.target_semester %}
+              {{ n.target_course }} Semester {{ n.target_semester }}
+            {% elif n.target_course %}
+              {{ n.target_course }} (All Semesters)
+            {% elif n.target_semester %}
+              All Courses — Semester {{ n.target_semester }}
+            {% else %}
+              All Students
+            {% endif %}
+          </div>
+
+          <p class="notice-snippet" style="white-space: pre-wrap; margin-bottom: 1.25rem; line-height: 1.5;">{{ (n.body or '')[:200] }}{% if (n.body or '')|length > 200 %}…{% endif %}</p>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color, #eee);">
+            <a href="{{ url_for('notice_detail', notice_id=n.id) }}" class="btn btn-outline btn-sm" id="btn-view-notice-{{ n.id }}" style="text-decoration: none;">
+              [ View Notice ]
+            </a>
+
+            {% if session.get('role') == 'admin' %}
+              <form method="POST"
+                    action="{{ url_for('notice_delete', notice_id=n.id) }}"
+                    onsubmit="return confirm('Delete this notice?');"
+                    style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="btn btn-outline btn-sm"
+                        style="color: #a00; border-color: #fcc;"
+                        id="btn-delete-notice-{{ n.id }}">Delete</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
   {% else %}
     <div class="card">
-      <div class="empty-state">
-        <strong>No notices yet.</strong>
+      <div class="empty-state" style="text-align: center; padding: 2rem 1rem;">
+        <strong style="display: block; font-size: 1.1rem; margin-bottom: 0.5rem;">No announcements found.</strong>
+        <p style="color: var(--muted, #777); font-size: 0.9rem;">
+          {% if current_cat.lower() != 'all' %}
+            No notices match the "{{ current_cat }}" category.
+          {% else %}
+            No notices have been published yet.
+          {% endif %}
+        </p>
         {% if session.get('role') in ('admin', 'teacher') %}
-          <a href="{{ url_for('notice_add') }}">Post the first one.</a>
+          <div style="margin-top: 1rem;">
+            <a href="{{ url_for('notice_add') }}" class="btn btn-primary">+ Post Announcement</a>
+          </div>
         {% endif %}
       </div>
     </div>

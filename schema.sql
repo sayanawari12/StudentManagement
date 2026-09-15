@@ -52,11 +52,16 @@ CREATE TABLE IF NOT EXISTS users (
 -- 3. Notices  (FK -> users.id, so after users)
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notices (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    title       VARCHAR(150) NOT NULL,
-    body        TEXT NOT NULL,
-    posted_by   INT NOT NULL,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    title           VARCHAR(150) NOT NULL,
+    body            TEXT NOT NULL,
+    category        VARCHAR(50) NOT NULL DEFAULT 'General',
+    priority        VARCHAR(20) NOT NULL DEFAULT 'Normal',
+    target_course   VARCHAR(50) NULL,
+    target_semester INT NULL,
+    status          VARCHAR(20) NOT NULL DEFAULT 'Published',
+    posted_by       INT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (posted_by) REFERENCES users(id)
 );
 

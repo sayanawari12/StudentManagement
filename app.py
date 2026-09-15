@@ -448,7 +448,14 @@ def dashboard():
         }
 
     try:
-        recent_notices = database.get_all_notices(limit=NOTICES_LIMIT_DASH)
+        user_role = session.get("role", "admin")
+        stud_course, stud_sem = None, None
+        if user_role == "student" and session.get("linked_student_id"):
+            st = database.get_student_by_id(session["linked_student_id"])
+            if st:
+                stud_course = st.get("course")
+                stud_sem = st.get("semester")
+        recent_notices = database.get_all_notices(limit=NOTICES_LIMIT_DASH, role=user_role, student_course=stud_course, student_semester=stud_sem)
     except Error as e:
         app.logger.warning("DB error loading recent notices for dashboard: %s", e)
         recent_notices = []
@@ -1842,13 +1849,80 @@ def totp_disable():
 @app.route("/notices")
 @login_required
 def notices():
+    category = request.args.get("category", "All").strip()
+    search = request.args.get("q", "").strip()
+    user_role = session.get("role", "admin")
+    stud_course, stud_sem = None, None
+    if user_role == "student" and session.get("linked_student_id"):
+        st = database.get_student_by_id(session["linked_student_id"])
+        if st:
+            stud_course = st.get("course")
+            stud_sem = st.get("semester")
+
     try:
-        notice_list = database.get_all_notices(limit=NOTICES_LIMIT_FULL)
+        notice_list = database.get_filtered_notices(
+            category=category,
+            role=user_role,
+            student_course=stud_course,
+            student_semester=stud_sem,
+            search=search,
+            limit=NOTICES_LIMIT_FULL
+        )
     except Error as e:
         app.logger.warning("DB error loading notices list: %s", e)
         flash("Could not load notices from the database.", "error")
         notice_list = []
-    return render_template("notices.html", notices=notice_list)
+
+    categories = ["All", "Academic", "Exam", "Fee", "General", "Urgent"]
+    return render_template(
+        "notices.html",
+        notices=notice_list,
+        active_category=category,
+        categories=categories,
+        search=search
+    )
+
+
+@app.route("/notices/<int:notice_id>")
+@login_required
+def notice_detail(notice_id):
+    try:
+        n = database.get_notice_by_id(notice_id)
+    except Error as e:
+        app.logger.warning("DB error loading notice detail %s: %s", notice_id, e)
+        flash("Could not load notice detail.", "error")
+        return redirect(url_for("notices"))
+
+    if not n:
+        flash("Notice not found.", "error")
+        return redirect(url_for("notices")), 404
+
+    user_role = session.get("role", "admin")
+    if user_role == "student":
+        # Students cannot view Draft or Archived notices
+        if n.get("status") != "Published":
+            flash("Notice not available.", "error")
+            return redirect(url_for("notices")), 403
+
+        # Resolve student course & semester
+        stud_course, stud_sem = None, None
+        if session.get("linked_student_id"):
+            st = database.get_student_by_id(session["linked_student_id"])
+            if st:
+                stud_course = st.get("course")
+                stud_sem = st.get("semester")
+
+        # Check course targeting
+        if n.get("target_course") and n.get("target_course") != stud_course:
+            flash("You are not authorized to view this notice.", "error")
+            return redirect(url_for("notices")), 403
+
+        # Check semester targeting
+        if n.get("target_semester") and (stud_sem is None or int(n.get("target_semester")) != int(stud_sem)):
+            flash("You are not authorized to view this notice.", "error")
+            return redirect(url_for("notices")), 403
+
+    return render_template("notice_detail.html", notice=n)
 
 
 @app.route("/notices/add", methods=["GET", "POST"])
@@ -1857,6 +1931,12 @@ def notice_add():
     if request.method == "POST":
         title = request.form.get("title", "").strip()
         body  = request.form.get("body", "").strip()
+        category = request.form.get("category", "General").strip()
+        priority = request.form.get("priority", "Normal").strip()
+        target_course = request.form.get("target_course", "").strip()
+        target_semester = request.form.get("target_semester", "").strip()
+        status = request.form.get("status", "Published").strip()
+
         errors = []
         if not title:
             errors.append("Title is required.")
@@ -1864,6 +1944,21 @@ def notice_add():
             errors.append("Title must be 150 characters or fewer.")
         if not body:
             errors.append("Body is required.")
+
+        allowed_categories = ["Academic", "Exam", "Fee", "General", "Urgent"]
+        if category not in allowed_categories:
+            category = "General"
+
+        allowed_priorities = ["Normal", "Urgent"]
+        if priority not in allowed_priorities:
+            priority = "Normal"
+
+        allowed_statuses = ["Published", "Draft", "Archived"]
+        if status not in allowed_statuses:
+            status = "Published"
+
+        if target_semester and not target_semester.isdigit():
+            errors.append("Invalid semester specified.")
 
         if errors:
             for error in errors:
@@ -1875,7 +1970,16 @@ def notice_add():
             flash("Could not identify current user. Please log in again.", "error")
             return render_template("notice_add.html", form=request.form)
         try:
-            database.insert_notice(title, body, posted_by)
+            database.insert_notice(
+                title=title,
+                body=body,
+                posted_by=posted_by,
+                category=category,
+                priority=priority,
+                target_course=target_course if target_course else None,
+                target_semester=int(target_semester) if target_semester else None,
+                status=status
+            )
             flash("Notice posted successfully.", "success")
             return redirect(url_for("notices"))
         except Error as e:
@@ -1895,6 +1999,7 @@ def notice_delete(notice_id):
     except Error as e:
         app.logger.warning("DB error deleting notice %s: %s", notice_id, e)
         flash("Could not delete the notice.", "error")
+        return redirect(url_for("notices"))
     return redirect(url_for("notices"))
 
 
