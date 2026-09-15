@@ -210,10 +210,35 @@ def migrate():
             ('BCA', 3, 'BDA306', 'Basics of Data Analytics Using Spreadsheet', 100.00, 40.00)
     """, "SEED Semester 1, 2, and 3 subjects")
 
+    # 17 — student_documents table
+    run(cursor, """
+        CREATE TABLE IF NOT EXISTS student_documents (
+            id                INT AUTO_INCREMENT PRIMARY KEY,
+            stud_id           INT          NOT NULL,
+            doc_type          ENUM('Aadhaar Card','Marksheet','Caste Certificate','Caste Validity','Leaving Certificate','Bonafide','Passport Photo','Other') NOT NULL,
+            custom_doc_name   VARCHAR(150) NULL,
+            original_filename VARCHAR(255) NOT NULL,
+            stored_filename   VARCHAR(255) NOT NULL,
+            mime_type         VARCHAR(100) NOT NULL,
+            file_size_bytes   INT          NOT NULL,
+            status            ENUM('Pending','Verified','Rejected') NOT NULL DEFAULT 'Pending',
+            rejection_reason  TEXT         NULL,
+            uploaded_by       INT          NOT NULL,
+            verified_by       INT          NULL,
+            verified_at       DATETIME     NULL,
+            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (stud_id)     REFERENCES students(id) ON DELETE CASCADE,
+            FOREIGN KEY (uploaded_by) REFERENCES users(id),
+            FOREIGN KEY (verified_by) REFERENCES users(id)
+        )
+    """, "CREATE TABLE student_documents")
+
     conn.commit()
     cursor.close()
     conn.close()
     print("Done. Now run: python seed_users.py")
+
 
 
 if __name__ == "__main__":

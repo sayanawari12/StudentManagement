@@ -29,3 +29,6 @@ Thumbs.db
 .agents/
 scratch/
 
+# Uploads directory
+uploads/*
+!uploads/.gitkeep

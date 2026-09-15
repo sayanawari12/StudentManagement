@@ -971,7 +971,8 @@ def get_audit_log(limit=100):
 
 
 def get_student_audit_log(stud_id, limit=5):
-    """Return student-specific activity across attendance, grades, and fees."""
+    """Return student-specific activity across attendance, grades, fees, and documents."""
+    pk_id = _resolve_student_pk(stud_id)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -1005,11 +1006,21 @@ def get_student_audit_log(stud_id, limit=5):
                        CONCAT('Fee record: ₹', f.amount_due, ' (Paid: ₹', f.amount_paid, ')') AS description
                 FROM fees f
                 WHERE f.stud_id = %s
+
+                UNION ALL
+
+                SELECT 'document'    AS event_type,
+                       d.created_at  AS event_time,
+                       COALESCE(u.username, 'System') AS actor,
+                       CONCAT('Document ', d.doc_type, ' (', d.status, ')') AS description
+                FROM student_documents d
+                LEFT JOIN users u ON u.id = d.uploaded_by
+                WHERE d.stud_id = %s
             ) AS student_audit
             ORDER BY event_time DESC
             LIMIT %s
             """,
-            (stud_id, stud_id, stud_id, limit)
+            (pk_id, pk_id, pk_id, pk_id, limit)
         )
         return cursor.fetchall()
     except Exception as e:
@@ -1017,6 +1028,7 @@ def get_student_audit_log(stud_id, limit=5):
     finally:
         cursor.close()
         conn.close()
+
 
 
 def is_account_locked(user):
@@ -1675,5 +1687,175 @@ def get_student_exam_history(stud_id):
     finally:
         cursor.close()
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Student Document Management Query Helpers
+# ---------------------------------------------------------------------------
+
+def ensure_document_table_exists():
+    """
+    Ensure student_documents table exists in the database.
+    Idempotent and safe to run on app startup.
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS student_documents (
+                id                INT AUTO_INCREMENT PRIMARY KEY,
+                stud_id           INT          NOT NULL,
+                doc_type          ENUM('Aadhaar Card','Marksheet','Caste Certificate','Caste Validity','Leaving Certificate','Bonafide','Passport Photo','Other') NOT NULL,
+                custom_doc_name   VARCHAR(150) NULL,
+                original_filename VARCHAR(255) NOT NULL,
+                stored_filename   VARCHAR(255) NOT NULL,
+                mime_type         VARCHAR(100) NOT NULL,
+                file_size_bytes   INT          NOT NULL,
+                status            ENUM('Pending','Verified','Rejected') NOT NULL DEFAULT 'Pending',
+                rejection_reason  TEXT         NULL,
+                uploaded_by       INT          NOT NULL,
+                verified_by       INT          NULL,
+                verified_at       DATETIME     NULL,
+                created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (stud_id)     REFERENCES students(id) ON DELETE CASCADE,
+                FOREIGN KEY (uploaded_by) REFERENCES users(id),
+                FOREIGN KEY (verified_by) REFERENCES users(id)
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        logger.warning("Database error during ensure_document_table_exists: %s", e)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def insert_student_document(stud_id, doc_type, custom_doc_name, original_filename, stored_filename, mime_type, file_size_bytes, uploaded_by):
+    """Insert a new document record for a student."""
+    pk_id = _resolve_student_pk(stud_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO student_documents
+                (stud_id, doc_type, custom_doc_name, original_filename, stored_filename, mime_type, file_size_bytes, status, uploaded_by)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, 'Pending', %s)
+        """, (pk_id, doc_type, custom_doc_name, original_filename, stored_filename, mime_type, file_size_bytes, uploaded_by))
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_student_documents(stud_id):
+    """Fetch all documents for a specific student, ordered newest first."""
+    pk_id = _resolve_student_pk(stud_id)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT d.*, 
+                   u1.username AS uploader_username,
+                   u2.username AS verifier_username
+            FROM student_documents d
+            LEFT JOIN users u1 ON u1.id = d.uploaded_by
+            LEFT JOIN users u2 ON u2.id = d.verified_by
+            WHERE d.stud_id = %s
+            ORDER BY d.created_at DESC
+        """, (pk_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_document_by_id(doc_id):
+    """Fetch a single document by document ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT d.*, 
+                   u1.username AS uploader_username,
+                   u2.username AS verifier_username
+            FROM student_documents d
+            LEFT JOIN users u1 ON u1.id = d.uploaded_by
+            LEFT JOIN users u2 ON u2.id = d.verified_by
+            WHERE d.id = %s
+        """, (doc_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_document_status(doc_id, status, verifier_user_id, rejection_reason=None):
+    """Update document status (Verified or Rejected). Sets verified_by and verified_at."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE student_documents
+            SET status = %s,
+                verified_by = %s,
+                verified_at = NOW(),
+                rejection_reason = %s
+            WHERE id = %s
+        """, (status, verifier_user_id, rejection_reason if status == 'Rejected' else None, doc_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_student_document(doc_id):
+    """Delete a document record by ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM student_documents WHERE id = %s", (doc_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_document_stats_for_student(stud_id):
+    """Return summary document statistics for a student (total, verified, pending, rejected)."""
+    pk_id = _resolve_student_pk(stud_id)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) AS verified,
+                SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending,
+                SUM(CASE WHEN status = 'Rejected' THEN 1 ELSE 0 END) AS rejected
+            FROM student_documents
+            WHERE stud_id = %s
+        """, (pk_id,))
+        row = cursor.fetchone()
+        if not row or row["total"] == 0:
+            return {"total": 0, "verified": 0, "pending": 0, "rejected": 0}
+        return {
+            "total": int(row["total"] or 0),
+            "verified": int(row["verified"] or 0),
+            "pending": int(row["pending"] or 0),
+            "rejected": int(row["rejected"] or 0)
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
 
 

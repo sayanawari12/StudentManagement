@@ -6,7 +6,9 @@ import logging
 import math
 import os
 import re
+import uuid
 from decimal import Decimal
+
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
@@ -90,11 +92,96 @@ EXPECTED_CSV_HEADERS = [
     "gender", "date_of_birth", "course", "semester", "address"
 ]
 
-# Ensure database tables for exams & subjects exist on application load
+# Ensure database tables for exams, subjects & documents exist on application load
 try:
     database.ensure_exam_tables_exist()
+    database.ensure_document_table_exists()
 except Exception as _e:
-    app.logger.warning("Could not initialize exam tables on application startup: %s", _e)
+    app.logger.warning("Could not initialize database tables on application startup: %s", _e)
+
+
+# ---------------------------------------------------------------------------
+# Student Document Management Config & Validation Helpers
+# ---------------------------------------------------------------------------
+
+DOCUMENT_UPLOAD_DIR = os.path.abspath(os.path.join(app.root_path, "uploads", "documents"))
+os.makedirs(DOCUMENT_UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_DOC_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
+ALLOWED_DOC_MIMES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png"
+}
+ALLOWED_DOC_TYPES = {
+    'Aadhaar Card',
+    'Marksheet',
+    'Caste Certificate',
+    'Caste Validity',
+    'Leaving Certificate',
+    'Bonafide',
+    'Passport Photo',
+    'Other'
+}
+MAX_DOC_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _validate_document_file(file_obj):
+    """
+    Validates an uploaded document file object.
+    Checks presence, extension, MIME type, file size, and magic byte headers.
+    Returns (is_valid, error_message).
+    """
+    if not file_obj or not file_obj.filename:
+        return False, "No file selected for upload."
+
+    filename = file_obj.filename.strip()
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_DOC_EXTENSIONS:
+        return False, f"Invalid file extension '{ext}'. Allowed extensions: PDF, JPG, JPEG, PNG."
+
+    content_type = (file_obj.content_type or "").lower()
+    if content_type not in ALLOWED_DOC_MIMES:
+        return False, f"Invalid file content type '{file_obj.content_type}'. Allowed types: PDF, JPEG, PNG."
+
+    # Check file size
+    file_obj.seek(0, os.SEEK_END)
+    size = file_obj.tell()
+    file_obj.seek(0)
+
+    if size == 0:
+        return False, "Uploaded file is empty."
+    if size > MAX_DOC_FILE_SIZE:
+        return False, f"File size ({round(size / (1024*1024), 2)} MB) exceeds maximum limit of 5 MB."
+
+    # Magic byte inspection
+    header = file_obj.read(16)
+    file_obj.seek(0)
+
+    is_pdf = header.startswith(b"%PDF-")
+    is_jpeg = header.startswith(b"\xff\xd8\xff")
+    is_png = header.startswith(b"\x89PNG")
+
+    if not (is_pdf or is_jpeg or is_png):
+        return False, "File content header does not match a valid PDF, JPEG, or PNG format."
+
+    return True, None
+
+
+def _get_safe_document_path(stored_filename):
+    """
+    Resolves stored_filename inside DOCUMENT_UPLOAD_DIR with path traversal protection.
+    Returns absolute path string if safe, or None if invalid/unsafe.
+    """
+    if not stored_filename or "/" in stored_filename or "\\" in stored_filename or ".." in stored_filename:
+        return None
+    safe_basename = os.path.basename(stored_filename)
+    full_path = os.path.abspath(os.path.join(DOCUMENT_UPLOAD_DIR, safe_basename))
+    if os.path.commonpath([DOCUMENT_UPLOAD_DIR, full_path]) != DOCUMENT_UPLOAD_DIR:
+        return None
+    return full_path
+
 
 
 # ---------------------------------------------------------------------------
@@ -775,6 +862,15 @@ def student_details(record_id):
     except Exception as e:
         app.logger.warning("DB error fetching audit log for student %s: %s", record_id, e)
 
+    # Student Documents section data
+    document_records = []
+    document_stats = {"total": 0, "verified": 0, "pending": 0, "rejected": 0}
+    try:
+        document_records = database.get_student_documents(record_id)
+        document_stats = database.get_document_stats_for_student(record_id)
+    except Exception as e:
+        app.logger.warning("DB error fetching documents for student %s: %s", record_id, e)
+
     return render_template(
         "student_details.html",
         student=student,
@@ -796,7 +892,10 @@ def student_details(record_id):
         latest_result_summary=latest_result_summary,
         transcript=transcript,
         activity_logs=activity_logs,
+        document_records=document_records,
+        document_stats=document_stats,
     )
+
 
 
 @app.route("/students/<int:record_id>/edit", methods=["GET", "POST"])
@@ -2381,8 +2480,172 @@ def download_marksheet_pdf_route(exam_id, student_id):
 
 
 # ---------------------------------------------------------------------------
+# Student Document Management Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/student/<student_id>/documents/upload", methods=["POST"])
+@role_required("admin")
+def upload_student_document(student_id):
+    student_pk = database._resolve_student_pk(student_id)
+    student = database.get_student_by_id(student_pk)
+    if not student:
+        flash("Student not found.", "error")
+        return redirect(url_for("students"))
+
+    doc_type = request.form.get("doc_type", "").strip()
+    custom_doc_name = request.form.get("custom_doc_name", "").strip()
+    file_obj = request.files.get("document_file")
+
+    if doc_type not in ALLOWED_DOC_TYPES:
+        flash("Invalid document type selected.", "error")
+        return redirect(url_for("student_details", record_id=student_pk))
+
+    if doc_type == "Other" and not custom_doc_name:
+        flash("Document title is required when selecting 'Other'.", "error")
+        return redirect(url_for("student_details", record_id=student_pk))
+
+    is_valid, err_msg = _validate_document_file(file_obj)
+    if not is_valid:
+        flash(err_msg, "error")
+        return redirect(url_for("student_details", record_id=student_pk))
+
+    original_filename = os.path.basename(file_obj.filename.strip())
+    ext = os.path.splitext(original_filename)[1].lower()
+    stored_filename = f"doc_{uuid.uuid4().hex}{ext}"
+
+    full_path = _get_safe_document_path(stored_filename)
+    if not full_path:
+        flash("Failed to generate safe storage path.", "error")
+        return redirect(url_for("student_details", record_id=student_pk))
+
+    file_obj.seek(0, os.SEEK_END)
+    file_size = file_obj.tell()
+    file_obj.seek(0)
+
+    try:
+        file_obj.save(full_path)
+        database.insert_student_document(
+            stud_id=student_pk,
+            doc_type=doc_type,
+            custom_doc_name=custom_doc_name if doc_type == "Other" else None,
+            original_filename=original_filename,
+            stored_filename=stored_filename,
+            mime_type=file_obj.content_type,
+            file_size_bytes=file_size,
+            uploaded_by=session["user_id"]
+        )
+        flash("Document uploaded successfully.", "success")
+    except Exception as e:
+        app.logger.error("Error uploading document for student %s: %s", student_pk, e)
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+            except Exception:
+                pass
+        flash("An error occurred while saving the document.", "error")
+
+    return redirect(url_for("student_details", record_id=student_pk))
+
+
+@app.route("/student/<student_id>/documents/<int:doc_id>/preview")
+@role_required("admin", "teacher", "student")
+def preview_student_document(student_id, doc_id):
+    student_pk = database._resolve_student_pk(student_id)
+    _assert_own_record(student_pk)
+
+    doc = database.get_document_by_id(doc_id)
+    if not doc or str(doc["stud_id"]) != str(student_pk):
+        abort(403)
+
+    full_path = _get_safe_document_path(doc["stored_filename"])
+    if not full_path or not os.path.exists(full_path):
+        abort(404)
+
+    return send_file(
+        full_path,
+        mimetype=doc["mime_type"],
+        as_attachment=False,
+        download_name=doc["original_filename"]
+    )
+
+
+@app.route("/student/<student_id>/documents/<int:doc_id>/download")
+@role_required("admin", "teacher", "student")
+def download_student_document(student_id, doc_id):
+    student_pk = database._resolve_student_pk(student_id)
+    _assert_own_record(student_pk)
+
+    doc = database.get_document_by_id(doc_id)
+    if not doc or str(doc["stud_id"]) != str(student_pk):
+        abort(403)
+
+    full_path = _get_safe_document_path(doc["stored_filename"])
+    if not full_path or not os.path.exists(full_path):
+        abort(404)
+
+    return send_file(
+        full_path,
+        mimetype=doc["mime_type"],
+        as_attachment=True,
+        download_name=doc["original_filename"]
+    )
+
+
+@app.route("/student/<student_id>/documents/<int:doc_id>/verify", methods=["POST"])
+@role_required("admin")
+def verify_student_document(student_id, doc_id):
+    student_pk = database._resolve_student_pk(student_id)
+    doc = database.get_document_by_id(doc_id)
+    if not doc or str(doc["stud_id"]) != str(student_pk):
+        abort(403)
+
+    database.update_document_status(doc_id, "Verified", session["user_id"])
+    flash("Document status updated to Verified.", "success")
+    return redirect(url_for("student_details", record_id=student_pk))
+
+
+@app.route("/student/<student_id>/documents/<int:doc_id>/reject", methods=["POST"])
+@role_required("admin")
+def reject_student_document(student_id, doc_id):
+    student_pk = database._resolve_student_pk(student_id)
+    doc = database.get_document_by_id(doc_id)
+    if not doc or str(doc["stud_id"]) != str(student_pk):
+        abort(403)
+
+    rejection_reason = request.form.get("rejection_reason", "").strip()
+    if not rejection_reason:
+        flash("Rejection reason is required when rejecting a document.", "error")
+        return redirect(url_for("student_details", record_id=student_pk))
+
+    database.update_document_status(doc_id, "Rejected", session["user_id"], rejection_reason=rejection_reason)
+    flash("Document status updated to Rejected.", "info")
+    return redirect(url_for("student_details", record_id=student_pk))
+
+
+@app.route("/student/<student_id>/documents/<int:doc_id>/delete", methods=["POST"])
+@role_required("admin")
+def delete_student_document(student_id, doc_id):
+    student_pk = database._resolve_student_pk(student_id)
+    doc = database.get_document_by_id(doc_id)
+    if not doc or str(doc["stud_id"]) != str(student_pk):
+        abort(403)
+
+    full_path = _get_safe_document_path(doc["stored_filename"])
+    if full_path and os.path.exists(full_path):
+        try:
+            os.remove(full_path)
+        except Exception as e:
+            app.logger.warning("Could not delete file %s from disk: %s", full_path, e)
+
+    database.delete_student_document(doc_id)
+    flash("Document deleted successfully.", "success")
+    return redirect(url_for("student_details", record_id=student_pk))
+
+
+# ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
+
 
 @app.errorhandler(403)
 def forbidden(e):

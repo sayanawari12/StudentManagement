@@ -417,10 +417,145 @@
         </div>
       {% endif %}
 
+      {# Student Document Management #}
+      <div class="card" id="student-documents-section">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+            Student Documents
+          </h3>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px;">
+            <span class="badge" style="background: var(--bg-page); border: 1px solid var(--border);">Total: {{ document_stats.total if document_stats else 0 }}</span>
+            <span class="badge badge-verified">Verified: {{ document_stats.verified if document_stats else 0 }}</span>
+            <span class="badge badge-pending">Pending: {{ document_stats.pending if document_stats else 0 }}</span>
+            <span class="badge badge-rejected">Rejected: {{ document_stats.rejected if document_stats else 0 }}</span>
+          </div>
+        </div>
+
+        {% if session.get('role') == 'admin' %}
+          <details style="margin-bottom: 20px; border: 1px solid var(--border); padding: 12px; background: var(--bg-page);">
+            <summary style="font-weight: 600; cursor: pointer; color: var(--accent); font-size: 14px;">
+              + Upload New Document
+            </summary>
+            <form method="POST" action="{{ url_for('upload_student_document', student_id=student.student_id or student.id) }}" enctype="multipart/form-data" style="margin-top: 14px; display: flex; flex-direction: column; gap: 12px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="doc_type" style="font-size: 13px; font-weight: 500;">Document Type *</label>
+                <select name="doc_type" id="doc_type" class="form-control" required onchange="document.getElementById('custom_doc_name_wrap').style.display = (this.value === 'Other') ? 'block' : 'none';">
+                  <option value="Aadhaar Card">Aadhaar Card</option>
+                  <option value="Marksheet">Marksheet</option>
+                  <option value="Caste Certificate">Caste Certificate</option>
+                  <option value="Caste Validity">Caste Validity</option>
+                  <option value="Leaving Certificate">Leaving Certificate</option>
+                  <option value="Bonafide">Bonafide</option>
+                  <option value="Passport Photo">Passport Photo</option>
+                  <option value="Other">Other (Custom Document Title)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="custom_doc_name_wrap" style="display: none; margin-bottom: 0;">
+                <label for="custom_doc_name" style="font-size: 13px; font-weight: 500;">Custom Document Title *</label>
+                <input type="text" name="custom_doc_name" id="custom_doc_name" class="form-control" placeholder="e.g. Income Certificate, Migration Certificate">
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="document_file" style="font-size: 13px; font-weight: 500;">Select Document File * (Max 5 MB — PDF, JPG, PNG)</label>
+                <input type="file" name="document_file" id="document_file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+              </div>
+
+              <div>
+                <button type="submit" class="btn btn-primary btn-sm">Upload Document</button>
+              </div>
+            </form>
+          </details>
+        {% endif %}
+
+        {% if document_records %}
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            {% for doc in document_records %}
+              <div class="doc-item-card">
+                <div class="doc-item-main">
+                  <div class="doc-item-title">
+                    <span>
+                      {% if doc.doc_type == 'Other' and doc.custom_doc_name %}
+                        {{ doc.custom_doc_name }} (Other)
+                      {% else %}
+                        {{ doc.doc_type }}
+                      {% endif %}
+                    </span>
+
+                    {% if doc.status == 'Verified' %}
+                      <span class="badge badge-verified">✓ Verified</span>
+                    {% elif doc.status == 'Pending' %}
+                      <span class="badge badge-pending">⏳ Pending</span>
+                    {% elif doc.status == 'Rejected' %}
+                      <span class="badge badge-rejected">✖ Rejected</span>
+                    {% endif %}
+                  </div>
+
+                  <div class="doc-item-meta">
+                    <div>File: <strong>{{ doc.original_filename }}</strong> ({{ (doc.file_size_bytes / 1024)|round(1) }} KB)</div>
+                    <div>Uploaded by {{ doc.uploader_username or 'System' }} on {{ doc.created_at }}</div>
+                    {% if doc.status == 'Verified' and doc.verifier_username %}
+                      <div style="color: var(--success);">Verified by {{ doc.verifier_username }} on {{ doc.verified_at or 'recent' }}</div>
+                    {% endif %}
+                    {% if doc.status == 'Rejected' %}
+                      <div style="color: var(--danger); margin-top: 4px; font-weight: 500;">
+                        Rejection Reason: {{ doc.rejection_reason or 'No reason specified' }}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="doc-item-actions">
+                  <a href="{{ url_for('preview_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}" target="_blank" class="btn btn-outline btn-sm">Preview</a>
+                  <a href="{{ url_for('download_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}" class="btn btn-outline btn-sm">Download</a>
+
+                  {% if session.get('role') == 'admin' %}
+                    {% if doc.status != 'Verified' %}
+                      <form method="POST" action="{{ url_for('verify_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success btn-sm">Verify</button>
+                      </form>
+                    {% endif %}
+
+                    {% if doc.status != 'Rejected' %}
+                      <details style="display:inline-block; position: relative;">
+                        <summary class="btn btn-outline btn-sm" style="color: var(--warning); cursor: pointer;">Reject</summary>
+                        <div style="position: absolute; right: 0; top: 100%; z-index: 10; background: var(--bg-surface); border: 1px solid var(--border); padding: 12px; min-width: 260px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 4px;">
+                          <form method="POST" action="{{ url_for('reject_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="form-group" style="margin-bottom: 8px;">
+                              <label style="font-size: 12px; font-weight: 600;">Rejection Reason *</label>
+                              <textarea name="rejection_reason" class="form-control" rows="2" placeholder="e.g. Image blurry, incomplete document" required style="font-size: 12px;"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-danger btn-sm" style="width: 100%;">Confirm Rejection</button>
+                          </form>
+                        </div>
+                      </details>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('delete_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}" class="js-confirm-delete" data-student-name="{{ doc.original_filename }}" style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state" style="padding: 20px 16px;">
+            <strong>No documents uploaded</strong><br>
+            Official verification documents uploaded for this student will appear here.
+          </div>
+        {% endif %}
+      </div>
+
       {# Documents & Certificates #}
       <div class="card">
         <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
-          Documents & Certificates
+          Certificates & Identification
         </h3>
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -449,6 +584,7 @@
           </div>
         </div>
       </div>
+
 
       {# Recent Activity #}
       {% if activity_logs %}
