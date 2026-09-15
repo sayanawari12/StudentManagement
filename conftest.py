@@ -94,6 +94,10 @@ def db():
     cursor.close()
     conn.close()
 
+    # Ensure dynamic tables (exams, exam_marks, student_documents) exist in test DB
+    database.ensure_exam_tables_exist()
+    database.ensure_document_table_exists()
+
     # ----------------------------------------------------------------
     # Seed known users
     # admin   → id=1, no linked_student_id
@@ -184,6 +188,15 @@ def client(app):
 
 def _make_authed_client(app, username, password):
     """Log in via /login and return the authenticated test client."""
+    try:
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass
     c = app.test_client()
     resp = c.post(
         "/login",

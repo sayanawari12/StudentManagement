@@ -1318,15 +1318,21 @@ def attendance():
             flash("Could not identify current user. Please log in again.", "error")
             return redirect(url_for("attendance", date=post_date))
 
+        records_to_save = []
         for s in students_list:
             status = request.form.get(f"status_{s['id']}", "")
             if status in ("Present", "Absent"):
-                try:
-                    database.upsert_attendance(s["id"], post_date, status, marked_by)
-                except Error as e:
-                    app.logger.warning("DB error saving attendance for student %s on %s: %s", s['id'], post_date, e)
-                    flash("A database error occurred while saving attendance. Please try again.", "error")
-                    return redirect(url_for("attendance", date=post_date))
+                records_to_save.append((s["id"], post_date, status, marked_by))
+
+        if records_to_save:
+            try:
+                database.upsert_attendance_bulk(records_to_save)
+                flash("Attendance saved.", "success")
+                return redirect(url_for("attendance", date=post_date))
+            except Error as e:
+                app.logger.warning("DB error saving attendance on %s: %s", post_date, e)
+                flash("A database error occurred while saving attendance. Please try again.", "error")
+                return redirect(url_for("attendance", date=post_date))
 
         flash("Attendance saved.", "success")
         return redirect(url_for("attendance", date=post_date))
@@ -2426,6 +2432,7 @@ def enter_exam_marks_route(exam_id):
             flash("Could not identify current user. Please log in again.", "error")
             return redirect(url_for("list_exams_route"))
 
+        marks_to_save = []
         for student in students:
             roll_no = student["student_id"]   # varchar roll number (used in field names)
             stud_pk = student["id"]           # integer PK (used for DB saves)
@@ -2443,21 +2450,29 @@ def enter_exam_marks_route(exam_id):
                         flash(f"Student {roll_no} - {sub['subject_name']}: {err_msg}", "error")
                         all_marks_valid = False
                     else:
-                        try:
-                            database.save_exam_marks(
-                                exam_id=exam_id,
-                                stud_id=stud_pk,
-                                subject_id=sub_id,
-                                obtained_marks=obt_f,
-                                max_marks=exam_max,
-                                recorded_by=recorded_by
-                            )
-                        except Error as e:
-                            app.logger.error("DB error saving marks: %s", e)
-                            flash(f"Database error saving marks for {roll_no}", "error")
-                            all_marks_valid = False
+                        marks_to_save.append({
+                            "exam_id": exam_id,
+                            "stud_id": stud_pk,
+                            "subject_id": sub_id,
+                            "obtained_marks": obt_f,
+                            "max_marks": exam_max,
+                            "recorded_by": recorded_by
+                        })
 
-        if all_marks_valid:
+        if not all_marks_valid:
+            existing_marks = database.get_all_marks_for_exam(exam_id)
+            marks_map = {(m["stud_id"], m["subject_id"]): m for m in existing_marks}
+            return render_template("exam_marks_entry.html", exam=exam, subjects=subjects, students=students, marks_map=marks_map)
+
+        if marks_to_save:
+            try:
+                database.save_exam_marks_bulk(marks_to_save)
+                flash("Exam marks saved successfully.", "success")
+                return redirect(url_for("list_exams_route"))
+            except Error as e:
+                app.logger.error("DB error saving marks: %s", e)
+                flash("A database error occurred while saving exam marks. Please try again.", "error")
+        else:
             flash("Exam marks saved successfully.", "success")
             return redirect(url_for("list_exams_route"))
 

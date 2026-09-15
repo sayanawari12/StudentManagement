@@ -440,6 +440,9 @@ def insert_student(data):
              data["semester"], data["address"])
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -460,6 +463,9 @@ def update_student(record_id, data):
              data["semester"], data["address"], record_id)
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -471,6 +477,9 @@ def delete_student(record_id):
     try:
         cursor.execute("DELETE FROM students WHERE id = %s", (record_id,))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -524,6 +533,37 @@ def upsert_attendance(stud_id, date, status, marked_by):
             (stud_id, date, status, marked_by)
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def upsert_attendance_bulk(records_list):
+    """Insert or update multiple attendance records in a single atomic transaction.
+
+    records_list is a list of tuples: (stud_id, date, status, marked_by)
+    """
+    if not records_list:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            INSERT INTO attendance (stud_id, date, status, marked_by)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE status = VALUES(status),
+                                    marked_by = VALUES(marked_by)
+        """
+        for item in records_list:
+            cursor.execute(query, item)
+        conn.commit()
+        return len(records_list)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -1615,6 +1655,58 @@ def save_exam_marks(exam_id, stud_id, subject_id, obtained_marks, max_marks, rec
         )
         conn.commit()
         return cursor.lastrowid or cursor.rowcount
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def save_exam_marks_bulk(marks_list):
+    """Save multiple exam marks atomically in a single transaction.
+
+    marks_list is a list of dicts or tuples:
+        (exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by)
+    """
+    if not marks_list:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            INSERT INTO exam_marks (exam_id, stud_id, subject_id, obtained_marks, max_marks, recorded_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                obtained_marks = VALUES(obtained_marks),
+                max_marks = VALUES(max_marks),
+                recorded_by = VALUES(recorded_by)
+        """
+        for item in marks_list:
+            if isinstance(item, dict):
+                raw_stud = item["stud_id"]
+                if isinstance(raw_stud, int) or (isinstance(raw_stud, str) and raw_stud.isdigit()):
+                    pk_id = int(raw_stud)
+                else:
+                    cursor.execute("SELECT id FROM students WHERE student_id = %s OR id = %s LIMIT 1", (raw_stud, raw_stud))
+                    row = cursor.fetchone()
+                    pk_id = row[0] if row else raw_stud
+                params = (item["exam_id"], pk_id, item["subject_id"], item["obtained_marks"], item["max_marks"], item["recorded_by"])
+            else:
+                raw_stud = item[1]
+                if isinstance(raw_stud, int) or (isinstance(raw_stud, str) and raw_stud.isdigit()):
+                    pk_id = int(raw_stud)
+                else:
+                    cursor.execute("SELECT id FROM students WHERE student_id = %s OR id = %s LIMIT 1", (raw_stud, raw_stud))
+                    row = cursor.fetchone()
+                    pk_id = row[0] if row else raw_stud
+                params = (item[0], pk_id, item[2], item[3], item[4], item[5])
+            cursor.execute(query, params)
+        conn.commit()
+        return len(marks_list)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
