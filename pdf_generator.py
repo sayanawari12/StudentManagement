@@ -12,6 +12,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 
+from xml.sax.saxutils import escape as xml_escape
+
+
 TERRACOTTA = colors.HexColor("#A9714F")
 DARK_TEXT  = colors.HexColor("#111111")
 MUTED_TEXT = colors.HexColor("#555555")
@@ -19,6 +22,19 @@ BG_LIGHT   = colors.HexColor("#F8F7F4")
 BORDER_CLR = colors.HexColor("#DDDDDD")
 
 _FONT_REGISTERED = False
+
+
+def _escape_pdf_text(value):
+    """
+    Safely converts dynamic input value to a string and XML-escapes ReportLab-sensitive characters.
+    Returns empty string if value is None.
+    """
+    if value is None:
+        return ""
+    val_str = str(value)
+    if not val_str:
+        return ""
+    return xml_escape(val_str)
 
 
 def _register_cursive_font():
@@ -200,16 +216,16 @@ def generate_bonafide_pdf(institution_name, student,
     story = []
 
     # 1. College Header — driven by institution_name parameter
-    header_text = institution_name.upper() if institution_name else "YOUR COLLEGE NAME HERE"
+    header_text = _escape_pdf_text(str(institution_name).upper()) if institution_name else "YOUR COLLEGE NAME HERE"
     story.append(Paragraph(header_text, college_name_style))
 
     # 1a. Optional location sub-line
     if institution_location:
-        story.append(Paragraph(institution_location, college_location_style))
+        story.append(Paragraph(_escape_pdf_text(institution_location), college_location_style))
 
     # 1b. Optional affiliation sub-line
     if institution_affiliation:
-        story.append(Paragraph(institution_affiliation, college_affiliation_style))
+        story.append(Paragraph(_escape_pdf_text(institution_affiliation), college_affiliation_style))
 
     # Divider line 1
     story.append(HRFlowable(width="100%", thickness=1, color=DARK_TEXT, spaceBefore=8, spaceAfter=14))
@@ -223,8 +239,8 @@ def generate_bonafide_pdf(institution_name, student,
     # 3. Certificate Number & Date Line
     meta_table = Table([
         [
-            Paragraph(f"Certificate No.: <b>{cert_no}</b>", meta_left_style),
-            Paragraph(f"Date: <b>{issue_date}</b>", meta_right_style)
+            Paragraph(f"Certificate No.: <b>{_escape_pdf_text(cert_no)}</b>", meta_left_style),
+            Paragraph(f"Date: <b>{_escape_pdf_text(issue_date)}</b>", meta_right_style)
         ]
     ], colWidths=[240, 247.27])
     meta_table.setStyle(TableStyle([
@@ -238,17 +254,17 @@ def generate_bonafide_pdf(institution_name, student,
     story.append(Spacer(1, 18))
 
     # 4. Certificate Body Paragraphs
-    salut_prefix = f"{salutation} " if salutation else ""
+    salut_prefix = f"{_escape_pdf_text(salutation)} " if salutation else ""
     p1 = (
         f"This is to certify that {salut_prefix}"
-        f"<font fontName=\"{cursive_font}\" size=\"20\"><b>{student_name}</b></font>, "
-        f"Roll No. <b>{student_id}</b>, is a bonafide student of <b>{course}</b> in our institution."
+        f"<font fontName=\"{cursive_font}\" size=\"20\"><b>{_escape_pdf_text(student_name)}</b></font>, "
+        f"Roll No. <b>{_escape_pdf_text(student_id)}</b>, is a bonafide student of <b>{_escape_pdf_text(course)}</b> in our institution."
     )
     story.append(Paragraph(p1, body_style))
 
     p2 = (
-        f"{pronoun_subj} is currently studying in <b>Semester {semester}</b> during the "
-        f"Academic Year <b>{academic_year}</b>, as per the official records of the institution."
+        f"{_escape_pdf_text(pronoun_subj)} is currently studying in <b>Semester {_escape_pdf_text(semester)}</b> during the "
+        f"Academic Year <b>{_escape_pdf_text(academic_year)}</b>, as per the official records of the institution."
     )
     story.append(Paragraph(p2, body_style))
 
@@ -662,9 +678,10 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
     story = []
 
     # Header
-    story.append(Paragraph(institution_name.upper(), header_style))
+    inst_header = _escape_pdf_text(str(institution_name).upper()) if institution_name else "SUSHGANGA INSTITUTE, WANI"
+    story.append(Paragraph(inst_header, header_style))
     story.append(Paragraph("Dashboard Overview Report", title_style))
-    story.append(Paragraph(f"Generated on {today_date_str}", meta_style))
+    story.append(Paragraph(f"Generated on {_escape_pdf_text(today_date_str)}", meta_style))
     story.append(HRFlowable(width="100%", thickness=1, color=TERRACOTTA, spaceAfter=16, spaceBefore=0))
 
     # Summary Stats Cards (2x2 grid table)
@@ -673,29 +690,31 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
     att_today    = stats.get("attendance_today", 0)
     tot_dues     = stats.get("total_dues", 0)
 
+    dues_str = f"Rs. {tot_dues:,.2f}" if isinstance(tot_dues, (int, float)) or hasattr(tot_dues, 'as_tuple') else f"Rs. {tot_dues}"
+
     card_data = [
         [
             [
                 Paragraph("NO. 01 — TOTAL STUDENTS", card_label_style),
                 Spacer(1, 4),
-                Paragraph(str(tot_students), card_val_style)
+                Paragraph(_escape_pdf_text(str(tot_students)), card_val_style)
             ],
             [
                 Paragraph("NO. 02 — BCA ENROLLED", card_label_style),
                 Spacer(1, 4),
-                Paragraph(str(tot_bca), card_val_style)
+                Paragraph(_escape_pdf_text(str(tot_bca)), card_val_style)
             ]
         ],
         [
             [
                 Paragraph("NO. 03 — ATTENDANCE TODAY", card_label_style),
                 Spacer(1, 4),
-                Paragraph(str(att_today), card_val_style)
+                Paragraph(_escape_pdf_text(str(att_today)), card_val_style)
             ],
             [
                 Paragraph("NO. 04 — TOTAL DUES OUTSTANDING", card_label_style),
                 Spacer(1, 4),
-                Paragraph(f"Rs. {tot_dues:,.2f}" if isinstance(tot_dues, (int, float)) or hasattr(tot_dues, 'as_tuple') else f"Rs. {tot_dues}", card_val_style)
+                Paragraph(_escape_pdf_text(dues_str), card_val_style)
             ]
         ]
     ]
@@ -727,8 +746,8 @@ def generate_dashboard_pdf(institution_name, stats, today_date_str):
             sem_num = row.get("semester", "-")
             count   = row.get("total", 0)
             table_rows.append([
-                Paragraph(f"Semester {sem_num}", cell_style),
-                Paragraph(str(count), cell_style)
+                Paragraph(f"Semester {_escape_pdf_text(sem_num)}", cell_style),
+                Paragraph(_escape_pdf_text(str(count)), cell_style)
             ])
     else:
         table_rows.append([Paragraph("No student data available", cell_style), Paragraph("0", cell_style)])
@@ -867,14 +886,14 @@ def generate_marksheet_pdf(*args, **kwargs):
     story = []
 
     # 1. Institution Header
-    inst_title = (institution_name or "SUSHGANGA INSTITUTE, WANI").upper()
+    inst_title = _escape_pdf_text(str(institution_name).upper()) if institution_name else "SUSHGANGA INSTITUTE, WANI"
     story.append(Paragraph(inst_title, title_style))
 
     sub_lines = []
     if institution_location:
-        sub_lines.append(institution_location)
+        sub_lines.append(_escape_pdf_text(institution_location))
     if institution_affiliation:
-        sub_lines.append(institution_affiliation)
+        sub_lines.append(_escape_pdf_text(institution_affiliation))
     if sub_lines:
         story.append(Paragraph(" &bull; ".join(sub_lines), subtitle_style))
 
@@ -882,7 +901,8 @@ def generate_marksheet_pdf(*args, **kwargs):
     story.append(HRFlowable(width="100%", thickness=1.5, color=TERRACOTTA, spaceBefore=0, spaceAfter=12))
 
     # 2. Document Title
-    exam_title = f"OFFICIAL MARKSHEET — {exam.get('exam_name', 'EXAMINATION')}"
+    exam_name_esc = _escape_pdf_text(str(exam.get('exam_name', 'EXAMINATION')).upper())
+    exam_title = f"OFFICIAL MARKSHEET — {exam_name_esc}"
     story.append(Paragraph(exam_title, doc_title_style))
 
     # 3. Student Details Block
@@ -891,12 +911,12 @@ def generate_marksheet_pdf(*args, **kwargs):
     acad_year = exam.get("academic_year") or f"{curr_year}\u2013{next_year_short}"
 
     details_data = [
-        [Paragraph("Student Name:", label_style), Paragraph(str(student.get("student_name", "")), val_style),
-         Paragraph("Student ID / Roll:", label_style), Paragraph(str(student.get("student_id", "")), val_style)],
-        [Paragraph("Course:", label_style), Paragraph(str(student.get("course", "")), val_style),
-         Paragraph("Semester:", label_style), Paragraph(f"Semester {student.get('semester', '')}", val_style)],
-        [Paragraph("Exam Type:", label_style), Paragraph(str(exam.get("exam_type", "")), val_style),
-         Paragraph("Academic Year:", label_style), Paragraph(str(acad_year), val_style)],
+        [Paragraph("Student Name:", label_style), Paragraph(_escape_pdf_text(student.get("student_name", "")), val_style),
+         Paragraph("Student ID / Roll:", label_style), Paragraph(_escape_pdf_text(student.get("student_id", "")), val_style)],
+        [Paragraph("Course:", label_style), Paragraph(_escape_pdf_text(student.get("course", "")), val_style),
+         Paragraph("Semester:", label_style), Paragraph(f"Semester {_escape_pdf_text(student.get('semester', ''))}", val_style)],
+        [Paragraph("Exam Type:", label_style), Paragraph(_escape_pdf_text(exam.get("exam_type", "")), val_style),
+         Paragraph("Academic Year:", label_style), Paragraph(_escape_pdf_text(acad_year), val_style)],
     ]
 
     details_table = Table(details_data, colWidths=[90, 170, 100, 160])
@@ -925,14 +945,15 @@ def generate_marksheet_pdf(*args, **kwargs):
 
     for item in result_summary.get("subject_results", []):
         status_clr = "#3A7D44" if item["status"] == "PASS" else "#9C3B2E"
-        status_p = Paragraph(f"<font color='{status_clr}'><b>{item['status']}</b></font>", cell_body_style)
+        status_str = _escape_pdf_text(item["status"])
+        status_p = Paragraph(f"<font color='{status_clr}'><b>{status_str}</b></font>", cell_body_style)
         table_data.append([
-            Paragraph(item.get("subject_code", "-"), cell_body_style),
-            Paragraph(item.get("subject_name", ""), cell_body_style),
+            Paragraph(_escape_pdf_text(item.get("subject_code", "-")), cell_body_style),
+            Paragraph(_escape_pdf_text(item.get("subject_name", "")), cell_body_style),
             Paragraph(f"{item['max_marks']:.2f}", cell_body_style),
             Paragraph(f"{item['obtained_marks']:.2f}", cell_body_style),
             Paragraph(f"{item['percentage']:.1f}%", cell_body_style),
-            Paragraph(item['grade'], cell_body_style),
+            Paragraph(_escape_pdf_text(item['grade']), cell_body_style),
             status_p,
         ])
 
@@ -952,7 +973,7 @@ def generate_marksheet_pdf(*args, **kwargs):
     # 5. Overall Summary Table
     overall_status = result_summary.get("overall_status", "FAIL")
     overall_clr = "#3A7D44" if overall_status == "PASS" else "#9C3B2E"
-    overall_p = Paragraph(f"<font color='{overall_clr}'><b>{overall_status}</b></font>", cell_head_style)
+    overall_p = Paragraph(f"<font color='{overall_clr}'><b>{_escape_pdf_text(overall_status)}</b></font>", cell_head_style)
 
     summary_data = [
         [
@@ -963,7 +984,7 @@ def generate_marksheet_pdf(*args, **kwargs):
         ],
         [
             Paragraph("Overall Grade", label_style),
-            Paragraph(f"<b>{result_summary.get('overall_grade', 'F')}</b>", val_style),
+            Paragraph(f"<b>{_escape_pdf_text(result_summary.get('overall_grade', 'F'))}</b>", val_style),
             Paragraph("Result Status", label_style),
             overall_p,
         ]
@@ -1117,12 +1138,12 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
     story = []
 
     # 1. Institution Header
-    inst_title = str(institution_name).upper()
+    inst_title = _escape_pdf_text(str(institution_name).upper())
     story.append(Paragraph(inst_title, title_style))
 
     sub_lines = []
-    if institution_location: sub_lines.append(institution_location)
-    if institution_affiliation: sub_lines.append(institution_affiliation)
+    if institution_location: sub_lines.append(_escape_pdf_text(institution_location))
+    if institution_affiliation: sub_lines.append(_escape_pdf_text(institution_affiliation))
     if sub_lines:
         story.append(Paragraph(" &bull; ".join(sub_lines), subtitle_style))
 
@@ -1138,12 +1159,12 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
     acad_year = student.get("academic_year") or f"{curr_year}\u2013{next_year_short}"
 
     details_data = [
-        [Paragraph("Student Name:", label_style), Paragraph(str(student.get("student_name", "")), val_style),
-         Paragraph("Student ID / Roll:", label_style), Paragraph(str(student.get("student_id", "")), val_style)],
-        [Paragraph("Course:", label_style), Paragraph(str(student.get("course", "")), val_style),
-         Paragraph("Current Semester:", label_style), Paragraph(f"Semester {student.get('semester', '')}", val_style)],
-        [Paragraph("Academic Year:", label_style), Paragraph(str(acad_year), val_style),
-         Paragraph("Date of Issue:", label_style), Paragraph(datetime.now().strftime("%d %B %Y"), val_style)],
+        [Paragraph("Student Name:", label_style), Paragraph(_escape_pdf_text(student.get("student_name", "")), val_style),
+         Paragraph("Student ID / Roll:", label_style), Paragraph(_escape_pdf_text(student.get("student_id", "")), val_style)],
+        [Paragraph("Course:", label_style), Paragraph(_escape_pdf_text(student.get("course", "")), val_style),
+         Paragraph("Current Semester:", label_style), Paragraph(f"Semester {_escape_pdf_text(student.get('semester', ''))}", val_style)],
+        [Paragraph("Academic Year:", label_style), Paragraph(_escape_pdf_text(acad_year), val_style),
+         Paragraph("Date of Issue:", label_style), Paragraph(_escape_pdf_text(datetime.now().strftime("%d %B %Y")), val_style)],
     ]
     details_table = Table(details_data, colWidths=[90, 170, 90, 170])
     details_table.setStyle(TableStyle([
@@ -1165,7 +1186,7 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
         story.append(Paragraph("CUMULATIVE ACADEMIC SUMMARY", section_head_style))
         ov_status = overall.get("overall_result", "N/A")
         ov_clr = "#3A7D44" if ov_status == "PASS" else ("#9C3B2E" if ov_status == "FAIL" else "#111111")
-        ov_status_p = Paragraph(f"<font color='{ov_clr}'><b>{ov_status}</b></font>", val_style)
+        ov_status_p = Paragraph(f"<font color='{ov_clr}'><b>{_escape_pdf_text(ov_status)}</b></font>", val_style)
 
         summary_data = [
             [
@@ -1178,7 +1199,7 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
             ],
             [
                 Paragraph("Overall Percentage", label_style), Paragraph(f"<b>{overall.get('overall_percentage', 0):.2f}%</b>", val_style),
-                Paragraph("Overall Grade", label_style), Paragraph(f"<b>{overall.get('overall_grade', 'N/A')}</b>", val_style),
+                Paragraph("Overall Grade", label_style), Paragraph(f"<b>{_escape_pdf_text(overall.get('overall_grade', 'N/A'))}</b>", val_style),
             ],
             [
                 Paragraph("Cumulative Status", label_style), ov_status_p,
@@ -1203,17 +1224,18 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
         # 5. Semester-wise & Exam-wise Breakdown
         for sem_key in ordered_semesters:
             sem_data = semesters.get(sem_key, {})
-            story.append(Paragraph(f"SEMESTER {sem_key}", section_head_style))
+            story.append(Paragraph(f"SEMESTER {_escape_pdf_text(sem_key)}", section_head_style))
 
             exams_list = sem_data.get("exams", [])
             for ex_item in exams_list:
                 ex = ex_item.get("exam", {})
                 ex_summary = ex_item.get("summary", {})
-                ex_name = ex.get("exam_name", "Examination")
-                ex_year = ex.get("academic_year", "")
+                ex_name = _escape_pdf_text(ex.get("exam_name", "Examination"))
+                ex_year = _escape_pdf_text(ex.get("academic_year", ""))
                 ex_date = ex.get("created_at", "")
                 if hasattr(ex_date, "strftime"):
                     ex_date = ex_date.strftime("%Y-%m-%d")
+                ex_date = _escape_pdf_text(ex_date)
 
                 sub_info = f"Exam: <b>{ex_name}</b>"
                 if ex_year: sub_info += f" &bull; Academic Year: {ex_year}"
@@ -1237,17 +1259,17 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
                 for sub in ex_summary.get("subject_results", []):
                     st = sub.get("status", "FAIL")
                     st_clr = "#3A7D44" if st == "PASS" else "#9C3B2E"
-                    res_p = Paragraph(f"<font color='{st_clr}'><b>{st}</b></font>", tbl_body_center)
-                    code_val = sub.get("subject_code") or "--"
+                    res_p = Paragraph(f"<font color='{st_clr}'><b>{_escape_pdf_text(st)}</b></font>", tbl_body_center)
+                    code_val = _escape_pdf_text(sub.get("subject_code") or "--")
 
                     table_data.append([
-                        Paragraph(str(code_val), tbl_body_style),
-                        Paragraph(str(sub.get("subject_name", "")), tbl_body_style),
+                        Paragraph(code_val, tbl_body_style),
+                        Paragraph(_escape_pdf_text(sub.get("subject_name", "")), tbl_body_style),
                         Paragraph(f"{sub.get('max_marks', 0):.2f}", tbl_body_center),
                         Paragraph(f"{sub.get('pass_marks', 0):.2f}", tbl_body_center),
                         Paragraph(f"{sub.get('obtained_marks', 0):.2f}", tbl_body_center),
                         Paragraph(f"{sub.get('percentage', 0):.2f}%", tbl_body_center),
-                        Paragraph(str(sub.get("grade", "F")), tbl_body_center),
+                        Paragraph(_escape_pdf_text(sub.get("grade", "F")), tbl_body_center),
                         res_p,
                     ])
 
@@ -1266,8 +1288,8 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
                 ex_tot_obt = ex_summary.get("total_obtained", 0)
                 ex_tot_mx = ex_summary.get("total_max", 0)
                 ex_pct = ex_summary.get("percentage", 0)
-                ex_status = ex_summary.get("overall_status", "FAIL")
-                ex_grade = ex_summary.get("overall_grade", "F")
+                ex_status = _escape_pdf_text(ex_summary.get("overall_status", "FAIL"))
+                ex_grade = _escape_pdf_text(ex_summary.get("overall_grade", "F"))
 
                 summary_str = f"Exam Summary: Total <b>{ex_tot_obt:.2f} / {ex_tot_mx:.2f}</b> &bull; Percentage: <b>{ex_pct:.2f}%</b> &bull; Grade: <b>{ex_grade}</b> &bull; Result: <b>{ex_status}</b>"
                 story.append(Paragraph(summary_str, val_style))
@@ -1277,7 +1299,7 @@ def generate_academic_transcript_pdf(student, transcript_data, institution_name=
 
     sig_data = [
         [
-            Paragraph(f"<b>Date:</b> {datetime.now().strftime('%d %B %Y')}", val_style),
+            Paragraph(f"<b>Date:</b> {_escape_pdf_text(datetime.now().strftime('%d %B %Y'))}", val_style),
             Paragraph("<b>Controller of Examinations</b>", ParagraphStyle('RightSig', parent=val_style, alignment=TA_RIGHT)),
         ]
     ]
