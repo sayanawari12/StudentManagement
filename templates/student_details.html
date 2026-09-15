@@ -411,7 +411,7 @@
             </div>
           {% endif %}
 
-          <div style="margin-top: 10px; text-align: right;">
+          <div class="transcript-btn-wrap" style="margin-top: 10px; text-align: right;">
             <a href="{{ url_for('student_academic_record_route', student_id=student.student_id or student.id) }}" class="btn btn-outline btn-sm">View Academic Transcript &rarr;</a>
           </div>
         </div>
@@ -419,11 +419,11 @@
 
       {# Student Document Management #}
       <div class="card" id="student-documents-section">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
+        <div class="doc-header-wrap" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
             Student Documents
           </h3>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px;">
+          <div class="doc-summary-badges" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px;">
             <span class="badge" style="background: var(--bg-page); border: 1px solid var(--border);">Total: {{ document_stats.total if document_stats else 0 }}</span>
             <span class="badge badge-verified">Verified: {{ document_stats.verified if document_stats else 0 }}</span>
             <span class="badge badge-pending">Pending: {{ document_stats.pending if document_stats else 0 }}</span>
@@ -432,11 +432,11 @@
         </div>
 
         {% if session.get('role') == 'admin' %}
-          <details style="margin-bottom: 20px; border: 1px solid var(--border); padding: 12px; background: var(--bg-page);">
+          <details class="doc-upload-details" style="margin-bottom: 20px; border: 1px solid var(--border); padding: 12px; background: var(--bg-page);">
             <summary style="font-weight: 600; cursor: pointer; color: var(--accent); font-size: 14px;">
               + Upload New Document
             </summary>
-            <form method="POST" action="{{ url_for('upload_student_document', student_id=student.student_id or student.id) }}" enctype="multipart/form-data" style="margin-top: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <form method="POST" action="{{ url_for('upload_student_document', student_id=student.student_id or student.id) }}" enctype="multipart/form-data" class="doc-upload-form" style="margin-top: 14px; display: flex; flex-direction: column; gap: 12px;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               
               <div class="form-group" style="margin-bottom: 0;">
@@ -520,9 +520,9 @@
                     {% endif %}
 
                     {% if doc.status != 'Rejected' %}
-                      <details style="display:inline-block; position: relative;">
+                      <details class="doc-reject-details" style="display:inline-block; position: relative;">
                         <summary class="btn btn-outline btn-sm" style="color: var(--warning); cursor: pointer;">Reject</summary>
-                        <div style="position: absolute; right: 0; top: 100%; z-index: 10; background: var(--bg-surface); border: 1px solid var(--border); padding: 12px; min-width: 260px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 4px;">
+                        <div class="doc-rejection-popover" style="position: absolute; right: 0; top: 100%; z-index: 10; background: var(--bg-surface); border: 1px solid var(--border); padding: 12px; min-width: 260px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 4px;">
                           <form method="POST" action="{{ url_for('reject_student_document', student_id=student.student_id or student.id, doc_id=doc.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div class="form-group" style="margin-bottom: 8px;">
@@ -559,7 +559,7 @@
         </h3>
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); background: var(--bg-surface);">
+          <div class="cert-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); background: var(--bg-surface);">
             <div>
               <div style="font-weight: 600; font-size: 13px;">Student Identity Card</div>
               <div style="font-size: 11px; color: var(--text-secondary);">Official Student ID Card</div>
@@ -571,7 +571,7 @@
             {% endif %}
           </div>
 
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); background: var(--bg-surface);">
+          <div class="cert-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); background: var(--bg-surface);">
             <div>
               <div style="font-weight: 600; font-size: 13px;">Bonafide Certificate</div>
               <div style="font-size: 11px; color: var(--text-secondary);">Official Enrollment Certificate</div>
@@ -584,6 +584,7 @@
           </div>
         </div>
       </div>
+
 
 
       {# Recent Activity #}

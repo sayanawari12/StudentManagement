@@ -1759,11 +1759,18 @@ body.drawer-open {
   background: var(--bg-surface);
   gap: 16px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .doc-item-main {
   flex: 1;
-  min-width: 240px;
+  min-width: 0;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .doc-item-title {
@@ -1775,12 +1782,23 @@ body.drawer-open {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 4px;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .doc-item-meta {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.doc-item-meta strong {
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .doc-item-actions {
@@ -1788,18 +1806,131 @@ body.drawer-open {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  max-width: 100%;
 }
 
 @media (max-width: 860px) {
-  .doc-item-card {
-    flex-direction: column;
-    gap: 12px;
+  #student-documents-section,
+  .profile-360-col,
+  .profile-360-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
   }
+
+  .doc-header-wrap {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-summary-badges {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-upload-details {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-upload-form,
+  .doc-upload-form .form-group,
+  .doc-upload-form .form-control,
+  .doc-upload-form input,
+  .doc-upload-form select,
+  .doc-upload-form button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-item-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+  }
+
+  .doc-item-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
   .doc-item-actions {
-    width: 100%;
-    justify-content: flex-start;
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .doc-item-actions .btn,
+  .doc-item-actions form {
+    max-width: 100% !important;
+  }
+
+  .doc-reject-details {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+
+  .doc-reject-details summary {
+    width: 100% !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .doc-rejection-popover {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-top: 8px !important;
+    box-shadow: none !important;
+  }
+
+  .transcript-btn-wrap {
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .transcript-btn-wrap .btn {
+    width: 100% !important;
+    display: block !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .cert-item-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .cert-item-row .btn {
+    width: 100% !important;
+    display: block !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
   }
 }
+
 
 
 
