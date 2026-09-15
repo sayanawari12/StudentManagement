@@ -21,13 +21,13 @@
 
     <div class="table-wrap">
       {% if students %}
-        <table>
+        <table class="attendance-table">
           <thead>
             <tr>
               <th>Student ID</th>
               <th>Name</th>
-              <th>Present</th>
-              <th>Absent</th>
+              <th style="text-align: center;">Present</th>
+              <th style="text-align: center;">Absent</th>
             </tr>
           </thead>
           <tbody>
@@ -36,8 +36,8 @@
               <tr>
                 <td>{{ student.student_id }}</td>
                 <td>
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 28px; height: 34px; border: 1px solid var(--border-dark); overflow: hidden; flex-shrink: 0; background: var(--bg-surface);">
+                  <div class="attendance-name-cell" style="display: flex; align-items: center; gap: 8px;">
+                    <div class="attendance-photo-wrap" style="width: 28px; height: 34px; border: 1px solid var(--border-dark); overflow: hidden; flex-shrink: 0; background: var(--bg-surface);">
                       <img src="{{ get_student_photo_url(student) }}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;">
                     </div>
                     <strong>{{ student.student_name }}</strong>

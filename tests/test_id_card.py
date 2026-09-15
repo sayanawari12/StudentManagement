@@ -119,6 +119,24 @@ def test_attendance_page_renders_gender_aware_photos(teacher_client, db):
         database.delete_student(pk_m)
 
 
+def test_mobile_attendance_table_responsive_css(teacher_client):
+    """Verify /attendance table uses attendance-table class and style.css includes fixed mobile layout."""
+    resp = teacher_client.get("/attendance")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "attendance-table" in html
+    assert "Student ID" in html
+    assert "Name" in html
+    assert "Present" in html
+    assert "Absent" in html
+
+    css_res = teacher_client.get("/static/css/style.css")
+    assert css_res.status_code == 200
+    css = css_res.data.decode("utf-8")
+    assert ".attendance-table" in css
+    assert "table-layout: fixed !important;" in css
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for generate_id_card_pdf
 # ---------------------------------------------------------------------------

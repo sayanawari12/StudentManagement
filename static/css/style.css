@@ -1649,6 +1649,83 @@ body.drawer-open {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
+
+  /* Mobile Attendance Table Overrides */
+  .attendance-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .attendance-table thead th,
+  .attendance-table tbody td {
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+
+  .attendance-table thead th {
+    padding: 10px 2px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.02em !important;
+    white-space: normal !important;
+  }
+
+  .attendance-table tbody td {
+    padding: 10px 2px !important;
+    font-size: 12px !important;
+  }
+
+  /* Column widths: ID ~26%, Name ~42%, Present ~16%, Absent ~16% */
+  .attendance-table th:nth-child(1),
+  .attendance-table td:nth-child(1) {
+    width: 26% !important;
+    padding-left: 4px !important;
+    padding-right: 2px !important;
+    font-size: 11px !important;
+    font-family: monospace !important;
+  }
+
+  .attendance-table th:nth-child(2),
+  .attendance-table td:nth-child(2) {
+    width: 42% !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .attendance-table th:nth-child(3),
+  .attendance-table td:nth-child(3) {
+    width: 16% !important;
+    text-align: center !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .attendance-table th:nth-child(4),
+  .attendance-table td:nth-child(4) {
+    width: 16% !important;
+    text-align: center !important;
+    padding-left: 2px !important;
+    padding-right: 4px !important;
+  }
+
+  .attendance-table td strong {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    display: block !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .attendance-name-cell {
+    gap: 6px !important;
+  }
+
+  .attendance-photo-wrap {
+    width: 24px !important;
+    height: 30px !important;
+    flex-shrink: 0 !important;
+  }
 }
 
 
