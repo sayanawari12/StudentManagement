@@ -162,18 +162,7 @@
           {% for row in stats.academic_performance %}
             <div class="sem-perf-row">
               <div class="sem-perf-label">Sem {{ row.semester }}</div>
-              <div class="sem-perf-bar-bg">
-                {% if row.percentage is not none %}
-                  <div class="sem-perf-bar-fill" style="width: {{ row.percentage }}%;"></div>
-                {% endif %}
-              </div>
-              <div class="sem-perf-val">
-                {% if row.percentage is not none %}
-                  {{ row.percentage }}%
-                {% else %}
-                  —
-                {% endif %}
-              </div>
+              <div class="sem-perf-bar-bg"></div>
             </div>
           {% endfor %}
         </div>
