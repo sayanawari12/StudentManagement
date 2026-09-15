@@ -434,7 +434,7 @@ def change_password():
             return redirect(url_for("dashboard"))
         except Error as e:
             app.logger.warning("DB error updating password for user %s: %s", user_id, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while updating your password. Please try again.", "error")
             return render_template("change_password.html")
 
     return render_template("change_password.html")
@@ -659,7 +659,7 @@ def add_student():
             return redirect(url_for("students"))
         except Error as e:
             app.logger.warning("DB error inserting student: %s", e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while adding the student. Please try again.", "error")
             return render_template("add_student.html", form=form)
 
     return render_template("add_student.html", form={})
@@ -764,7 +764,8 @@ def students_import():
                     if existing:
                         row_errors.append("Student ID already exists in database.")
                 except Error as e:
-                    row_errors.append(f"Database lookup error: {e}")
+                    app.logger.warning("DB error looking up student %s in CSV import: %s", student_id, e)
+                    row_errors.append("A database error occurred during student lookup.")
 
             if not row_errors:
                 try:
@@ -773,7 +774,8 @@ def students_import():
                     seen_student_ids.add(student_id)
                     imported_count += 1
                 except Error as e:
-                    row_errors.append(f"Database insertion error: {e}")
+                    app.logger.warning("DB error inserting student %s in CSV import: %s", student_id, e)
+                    row_errors.append("A database error occurred during student creation.")
                     skipped_rows.append({
                         "row_num": row_index,
                         "name": student_name,
@@ -973,7 +975,7 @@ def edit_student(record_id):
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
             app.logger.warning("DB error updating student %s: %s", record_id, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while updating student details. Please try again.", "error")
             return render_template("edit_student.html", student={**student, **form})
 
     return render_template("edit_student.html", student=student)
@@ -987,7 +989,7 @@ def delete_student(record_id):
         flash("Student deleted successfully.", "success")
     except Error as e:
         app.logger.warning("DB error deleting student %s: %s", record_id, e)
-        flash(f"Database error: {e}", "error")
+        flash("A database error occurred while deleting the student. Please try again.", "error")
     return redirect(url_for("students"))
 
 
@@ -1315,7 +1317,7 @@ def attendance():
                     database.upsert_attendance(s["id"], post_date, status, marked_by)
                 except Error as e:
                     app.logger.warning("DB error saving attendance for student %s on %s: %s", s['id'], post_date, e)
-                    flash(f"Database error saving attendance: {e}", "error")
+                    flash("A database error occurred while saving attendance. Please try again.", "error")
                     return redirect(url_for("attendance", date=post_date))
 
         flash("Attendance saved.", "success")
@@ -1475,7 +1477,7 @@ def grades_add(record_id):
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
             app.logger.warning("DB error inserting grade for student %s: %s", record_id, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while recording the grade. Please try again.", "error")
             return render_template("grades_add.html", student=student, form=form)
 
     return render_template("grades_add.html", student=student, form={"max_marks": "100.00"})
@@ -1558,7 +1560,7 @@ def fees_create(record_id):
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
             app.logger.warning("DB error creating fee due for student %s: %s", record_id, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while creating fee structure. Please try again.", "error")
             return render_template("fees_create.html", student=student, form=request.form)
 
     return render_template("fees_create.html", student=student, form={})
@@ -1622,7 +1624,7 @@ def fees_pay(fee_id):
             return redirect(url_for("student_details", record_id=record_id))
         except Error as e:
             app.logger.warning("DB error recording payment for fee %s: %s", fee_id, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while recording payment. Please try again.", "error")
             return render_template(
                 "fees_pay.html", fee=fee, student=student, remaining=remaining, form=request.form
             )
@@ -1778,7 +1780,7 @@ def totp_setup():
                 return redirect(url_for("dashboard"))
             except Error as e:
                 app.logger.warning("DB error enabling TOTP for user %s: %s", user_id, e)
-                flash(f"Database error: {e}", "error")
+                flash("A database error occurred while enabling 2FA. Please try again.", "error")
         else:
             flash("Incorrect code — please try again with a fresh code from your app.", "error")
 
@@ -1849,7 +1851,7 @@ def totp_disable():
         flash("Two-factor authentication disabled.", "success")
     except Error as e:
         app.logger.warning("DB error disabling TOTP for user %s: %s", user_id, e)
-        flash(f"Database error: {e}", "error")
+        flash("A database error occurred while disabling 2FA. Please try again.", "error")
 
     return redirect(url_for("dashboard"))
 
@@ -1997,7 +1999,7 @@ def notice_add():
             return redirect(url_for("notices"))
         except Error as e:
             app.logger.warning("DB error inserting notice (posted_by=%s): %s", posted_by, e)
-            flash(f"Database error: {e}", "error")
+            flash("A database error occurred while publishing notice. Please try again.", "error")
             return render_template("notice_add.html", form=request.form)
 
     return render_template("notice_add.html", form={})
@@ -2904,29 +2906,43 @@ def api_student_rankings():
 
 
 
+def _wants_json_response():
+    return request.path.startswith("/api/") or request.is_json
+
+
 @app.errorhandler(403)
 def forbidden(e):
+    if _wants_json_response():
+        return jsonify({"success": False, "error": "Access denied."}), 403
     return render_template("403.html"), 403
 
 
 @app.errorhandler(404)
 def not_found(e):
+    if _wants_json_response():
+        return jsonify({"success": False, "error": "Resource not found."}), 404
     return render_template("404.html"), 404
 
 
 @app.errorhandler(413)
 def request_entity_too_large(e):
+    if _wants_json_response():
+        return jsonify({"success": False, "error": "Request payload exceeds maximum allowed size."}), 413
     return render_template("413.html"), 413
 
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
+    if _wants_json_response():
+        return jsonify({"success": False, "error": "Too many requests. Please try again later."}), 429
     return render_template("429.html"), 429
 
 
 @app.errorhandler(500)
 def server_error(e):
     app.logger.error("Unhandled server error: %s", e, exc_info=True)
+    if _wants_json_response():
+        return jsonify({"success": False, "error": "An internal server error occurred."}), 500
     return render_template("500.html"), 500
 
 
