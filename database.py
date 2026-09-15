@@ -2218,12 +2218,14 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
 
 def get_semester_rankings(semester):
     """
-    Calculates student rankings for a given semester based strictly on:
-    Percentage = (Total Obtained Marks / Total Maximum Marks) * 100
-
-    Does NOT use CGPA. Uses dynamic maximum marks from actual configured exams/subjects.
-    Uses competition ranking (1, 2, 2, 4) for equal percentages.
-    Returns list of dicts ordered by rank.
+    Calculates student rankings for a given semester strictly following Data Integrity Rules:
+      1. Exam & Result Management (exam_marks + exams + subjects) is authoritative.
+      2. Maximum marks resolution chain: exam.max_marks -> exam_marks.max_marks -> subject.max_marks.
+         No hardcoded fallback (100, 500, 600, etc.) is assumed if unresolvable.
+      3. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
+      4. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
+      5. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
+      6. Grades table is used as fallback ONLY when no exam_marks record exists for the student.
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -2233,7 +2235,7 @@ def get_semester_rankings(semester):
         except (ValueError, TypeError):
             sem_int = 1
 
-        # Query exam_marks joined with exams, subjects, students
+        # Query exam_marks with strict 3-tier max_marks resolution (e.max_marks -> m.max_marks -> sub.max_marks)
         cursor.execute(
             """
             SELECT 
@@ -2242,15 +2244,18 @@ def get_semester_rankings(semester):
                 s.student_name,
                 s.course,
                 SUM(m.obtained_marks) AS total_obtained,
-                SUM(COALESCE(e.max_marks, m.max_marks, sub.max_marks, 100.0)) AS total_max,
+                SUM(COALESCE(e.max_marks, m.max_marks, sub.max_marks)) AS total_max,
                 COUNT(m.id) AS marks_count
             FROM exam_marks m
             JOIN students s ON s.id = m.stud_id
             JOIN exams e ON e.id = m.exam_id
             JOIN subjects sub ON sub.id = m.subject_id
             WHERE e.semester = %s
+              AND m.obtained_marks >= 0
+              AND COALESCE(e.max_marks, m.max_marks, sub.max_marks) IS NOT NULL
+              AND COALESCE(e.max_marks, m.max_marks, sub.max_marks) > 0
             GROUP BY s.id, s.student_id, s.student_name, s.course
-            HAVING total_max > 0
+            HAVING total_max IS NOT NULL AND total_max > 0 AND total_obtained >= 0
             """,
             (sem_int,)
         )
@@ -2261,7 +2266,7 @@ def get_semester_rankings(semester):
             sid = r["record_id"]
             obt = float(r["total_obtained"] or 0)
             mx = float(r["total_max"] or 0)
-            if mx > 0:
+            if mx > 0 and obt >= 0:
                 student_data[sid] = {
                     "record_id": sid,
                     "student_id": r["student_id"],
@@ -2271,7 +2276,7 @@ def get_semester_rankings(semester):
                     "total_max": mx
                 }
 
-        # Supplement with grades table if any student in grades for this semester is not in exam_marks
+        # Fallback to grades table ONLY for students without any exam_marks records in this semester
         cursor.execute(
             """
             SELECT 
@@ -2280,13 +2285,16 @@ def get_semester_rankings(semester):
                 s.student_name,
                 s.course,
                 SUM(g.marks_obtained) AS total_obtained,
-                SUM(COALESCE(g.max_marks, 100.0)) AS total_max,
+                SUM(g.max_marks) AS total_max,
                 COUNT(g.id) AS grade_count
             FROM grades g
             JOIN students s ON s.id = g.stud_id
             WHERE g.semester = %s
+              AND g.marks_obtained >= 0
+              AND g.max_marks IS NOT NULL
+              AND g.max_marks > 0
             GROUP BY s.id, s.student_id, s.student_name, s.course
-            HAVING total_max > 0
+            HAVING total_max IS NOT NULL AND total_max > 0 AND total_obtained >= 0
             """,
             (sem_int,)
         )
@@ -2296,7 +2304,7 @@ def get_semester_rankings(semester):
             if sid not in student_data:
                 obt = float(r["total_obtained"] or 0)
                 mx = float(r["total_max"] or 0)
-                if mx > 0:
+                if mx > 0 and obt >= 0:
                     student_data[sid] = {
                         "record_id": sid,
                         "student_id": r["student_id"],
@@ -2313,6 +2321,9 @@ def get_semester_rankings(semester):
         for sid, item in student_data.items():
             obt = item["total_obtained"]
             mx = item["total_max"]
+            if mx <= 0 or obt < 0:
+                continue
+
             pct = round((obt / mx * 100.0), 2)
             fmt_obt = f"{int(obt)}" if obt.is_integer() else f"{obt:.2f}"
             fmt_mx = f"{int(mx)}" if mx.is_integer() else f"{mx:.2f}"

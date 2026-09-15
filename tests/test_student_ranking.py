@@ -134,3 +134,28 @@ def test_dashboard_widget_renders(auth_admin):
     assert response.status_code == 200
     assert b"Top Performers" in response.data
     assert b"topPerformersSemSelect" in response.data
+
+
+def test_data_integrity_no_nan_or_infinity():
+    """Verify that zero/invalid denominators do not produce NaN or Infinity."""
+    rankings = database.get_semester_rankings(1)
+    for r in rankings:
+        assert r["total_max"] > 0
+        assert r["total_obtained"] >= 0
+        assert r["percentage"] >= 0.0
+        assert not (r["percentage"] != r["percentage"])  # NaN check
+        assert r["percentage"] != float("inf")
+        assert r["percentage"] != float("-inf")
+
+
+def test_data_integrity_displayed_marks_match():
+    """Verify displayed Obtained/Total and Percentage are calculated from the exact same records."""
+    rankings = database.get_semester_rankings(1)
+    for r in rankings:
+        obt = r["total_obtained"]
+        mx = r["total_max"]
+        calc_pct = round((obt / mx * 100.0), 2)
+        assert r["percentage"] == calc_pct
+        expected_fmt_pct = f"{calc_pct:.2f}%"
+        assert r["formatted_percentage"] == expected_fmt_pct
+
