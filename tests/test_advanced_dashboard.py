@@ -146,3 +146,18 @@ class TestAdvancedStudentDashboard:
         assert "dashboard-advanced-grid" in html
         assert "progress-bar-wrap" in html
         assert "sem-perf-row" in html
+
+    def test_mobile_student_overview_2x2_grid_css(self, admin_client):
+        """Verify Student Overview contains 4 dynamic stats and style.css includes 2x2 grid."""
+        res = admin_client.get("/dashboard")
+        assert res.status_code == 200
+        html = res.data.decode("utf-8")
+        assert "TOTAL STUDENTS" in html
+        assert "PRESENT TODAY" in html
+        assert "PENDING FEE STUDENTS" in html
+        assert "TOTAL BCA STUDENTS" in html
+
+        css_res = admin_client.get("/static/css/style.css")
+        assert css_res.status_code == 200
+        css = css_res.data.decode("utf-8")
+        assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in css
