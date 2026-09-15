@@ -234,10 +234,11 @@ def get_dashboard_stats():
             """
             SELECT e.semester,
                    SUM(em.obtained_marks) AS total_obtained,
-                   SUM(COALESCE(e.max_marks, 100.0)) AS total_max,
+                   SUM(COALESCE(e.max_marks, em.max_marks, sub.max_marks)) AS total_max,
                    COUNT(em.id) AS marks_count
             FROM exam_marks em
             JOIN exams e ON e.id = em.exam_id
+            JOIN subjects sub ON sub.id = em.subject_id
             GROUP BY e.semester
             """
         )
@@ -249,26 +250,6 @@ def get_dashboard_stats():
             maximum = float(r["total_max"] or 0)
             if maximum > 0:
                 sem_map[sem] = round((obtained / maximum * 100.0), 1)
-
-        # Fallback/supplement with grades table if any semester missing in exam_marks
-        cursor.execute(
-            """
-            SELECT g.semester,
-                   SUM(g.marks_obtained) AS total_obtained,
-                   SUM(COALESCE(g.max_marks, 100.0)) AS total_max,
-                   COUNT(g.id) AS grade_count
-            FROM grades g
-            GROUP BY g.semester
-            """
-        )
-        grade_rows = cursor.fetchall()
-        for r in grade_rows:
-            sem = r["semester"]
-            if sem not in sem_map:
-                obtained = float(r["total_obtained"] or 0)
-                maximum = float(r["total_max"] or 0)
-                if maximum > 0:
-                    sem_map[sem] = round((obtained / maximum * 100.0), 1)
 
         academic_performance = []
         for s in range(1, 7):
@@ -2305,7 +2286,6 @@ def get_semester_rankings(semester):
       4. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
       5. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
       6. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
-      7. Grades table is used as fallback ONLY when no exam_marks record exists for the student, enforcing completeness.
     """
     try:
         sem_int = int(semester)
@@ -2365,13 +2345,10 @@ def get_semester_rankings(semester):
         )
         exam_rows = cursor.fetchall()
 
-        # Track evaluated student IDs to prevent grades fallback from filling missing exam_marks
-        evaluated_student_ids = set()
         student_data = {}
 
         for r in exam_rows:
             sid = r["record_id"]
-            evaluated_student_ids.add(sid)
             obt = float(r["total_obtained"] or 0)
             mx = float(r["total_max"] or 0)
             distinct_subs = int(r["distinct_subject_count"] or 0)
@@ -2392,54 +2369,6 @@ def get_semester_rankings(semester):
                     "total_obtained": obt,
                     "total_max": mx
                 }
-
-        # Fallback to grades table ONLY for students without any exam_marks records in this semester
-        cursor.execute(
-            """
-            SELECT 
-                s.id AS record_id,
-                s.student_id,
-                s.student_name,
-                s.course,
-                SUM(g.marks_obtained) AS total_obtained,
-                SUM(g.max_marks) AS total_max,
-                COUNT(DISTINCT g.subject) AS distinct_subject_count,
-                COUNT(g.id) AS grade_count
-            FROM grades g
-            JOIN students s ON s.id = g.stud_id
-            WHERE g.semester = %s
-              AND g.marks_obtained >= 0
-              AND g.max_marks IS NOT NULL
-              AND g.max_marks > 0
-            GROUP BY s.id, s.student_id, s.student_name, s.course
-            HAVING total_max IS NOT NULL AND total_max > 0 AND total_obtained >= 0
-            """,
-            (sem_int,)
-        )
-        grade_rows = cursor.fetchall()
-        for r in grade_rows:
-            sid = r["record_id"]
-            if sid not in evaluated_student_ids:
-                obt = float(r["total_obtained"] or 0)
-                mx = float(r["total_max"] or 0)
-                distinct_subs = int(r["distinct_subject_count"] or 0)
-
-                stud_course = r.get("course") or "BCA"
-                req_cnt = course_req_map.get(stud_course, course_req_map.get("BCA", 6))
-
-                # COMPLETENESS CHECK for grades fallback: Exclude incomplete students
-                if req_cnt > 0 and distinct_subs < req_cnt:
-                    continue
-
-                if mx > 0 and obt >= 0:
-                    student_data[sid] = {
-                        "record_id": sid,
-                        "student_id": r["student_id"],
-                        "student_name": r["student_name"],
-                        "course": r["course"],
-                        "total_obtained": obt,
-                        "total_max": mx
-                    }
 
         if not student_data:
             return []

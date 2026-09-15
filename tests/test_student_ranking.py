@@ -272,3 +272,116 @@ def test_ranking_missing_one_subject_excluded(db):
     ranked_student_ids = [r["student_id"] for r in rankings]
     assert "TEST_MISSING1" not in ranked_student_ids
 
+
+def test_ranking_does_not_use_grades_fallback(db):
+    """
+    Verify that a student with only legacy `grades` records (no exam_marks)
+    is NOT included in semester rankings (exam_marks is single source of truth).
+    """
+    admin_id = db["users"]["admin"]["id"]
+    database.insert_student({
+        "student_id": "STU_GRADES_1",
+        "student_name": "Grades Only Student",
+        "email": "grades_only@test.com",
+        "phone": "9998887774",
+        "gender": "Female",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 2,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("STU_GRADES_1")
+    stud_id = stud["id"]
+
+    subjects = database.get_subjects_by_course_and_semester("BCA", 2)
+    for sub in subjects:
+        database.insert_grade({
+            "stud_id": stud_id,
+            "semester": 2,
+            "subject": sub["subject_name"],
+            "exam_type": "Final",
+            "marks_obtained": 95.0,
+            "max_marks": 100.0,
+            "recorded_by": admin_id
+        })
+
+    rankings = database.get_semester_rankings(2)
+    ranked_student_ids = [r["student_id"] for r in rankings]
+    assert "STU_GRADES_1" not in ranked_student_ids
+
+
+def test_dashboard_academic_performance_does_not_use_grades_fallback(db):
+    """
+    Verify that get_dashboard_stats academic performance does not calculate percentages
+    from the grades table when exam_marks are missing.
+    """
+    admin_id = db["users"]["admin"]["id"]
+    database.insert_student({
+        "student_id": "STU_GRADES_2",
+        "student_name": "Dashboard Grades Student",
+        "email": "dash_grades@test.com",
+        "phone": "9998887775",
+        "gender": "Male",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 4,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("STU_GRADES_2")
+    stud_id = stud["id"]
+
+    database.insert_grade({
+        "stud_id": stud_id,
+        "semester": 4,
+        "subject": "Advanced Java",
+        "exam_type": "Mid-term",
+        "marks_obtained": 98.0,
+        "max_marks": 100.0,
+        "recorded_by": admin_id
+    })
+
+    stats = database.get_dashboard_stats()
+    perf_sem4 = next((p for p in stats["academic_performance"] if p["semester"] == 4), None)
+    # Since no exam_marks exist for sem 4, perf_sem4 percentage should be None
+    if perf_sem4:
+        assert perf_sem4["percentage"] is None
+
+
+def test_legitimate_grades_feature_preserved(db):
+    """
+    Verify that standalone legacy grades table functionality (insert_grade & get_student_grades)
+    remains completely functional and unaffected by source-of-truth cleanup.
+    """
+    admin_id = db["users"]["admin"]["id"]
+    database.insert_student({
+        "student_id": "STU_GRADES_3",
+        "student_name": "Legitimate Grades Student",
+        "email": "legit_grades@test.com",
+        "phone": "9998887776",
+        "gender": "Female",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 1,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("STU_GRADES_3")
+    stud_id = stud["id"]
+
+    database.insert_grade({
+        "stud_id": stud_id,
+        "semester": 1,
+        "subject": "C Programming",
+        "exam_type": "Final",
+        "marks_obtained": 92.0,
+        "max_marks": 100.0,
+        "recorded_by": admin_id
+    })
+
+    grades = database.get_student_grades(stud_id)
+    assert len(grades) >= 1
+    grade_entry = next(g for g in grades if g["subject"] == "C Programming")
+    assert float(grade_entry["marks_obtained"]) == 92.0
+
+
+
+
