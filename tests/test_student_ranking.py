@@ -182,3 +182,93 @@ def test_database_academic_records_sem_1_and_3_not_deleted():
     finally:
         cursor.close()
         conn.close()
+
+
+def test_ranking_completeness_rules(db):
+    """
+    Verify that incomplete students (missing subjects) are excluded from ranking,
+    and only complete students (all 6 required subjects for BCA Sem 2) are ranked.
+    """
+    admin_id = db["users"]["admin"]["id"]
+    subjects = database.get_subjects_by_course_and_semester("BCA", 2)
+    assert len(subjects) == 6, "Semester 2 must have 6 required subjects"
+
+    database.insert_student({
+        "student_id": "TEST_INCOMPLETE",
+        "student_name": "Incomplete Student A",
+        "email": "inc@test.com",
+        "phone": "9998887771",
+        "gender": "Male",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 2,
+        "address": "123 Street"
+    })
+    stud_a = database.get_student_by_student_id("TEST_INCOMPLETE")
+    stud_a_id = stud_a["id"]
+
+    database.insert_student({
+        "student_id": "TEST_COMPLETE",
+        "student_name": "Complete Student B",
+        "email": "comp@test.com",
+        "phone": "9998887772",
+        "gender": "Female",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 2,
+        "address": "123 Street"
+    })
+    stud_b = database.get_student_by_student_id("TEST_COMPLETE")
+    stud_b_id = stud_b["id"]
+
+    exam_id = database.create_exam("Sem 2 Final Exam Completeness", "Semester Examination", "BCA", 2, "2025-2026", admin_id, max_marks=100.0)
+
+    # Student A gets high marks for only 2 subjects (95/100 and 96/100 -> 95.5%)
+    database.save_exam_marks(exam_id, stud_a_id, subjects[0]["id"], 95.0, 100.0, admin_id)
+    database.save_exam_marks(exam_id, stud_a_id, subjects[1]["id"], 96.0, 100.0, admin_id)
+
+    # Student B gets 90/100 for all 6 required subjects (90.0%)
+    for sub in subjects:
+        database.save_exam_marks(exam_id, stud_b_id, sub["id"], 90.0, 100.0, admin_id)
+
+    rankings = database.get_semester_rankings(2)
+    ranked_student_ids = [r["student_id"] for r in rankings]
+
+    # Student A (incomplete with 2/6 subjects) MUST NOT appear in the rankings
+    assert "TEST_INCOMPLETE" not in ranked_student_ids
+
+    # Student B (complete with 6/6 subjects) MUST appear in the rankings
+    assert "TEST_COMPLETE" in ranked_student_ids
+    comp_rank = next(r for r in rankings if r["student_id"] == "TEST_COMPLETE")
+    assert comp_rank["percentage"] == 90.0
+
+
+def test_ranking_missing_one_subject_excluded(db):
+    """Verify that a student missing 1 of the 6 required subjects is excluded from ranking."""
+    admin_id = db["users"]["admin"]["id"]
+    subjects = database.get_subjects_by_course_and_semester("BCA", 2)
+
+    database.insert_student({
+        "student_id": "TEST_MISSING1",
+        "student_name": "Missing One Subject Student",
+        "email": "m1@test.com",
+        "phone": "9998887773",
+        "gender": "Male",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 2,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("TEST_MISSING1")
+    stud_id = stud["id"]
+
+    exam_id = database.create_exam("Sem 2 Midterm Completeness", "Semester Examination", "BCA", 2, "2025-2026", admin_id, max_marks=100.0)
+
+    # Give student marks for 5 out of 6 subjects
+    for sub in subjects[:5]:
+        database.save_exam_marks(exam_id, stud_id, sub["id"], 95.0, 100.0, admin_id)
+
+    rankings = database.get_semester_rankings(2)
+    ranked_student_ids = [r["student_id"] for r in rankings]
+    assert "TEST_MISSING1" not in ranked_student_ids
+
