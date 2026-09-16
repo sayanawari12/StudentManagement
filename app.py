@@ -2976,6 +2976,17 @@ def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # For authenticated sessions or PDF/document responses, prevent browser/proxy caching of sensitive data
+    if ("user_id" in session or "role" in session or response.mimetype == "application/pdf"
+            or request.path.startswith("/students/") or request.path.startswith("/student/")
+            or request.path.startswith("/exams/") or request.path.startswith("/fees/")):
+        if not request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+
     return response
 
 
