@@ -188,7 +188,11 @@ def _get_safe_document_path(stored_filename):
     Resolves stored_filename inside DOCUMENT_UPLOAD_DIR with path traversal protection.
     Returns absolute path string if safe, or None if invalid/unsafe.
     """
-    if not stored_filename or "/" in stored_filename or "\\" in stored_filename or ".." in stored_filename:
+    if not stored_filename:
+        return None
+    from urllib.parse import unquote
+    unquoted = unquote(stored_filename)
+    if "/" in unquoted or "\\" in unquoted or ".." in unquoted or "/" in stored_filename or "\\" in stored_filename or ".." in stored_filename:
         return None
     safe_basename = os.path.basename(stored_filename)
     full_path = os.path.abspath(os.path.join(DOCUMENT_UPLOAD_DIR, safe_basename))
