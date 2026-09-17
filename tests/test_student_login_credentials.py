@@ -294,3 +294,15 @@ class TestBackfillUnlinkedAccounts:
         res2 = database.backfill_unlinked_student_accounts()
         assert len(res2["created"]) == 0
         assert res2["skipped_count"] >= 1
+
+    def test_regenerate_backfill_credentials_targets_only_backfilled_accounts(self, db):
+        # Target specific test user IDs
+        target_ids = (7, 8, 9)
+        results = database.regenerate_backfill_credentials(target_user_ids=target_ids)
+        assert len(results) == 3
+        for item in results:
+            assert "student_name" in item
+            assert "login_id" in item
+            assert "temp_password" in item
+            user = database.get_user_by_username(item["login_id"])
+            assert user["requires_password_change"] == 1

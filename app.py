@@ -848,6 +848,36 @@ def students_import():
     return render_template("students_import.html", processed=False)
 
 
+@app.route("/admin/backfill-credentials")
+@role_required("admin")
+def admin_backfill_credentials():
+    credentials = database.regenerate_backfill_credentials()
+    return render_template("backfill_credentials_report.html", credentials=credentials)
+
+
+@app.route("/admin/backfill-credentials/csv", methods=["POST"])
+@role_required("admin")
+def admin_backfill_credentials_csv():
+    total_count = request.form.get("total_count", 0, type=int)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Student Name", "Student ID", "Login ID", "Temporary Password"])
+    for i in range(total_count):
+        name = request.form.get(f"name_{i}", "")
+        sid = request.form.get(f"sid_{i}", "")
+        login = request.form.get(f"login_{i}", "")
+        pwd = request.form.get(f"pass_{i}", "")
+        if name and login and pwd:
+            writer.writerow([name, sid, login, pwd])
+    
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="backfill_student_credentials.csv"
+    )
+
+
 @app.route("/students/<int:record_id>")
 @role_required("admin", "teacher", "student")
 def student_details(record_id):

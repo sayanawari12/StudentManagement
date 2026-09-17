@@ -679,6 +679,80 @@ def backfill_unlinked_student_accounts():
     }
 
 
+def regenerate_backfill_credentials(target_user_ids=None):
+    """
+    Regenerates temporary passwords for ONLY the 15 backfilled student accounts
+    (user accounts created by the backfill operation, user IDs 7 to 21).
+    Leaves pre-existing student accounts (e.g. student1/user_id=4 or BCA2401/25AK111265) completely untouched.
+
+    Returns list of dicts:
+        [
+            {
+                "student_name": ...,
+                "student_id": ...,
+                "login_id": ...,
+                "temp_password": ...
+            }, ...
+        ]
+    """
+    if target_user_ids is None:
+        target_user_ids = (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
+
+    format_strings = ','.join(['%s'] * len(target_user_ids))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            f"""
+            SELECT u.id AS user_id, u.username AS login_id, s.student_id, s.student_name
+            FROM users u
+            JOIN students s ON s.id = u.linked_student_id
+            WHERE u.id IN ({format_strings})
+            ORDER BY u.id
+            """,
+            tuple(target_user_ids)
+        )
+        target_users = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+    results = []
+    for user_row in target_users:
+        user_id = user_row["user_id"]
+        login_id = user_row["login_id"]
+        student_id = user_row["student_id"]
+        student_name = user_row["student_name"]
+
+        new_temp_pwd = generate_temp_password()
+        new_hashed = generate_password_hash(new_temp_pwd)
+
+        update_conn = get_db_connection()
+        update_cursor = update_conn.cursor()
+        try:
+            update_cursor.execute(
+                """
+                UPDATE users
+                SET password = %s, requires_password_change = TRUE
+                WHERE id = %s
+                """,
+                (new_hashed, user_id)
+            )
+            update_conn.commit()
+            results.append({
+                "student_name": student_name,
+                "student_id": student_id,
+                "login_id": login_id,
+                "temp_password": new_temp_pwd
+            })
+        finally:
+            update_cursor.close()
+            update_conn.close()
+
+    return results
+
+
 def update_student(record_id, data):
     conn = get_db_connection()
     cursor = conn.cursor()
