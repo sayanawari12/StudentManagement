@@ -385,7 +385,7 @@ class TestMarksValidationAndCalculation:
         sub_id = subjects[0]["id"]
 
         # Authenticate as admin
-        client.post("/login", data={"username": "admin", "password": "admin123"})
+        client.post("/login", data={"username": "admin1", "password": "Sayan@@@"})
 
         # GET Enter Marks page
         res = client.get(f"/exams/{exam_id}/marks")
@@ -438,7 +438,7 @@ class TestMarksValidationAndCalculation:
             subjects = database.ensure_semester3_subjects(stud_obj["course"])
         sub_id = subjects[0]["id"]
 
-        client.post("/login", data={"username": "admin", "password": "admin123"})
+        client.post("/login", data={"username": "admin1", "password": "Sayan@@@"})
 
         # Attempt to bypass with max_marks = 100 and obt = 80 in form payload
         post_tampered = {
@@ -492,17 +492,17 @@ class TestMarksValidationAndCalculation:
 
 class TestExamRoutesAndPermissions:
     def test_admin_and_teacher_can_access_exams(self, client, db):
-        client.post("/login", data={"username": "admin", "password": "admin123"})
+        client.post("/login", data={"username": "admin1", "password": "Sayan@@@"})
         res = client.get("/exams")
         assert res.status_code == 200
 
         client.get("/logout")
-        client.post("/login", data={"username": "teacher", "password": "teacher123"})
+        client.post("/login", data={"username": "teacher1", "password": "Sayan@@"})
         res = client.get("/exams")
         assert res.status_code == 200
 
     def test_student_cannot_access_exam_management(self, client, db):
-        client.post("/login", data={"username": "student", "password": "student123"})
+        client.post("/login", data={"username": "student1", "password": "Sayan@"})
         res = client.get("/exams")
         assert res.status_code == 403
 
@@ -549,7 +549,7 @@ class TestExamRoutesAndPermissions:
         database.save_exam_marks(exam_id, other_stud_id, sub_id, 92.0, 100.0, admin_id)
 
         # Login as student
-        client.post("/login", data={"username": "student", "password": "student123"})
+        client.post("/login", data={"username": "student1", "password": "Sayan@"})
 
         # Can view own result
         res = client.get(f"/exams/{exam_id}/results/{stud_id}")
@@ -579,7 +579,7 @@ class TestExamRoutesAndPermissions:
             created_by=admin_id
         )
 
-        client.post("/login", data={"username": "teacher", "password": "teacher123"})
+        client.post("/login", data={"username": "teacher1", "password": "Sayan@@"})
         res = client.post(f"/exams/{exam_id}/delete")
         assert res.status_code == 403
 

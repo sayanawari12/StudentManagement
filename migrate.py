@@ -60,6 +60,11 @@ def migrate():
         "FOREIGN KEY (linked_student_id) REFERENCES students(id) ON DELETE SET NULL",
         "ADD FK users.linked_student_id -> students.id")
 
+    # 4b — add requires_password_change column
+    run(cursor,
+        "ALTER TABLE users ADD COLUMN requires_password_change BOOLEAN NOT NULL DEFAULT FALSE",
+        "ADD COLUMN users.requires_password_change")
+
     # 5 — attendance table
     run(cursor, """
         CREATE TABLE IF NOT EXISTS attendance (

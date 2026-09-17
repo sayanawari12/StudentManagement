@@ -216,9 +216,9 @@ Create initial user login accounts for all roles.
   python seed_users.py --dev
   ```
   > **Demo accounts created:**
-  > - **Admin**: `admin` / `admin123` (Full access)
-  > - **Teacher**: `teacher` / `teacher123` (View students, mark attendance, exams, post notices)
-  > - **Student**: `student` / `student123` (Linked to sample student BCA2401)
+  > - **Admin**: `admin1` / `Sayan@@@` (Full access)
+  > - **Teacher**: `teacher1` / `Sayan@@` (View students, mark attendance, exams, post notices)
+  > - **Student**: `student1` / `Sayan@` (Linked to sample student BCA2401)
 
 - **For production environments**, define your secure passwords via environment variables:
   ```bash
@@ -328,11 +328,11 @@ On first run, Docker will:
 
 Visit **http://localhost:5000** and log in with one of the seeded accounts:
 
-| Username  | Password     | Role    |
-|-----------|--------------|---------|
-| `admin`   | `admin123`   | Admin   |
-| `teacher` | `teacher123` | Teacher |
-| `student` | `student123` | Student |
+| Username   | Password   | Role    |
+|------------|------------|---------|
+| `admin1`   | `Sayan@@@` | Admin   |
+| `teacher1` | `Sayan@@`  | Teacher |
+| `student1` | `Sayan@`   | Student |
 
 ### Useful commands
 

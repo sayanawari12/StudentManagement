@@ -100,9 +100,9 @@ def db():
 
     # ----------------------------------------------------------------
     # Seed known users
-    # admin   → id=1, no linked_student_id
-    # teacher → id=2, no linked_student_id
-    # student → id=3, linked to BCA2401 (first sample student)
+    # admin1   → id=1, no linked_student_id
+    # teacher1 → id=2, no linked_student_id
+    # student1 → id=3, linked to BCA2401 (first sample student)
     # ----------------------------------------------------------------
     conn = _raw_conn("student_management_test")
     cursor = conn.cursor(dictionary=True)
@@ -120,9 +120,9 @@ def db():
     other_pk = other_row["id"]
 
     users = [
-        ("admin",   "admin123",   "admin",   None),
-        ("teacher", "teacher123", "teacher", None),
-        ("student", "student123", "student", linked_pk),
+        ("admin1",   "Sayan@@@", "admin",   None),
+        ("teacher1", "Sayan@@",  "teacher", None),
+        ("student1", "Sayan@",   "student", linked_pk),
     ]
     for username, password, role, linked_id in users:
         hashed = generate_password_hash(password)
@@ -135,13 +135,20 @@ def db():
     # Fetch the inserted user rows so tests can reference their real IDs
     cursor.execute("SELECT id, username, role, linked_student_id FROM users ORDER BY id")
     user_rows = {r["username"]: r for r in cursor.fetchall()}
+    # Aliases for backward compatibility in test suites expecting db["users"]["admin"], etc.
+    if "admin1" in user_rows:
+        user_rows["admin"] = user_rows["admin1"]
+    if "teacher1" in user_rows:
+        user_rows["teacher"] = user_rows["teacher1"]
+    if "student1" in user_rows:
+        user_rows["student"] = user_rows["student1"]
 
     cursor.close()
     conn.close()
 
     yield {
         "users":      user_rows,
-        "linked_pk": linked_pk,   # student user's linked students.id
+        "linked_pk": linked_pk,   # student1 user's linked students.id
         "other_pk":   other_pk,    # a DIFFERENT student's students.id
     }
 
@@ -211,14 +218,14 @@ def _make_authed_client(app, username, password):
 
 @pytest.fixture(scope="function")
 def admin_client(app, db):
-    return _make_authed_client(app, "admin", "admin123")
+    return _make_authed_client(app, "admin1", "Sayan@@@")
 
 
 @pytest.fixture(scope="function")
 def teacher_client(app, db):
-    return _make_authed_client(app, "teacher", "teacher123")
+    return _make_authed_client(app, "teacher1", "Sayan@@")
 
 
 @pytest.fixture(scope="function")
 def student_client(app, db):
-    return _make_authed_client(app, "student", "student123")
+    return _make_authed_client(app, "student1", "Sayan@")

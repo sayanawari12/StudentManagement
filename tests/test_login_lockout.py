@@ -38,31 +38,31 @@ class TestAccountLockout:
         # Clean state for admin
         conn = database.get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = 'admin'")
+        cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = 'admin1'")
         conn.commit()
         cursor.close()
         conn.close()
 
         # Attempts 1 to 4: should receive generic error message
         for i in range(1, 5):
-            resp = client.post("/login", data={"username": "admin", "password": "wrong_password"}, follow_redirects=True)
+            resp = client.post("/login", data={"username": "admin1", "password": "wrong_password"}, follow_redirects=True)
             assert resp.status_code == 200
             assert b"Invalid username or password." in resp.data
             assert b"Too many failed attempts" not in resp.data
 
         # Attempt 5: triggers lockout
-        resp5 = client.post("/login", data={"username": "admin", "password": "wrong_password"}, follow_redirects=True)
+        resp5 = client.post("/login", data={"username": "admin1", "password": "wrong_password"}, follow_redirects=True)
         assert resp5.status_code == 200
         assert b"Too many failed attempts. Account locked for 15 minutes." in resp5.data
 
         # Verify DB state
-        user = database.get_user_by_username("admin")
+        user = database.get_user_by_username("admin1")
         assert user["failed_login_attempts"] == 5
         assert user["locked_until"] is not None
         assert user["locked_until"] > datetime.datetime.now()
 
         # Attempt 6: even with CORRECT password, login is rejected
-        resp6 = client.post("/login", data={"username": "admin", "password": "admin123"}, follow_redirects=True)
+        resp6 = client.post("/login", data={"username": "admin1", "password": "Sayan@@@"}, follow_redirects=True)
         assert resp6.status_code == 200
         assert b"Account locked." in resp6.data
         with client.session_transaction() as sess:
@@ -74,7 +74,7 @@ class TestAccountLockout:
         conn = database.get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE users SET failed_login_attempts = 5, locked_until = %s WHERE username = 'admin'",
+            "UPDATE users SET failed_login_attempts = 5, locked_until = %s WHERE username = 'admin1'",
             (past_time,)
         )
         conn.commit()
@@ -82,12 +82,12 @@ class TestAccountLockout:
         conn.close()
 
         # Attempt with correct password should succeed
-        resp = client.post("/login", data={"username": "admin", "password": "admin123"}, follow_redirects=False)
+        resp = client.post("/login", data={"username": "admin1", "password": "Sayan@@@"}, follow_redirects=False)
         assert resp.status_code == 302
         assert "/dashboard" in resp.headers.get("Location", "") or "/login/2fa" in resp.headers.get("Location", "")
 
         # Verify counters reset in DB
-        user = database.get_user_by_username("admin")
+        user = database.get_user_by_username("admin1")
         assert user["failed_login_attempts"] == 0
         assert user["locked_until"] is None
 
@@ -95,23 +95,23 @@ class TestAccountLockout:
         # Clean state for teacher
         conn = database.get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = 'teacher'")
+        cursor.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = 'teacher1'")
         conn.commit()
         cursor.close()
         conn.close()
 
         # 3 failed attempts
         for _ in range(3):
-            client.post("/login", data={"username": "teacher", "password": "wrong_password"}, follow_redirects=True)
+            client.post("/login", data={"username": "teacher1", "password": "wrong_password"}, follow_redirects=True)
 
-        user_before = database.get_user_by_username("teacher")
+        user_before = database.get_user_by_username("teacher1")
         assert user_before["failed_login_attempts"] == 3
 
         # Successful login
-        resp = client.post("/login", data={"username": "teacher", "password": "teacher123"}, follow_redirects=False)
+        resp = client.post("/login", data={"username": "teacher1", "password": "Sayan@@"}, follow_redirects=False)
         assert resp.status_code == 302
 
-        user_after = database.get_user_by_username("teacher")
+        user_after = database.get_user_by_username("teacher1")
         assert user_after["failed_login_attempts"] == 0
         assert user_after["locked_until"] is None
 

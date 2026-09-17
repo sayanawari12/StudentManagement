@@ -58,13 +58,13 @@ def seed(admin_password, teacher_password, student_password):
     """Seed user accounts with provided passwords."""
     print("Seeding users…")
 
-    create_user("admin",   admin_password,   "admin")
-    create_user("teacher", teacher_password, "teacher")
+    create_user("admin1",   admin_password,   "admin")
+    create_user("teacher1", teacher_password, "teacher")
 
     # Link the student account to BCA2401 (Aarav Sharma — first sample row)
     stud_pk = get_student_pk("BCA2401")
     if stud_pk:
-        create_user("student", student_password, "student", linked_student_id=stud_pk)
+        create_user("student1", student_password, "student", linked_student_id=stud_pk)
     else:
         print("  WARNING: student BCA2401 not found — "
               "run schema.sql first, then re-run seed_users.py")
@@ -94,11 +94,11 @@ if __name__ == "__main__":
             )
             sys.exit(1)
         print(
-            "WARNING: Seeding default demo credentials (admin123/teacher123/student123).\n"
+            "WARNING: Seeding default demo credentials (Sayan@@@/Sayan@@/Sayan@).\n"
             "DO NOT use these credentials in a production environment!\n"
         )
-        admin_pass = admin_pass or "admin123"
-        teacher_pass = teacher_pass or "teacher123"
-        student_pass = student_pass or "student123"
+        admin_pass = admin_pass or "Sayan@@@"
+        teacher_pass = teacher_pass or "Sayan@@"
+        student_pass = student_pass or "Sayan@"
 
     seed(admin_pass, teacher_pass, student_pass)

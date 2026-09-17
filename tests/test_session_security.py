@@ -35,7 +35,7 @@ class TestSessionLifecycleAndFixation:
 
         resp = client.post(
             "/login",
-            data={"username": "admin", "password": "admin123"},
+            data={"username": "admin1", "password": "Sayan@@@"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -59,7 +59,7 @@ class TestSessionLifecycleAndFixation:
 
     def test_pending_2fa_session_cannot_access_protected_routes(self, client, db):
         with client.session_transaction() as sess:
-            sess["pending_2fa_user_id"] = db["users"]["admin"]["id"]
+            sess["pending_2fa_user_id"] = db["users"]["admin1"]["id"]
 
         resp = client.get("/dashboard", follow_redirects=False)
         assert resp.status_code == 302
@@ -80,8 +80,8 @@ class TestCsrfEnforcementAndBypass:
         resp = client.post(
             "/login",
             data={
-                "username": "admin",
-                "password": "admin123",
+                "username": "admin1",
+                "password": "Sayan@@@",
             },
             follow_redirects=False,
         )
@@ -93,8 +93,8 @@ class TestCsrfEnforcementAndBypass:
             "/login",
             data={
                 "csrf_token": "invalid_fake_csrf_token_12345",
-                "username": "admin",
-                "password": "admin123",
+                "username": "admin1",
+                "password": "Sayan@@@",
             },
             follow_redirects=False,
         )

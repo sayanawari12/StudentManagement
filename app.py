@@ -380,6 +380,10 @@ def login():
             session["admin"]   = user["username"]          # kept for any legacy checks
             session["role"]    = user["role"]
             session["linked_student_id"] = user["linked_student_id"]  # None for admin/teacher
+            if user.get("requires_password_change"):
+                session["requires_password_change"] = True
+                flash("Please change your temporary password to continue.", "info")
+                return redirect(url_for("change_password"))
             return redirect(_get_default_home_url())
 
         # Timing attack mitigation: run dummy password hash check if user does not exist
@@ -403,6 +407,15 @@ def login():
             flash("Invalid username or password.", "error")
 
     return render_template("login.html")
+
+
+@app.before_request
+def enforce_password_change():
+    """Forces users with a temporary password to complete password change first."""
+    if session.get("requires_password_change"):
+        allowed_endpoints = ("change_password", "logout", "static")
+        if request.endpoint and request.endpoint not in allowed_endpoints and not request.path.startswith("/static/"):
+            return redirect(url_for("change_password"))
 
 
 @app.route("/logout")
@@ -442,8 +455,9 @@ def change_password():
         new_hashed = generate_password_hash(request.form.get("new_password"))
         try:
             database.update_user_password(user_id, new_hashed)
-            flash("Password updated.", "success")
-            return redirect(url_for("dashboard"))
+            session["requires_password_change"] = False
+            flash("Password updated successfully.", "success")
+            return redirect(_get_default_home_url())
         except Error as e:
             app.logger.warning("DB error updating password for user %s: %s", user_id, e)
             flash("A database error occurred while updating your password. Please try again.", "error")
@@ -666,9 +680,18 @@ def add_student():
             return render_template("add_student.html", form=form)
 
         try:
-            database.insert_student(student_payload(form))
-            flash("Student added successfully.", "success")
-            return redirect(url_for("students"))
+            student_pk, payload, login_id, temp_password = database.create_student_with_account(
+                student_payload(form),
+                created_by_user_id=_get_user_id()
+            )
+            return render_template(
+                "student_credentials_success.html",
+                student_pk=student_pk,
+                student_name=payload["student_name"],
+                student_id=payload["student_id"],
+                login_id=login_id,
+                temp_password=temp_password,
+            )
         except Error as e:
             app.logger.warning("DB error inserting student: %s", e)
             flash("A database error occurred while adding the student. Please try again.", "error")
@@ -740,6 +763,7 @@ def students_import():
 
         imported_count = 0
         skipped_rows = []
+        created_students = []
         seen_student_ids = set()
 
         for row_index, raw_row in enumerate(reader, start=1):
@@ -750,9 +774,6 @@ def students_import():
             }
 
             # Strip Excel text-literal wrapper from phone if present.
-            # Our export writes phone as =" digits " so that Excel doesn't
-            # auto-convert it to scientific notation.  Before validation we
-            # recover the plain digit string so the round-trip is transparent.
             phone_val = row.get("phone", "")
             if phone_val.startswith('="') and phone_val.endswith('"'):
                 row["phone"] = phone_val[2:-1]
@@ -782,10 +803,19 @@ def students_import():
             if not row_errors:
                 try:
                     payload = student_payload(row)
-                    database.insert_student(payload)
+                    student_pk, _, login_id, temp_password = database.create_student_with_account(
+                        payload,
+                        created_by_user_id=_get_user_id()
+                    )
                     seen_student_ids.add(student_id)
                     imported_count += 1
-                except Error as e:
+                    created_students.append({
+                        "student_id": payload["student_id"],
+                        "student_name": payload["student_name"],
+                        "login_id": login_id,
+                        "temp_password": temp_password,
+                    })
+                except Exception as e:
                     app.logger.warning("DB error inserting student %s in CSV import: %s", student_id, e)
                     row_errors.append("A database error occurred during student creation.")
                     skipped_rows.append({
@@ -799,6 +829,14 @@ def students_import():
                     "name": student_name,
                     "reasons": row_errors,
                 })
+
+        if created_students:
+            return render_template(
+                "import_credentials_success.html",
+                created_count=imported_count,
+                created_students=created_students,
+                skipped_rows=skipped_rows,
+            )
 
         return render_template(
             "students_import.html",

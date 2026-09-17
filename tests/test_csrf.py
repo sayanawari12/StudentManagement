@@ -41,7 +41,7 @@ class TestCSRFProtection:
         """
         resp = csrf_client.post(
             "/login",
-            data={"username": "admin", "password": "admin123"},
+            data={"username": "admin1", "password": "Sayan@@@"},
         )
         assert resp.status_code == 400, (
             f"Expected 400 for missing CSRF token, got {resp.status_code}"
@@ -72,8 +72,8 @@ class TestCSRFProtection:
         post_resp = csrf_client.post(
             "/login",
             data={
-                "username":   "admin",
-                "password":   "admin123",
+                "username":   "admin1",
+                "password":   "Sayan@@@",
                 "csrf_token": token,
             },
             follow_redirects=False,
@@ -89,7 +89,7 @@ class TestCSRFProtection:
         """Sending csrf_token='' (present but empty) must also return 400."""
         resp = csrf_client.post(
             "/login",
-            data={"username": "admin", "password": "admin123", "csrf_token": ""},
+            data={"username": "admin1", "password": "Sayan@@@", "csrf_token": ""},
         )
         assert resp.status_code == 400, (
             f"Expected 400 for empty CSRF token, got {resp.status_code}"
@@ -100,8 +100,8 @@ class TestCSRFProtection:
         resp = csrf_client.post(
             "/login",
             data={
-                "username":   "admin",
-                "password":   "admin123",
+                "username":   "admin1",
+                "password":   "Sayan@@@",
                 "csrf_token": "not-a-real-token",
             },
         )

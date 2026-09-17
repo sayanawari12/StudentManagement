@@ -40,7 +40,7 @@ def assert_redirected_to(resp, path_fragment):
 
 def _reset_all(db):
     """Disable 2FA for every test user so no state leaks between tests."""
-    for username in ("admin", "teacher", "student"):
+    for username in ("admin1", "teacher1", "student1"):
         user_id = db["users"][username]["id"]
         database.disable_user_totp(user_id)
 
@@ -91,7 +91,7 @@ class TestTotpSetupFlow:
         resp = get(admin_client, "/2fa/setup")
         body = resp.data.decode("utf-8")
         # After GET, a totp_secret should have been stored in the DB
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         user = database.get_user_by_id(admin_id)
         assert user["totp_secret"] is not None
         assert user["totp_secret"] in body
@@ -99,7 +99,7 @@ class TestTotpSetupFlow:
     def test_post_correct_code_enables_2fa(self, admin_client, db):
         # Trigger GET first so a secret is generated and stored
         get(admin_client, "/2fa/setup")
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         user = database.get_user_by_id(admin_id)
         secret = user["totp_secret"]
         assert secret is not None
@@ -115,7 +115,7 @@ class TestTotpSetupFlow:
 
     def test_post_wrong_code_does_not_enable_2fa(self, teacher_client, db):
         get(teacher_client, "/2fa/setup")
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
 
         resp = post(teacher_client, "/2fa/setup", data={"code": "000000"})
         # Should re-render (200), not redirect
@@ -125,7 +125,7 @@ class TestTotpSetupFlow:
         assert not updated["totp_enabled"]
 
     def test_get_setup_when_already_enabled_shows_disable_state(self, admin_client, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         _enable_2fa_for_user(admin_id)
 
         resp = get(admin_client, "/2fa/setup")
@@ -156,10 +156,10 @@ class TestTotpLoginFlow:
 
     def test_user_with_2fa_redirected_to_verify_page(self, app, db):
         """After correct username+password, land at /login/2fa not /dashboard."""
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
         secret = _enable_2fa_for_user(teacher_id)
 
-        c, resp = _fresh_authed_client(app, "teacher", "teacher123")
+        c, resp = _fresh_authed_client(app, "teacher1", "Sayan@@")
         assert_redirected_to(resp, "/login/2fa")
         # Full session must NOT be set yet
         with c.session_transaction() as sess:
@@ -167,10 +167,10 @@ class TestTotpLoginFlow:
             assert sess.get("pending_2fa_user_id") == teacher_id
 
     def test_correct_code_completes_login(self, app, db):
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
         secret = _enable_2fa_for_user(teacher_id)
 
-        c, _ = _fresh_authed_client(app, "teacher", "teacher123")
+        c, _ = _fresh_authed_client(app, "teacher1", "Sayan@@")
 
         code = pyotp.TOTP(secret).now()
         resp = c.post("/login/2fa", data={"code": code}, follow_redirects=False)
@@ -182,10 +182,10 @@ class TestTotpLoginFlow:
             assert "pending_2fa_user_id" not in sess
 
     def test_wrong_code_does_not_complete_login(self, app, db):
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
         secret = _enable_2fa_for_user(teacher_id)
 
-        c, _ = _fresh_authed_client(app, "teacher", "teacher123")
+        c, _ = _fresh_authed_client(app, "teacher1", "Sayan@@")
         resp = c.post("/login/2fa", data={"code": "000000"}, follow_redirects=False)
         # Re-renders the form (200)
         assert resp.status_code == 200
@@ -195,10 +195,10 @@ class TestTotpLoginFlow:
             assert "pending_2fa_user_id" in sess
 
     def test_five_wrong_codes_clears_pending_session(self, app, db):
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
         secret = _enable_2fa_for_user(teacher_id)
 
-        c, _ = _fresh_authed_client(app, "teacher", "teacher123")
+        c, _ = _fresh_authed_client(app, "teacher1", "Sayan@@")
 
         for _ in range(5):
             resp = c.post("/login/2fa", data={"code": "000000"}, follow_redirects=False)
@@ -215,10 +215,10 @@ class TestTotpLoginFlow:
         assert_redirected_to(resp, "/login")
 
     def test_get_login_2fa_renders_verify_form(self, app, db):
-        teacher_id = db["users"]["teacher"]["id"]
+        teacher_id = db["users"]["teacher1"]["id"]
         _enable_2fa_for_user(teacher_id)
 
-        c, _ = _fresh_authed_client(app, "teacher", "teacher123")
+        c, _ = _fresh_authed_client(app, "teacher1", "Sayan@@")
         resp = c.get("/login/2fa", follow_redirects=False)
         assert resp.status_code == 200
         assert b"code" in resp.data
@@ -231,10 +231,10 @@ class TestTotpLoginFlow:
 class TestTotpDisableFlow:
 
     def test_correct_password_disables_2fa(self, admin_client, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         _enable_2fa_for_user(admin_id)
 
-        resp = post(admin_client, "/2fa/disable", data={"current_password": "admin123"})
+        resp = post(admin_client, "/2fa/disable", data={"current_password": "Sayan@@@"})
         assert_redirected_to(resp, "/dashboard")
 
         updated = database.get_user_by_id(admin_id)
@@ -242,7 +242,7 @@ class TestTotpDisableFlow:
         assert updated["totp_secret"] is None
 
     def test_wrong_password_does_not_disable_2fa(self, admin_client, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         _enable_2fa_for_user(admin_id)
 
         resp = post(admin_client, "/2fa/disable", data={"current_password": "wrongpass"})
@@ -266,10 +266,10 @@ class TestNon2FALoginRegression:
     def test_user_without_2fa_goes_straight_to_dashboard(self, app, db):
         """Existing behavior: no 2FA = direct session set on login."""
         # Ensure student has no 2FA (it starts disabled by default)
-        student_id = db["users"]["student"]["id"]
+        student_id = db["users"]["student1"]["id"]
         database.disable_user_totp(student_id)   # idempotent
 
-        c, resp = _fresh_authed_client(app, "student", "student123")
+        c, resp = _fresh_authed_client(app, "student1", "Sayan@")
         assert resp.status_code in (301, 302)
         assert f"/students/{db['linked_pk']}" in resp.headers.get("Location", "")
 
@@ -278,10 +278,10 @@ class TestNon2FALoginRegression:
             assert "pending_2fa_user_id" not in sess
 
     def test_admin_without_2fa_goes_straight_to_dashboard(self, app, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         database.disable_user_totp(admin_id)
 
-        c, resp = _fresh_authed_client(app, "admin", "admin123")
+        c, resp = _fresh_authed_client(app, "admin1", "Sayan@@@")
         assert_redirected_to(resp, "/dashboard")
 
         with c.session_transaction() as sess:
@@ -295,7 +295,7 @@ class TestNon2FALoginRegression:
 class TestTotpDatabaseFunctions:
 
     def test_set_totp_secret_stores_secret(self, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         secret = pyotp.random_base32()
         database.set_user_totp_secret(admin_id, secret)
 
@@ -304,7 +304,7 @@ class TestTotpDatabaseFunctions:
         assert not user["totp_enabled"]
 
     def test_enable_totp_sets_flag(self, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         secret = pyotp.random_base32()
         database.set_user_totp_secret(admin_id, secret)
         database.enable_user_totp(admin_id)
@@ -313,7 +313,7 @@ class TestTotpDatabaseFunctions:
         assert user["totp_enabled"] is True or user["totp_enabled"] == 1
 
     def test_disable_totp_clears_secret_and_flag(self, db):
-        admin_id = db["users"]["admin"]["id"]
+        admin_id = db["users"]["admin1"]["id"]
         secret = pyotp.random_base32()
         database.set_user_totp_secret(admin_id, secret)
         database.enable_user_totp(admin_id)

@@ -17,7 +17,7 @@ class TestLoginFlow:
     def test_correct_credentials_redirect_to_dashboard(self, client):
         resp = client.post(
             "/login",
-            data={"username": "admin", "password": "admin123"},
+            data={"username": "admin1", "password": "Sayan@@@"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -68,13 +68,13 @@ class TestSessionAfterLogin:
             assert sess.get("linked_student_id") == db_user["linked_student_id"]
 
     def test_admin_session(self, admin_client, db):
-        self._assert_session_matches_db(admin_client, "admin", db)
+        self._assert_session_matches_db(admin_client, "admin1", db)
 
     def test_teacher_session(self, teacher_client, db):
-        self._assert_session_matches_db(teacher_client, "teacher", db)
+        self._assert_session_matches_db(teacher_client, "teacher1", db)
 
     def test_student_session(self, student_client, db):
-        self._assert_session_matches_db(student_client, "student", db)
+        self._assert_session_matches_db(student_client, "student1", db)
 
     def test_student_linked_student_id_not_none(self, student_client, db):
         with student_client.session_transaction() as sess:
@@ -136,8 +136,8 @@ class TestMarkedByAndRecordedByRegression:
     def test_admin_attendance_marked_by_equals_admin_user_id(self, admin_client, db):
         stud_id = db["linked_pk"]
         date_str = "2025-01-10"
-        admin_user_id = db["users"]["admin"]["id"]
-        admin_linked  = db["users"]["admin"]["linked_student_id"]  # None
+        admin_user_id = db["users"]["admin1"]["id"]
+        admin_linked  = db["users"]["admin1"]["linked_student_id"]  # None
 
         self._post_attendance(admin_client, stud_id, date_str)
 
@@ -159,8 +159,8 @@ class TestMarkedByAndRecordedByRegression:
     def test_teacher_attendance_marked_by_equals_teacher_user_id(self, teacher_client, db):
         stud_id = db["linked_pk"]
         date_str = "2025-01-11"
-        teacher_user_id = db["users"]["teacher"]["id"]
-        teacher_linked  = db["users"]["teacher"]["linked_student_id"]  # None
+        teacher_user_id = db["users"]["teacher1"]["id"]
+        teacher_linked  = db["users"]["teacher1"]["linked_student_id"]  # None
 
         self._post_attendance(teacher_client, stud_id, date_str)
 
@@ -179,7 +179,7 @@ class TestMarkedByAndRecordedByRegression:
 
     def test_admin_grade_recorded_by_equals_admin_user_id(self, admin_client, db):
         stud_id = db["linked_pk"]
-        admin_user_id = db["users"]["admin"]["id"]
+        admin_user_id = db["users"]["admin1"]["id"]
 
         self._post_grade(admin_client, stud_id)
 
@@ -197,7 +197,7 @@ class TestMarkedByAndRecordedByRegression:
 
     def test_teacher_grade_recorded_by_equals_teacher_user_id(self, teacher_client, db):
         stud_id = db["linked_pk"]
-        teacher_user_id = db["users"]["teacher"]["id"]
+        teacher_user_id = db["users"]["teacher1"]["id"]
 
         self._post_grade(teacher_client, stud_id)
 
@@ -222,7 +222,7 @@ class TestMarkedByAndRecordedByRegression:
         Here we verify the inserted row has a recorded_by that matches a known user.
         """
         stud_id = db["linked_pk"]
-        admin_user_id = db["users"]["admin"]["id"]
+        admin_user_id = db["users"]["admin1"]["id"]
 
         self._post_grade(admin_client, stud_id)
 
@@ -265,8 +265,8 @@ class TestGetUserIdSafety:
         with app.test_request_context("/"):
             from flask import session
             from app import _get_user_id
-            session["admin"] = "teacher"
-            teacher_id = db["users"]["teacher"]["id"]
+            session["admin"] = "teacher1"
+            teacher_id = db["users"]["teacher1"]["id"]
             assert _get_user_id() == teacher_id
 
     def test_db_lookup_failure_does_not_return_one(self, app):
@@ -341,7 +341,7 @@ class TestStep2DSecurityHardening:
 
         resp = client.post(
             "/login",
-            data={"username": "admin", "password": "admin123"},
+            data={"username": "admin1", "password": "Sayan@@@"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -363,7 +363,7 @@ class TestStep2DSecurityHardening:
 
         resp_wrongpass = client.post(
             "/login",
-            data={"username": "admin", "password": "wrong_password_123"},
+            data={"username": "admin1", "password": "wrong_password_123"},
             follow_redirects=True,
         )
         assert resp_wrongpass.status_code == 200
@@ -381,7 +381,7 @@ class TestStep2DSecurityHardening:
         """Login failures must not leak internal database details, tracebacks, or password hashes."""
         resp = client.post(
             "/login",
-            data={"username": "admin", "password": "wrong_password_123"},
+            data={"username": "admin1", "password": "wrong_password_123"},
             follow_redirects=True,
         )
         assert resp.status_code == 200

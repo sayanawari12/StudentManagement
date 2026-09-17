@@ -37,7 +37,7 @@ class TestPasswordChangeValidation:
         assert b"Change Password" in resp.data
 
     def test_wrong_current_password_rejected(self, admin_client, db):
-        hash_before = _get_user_db_row("admin")["password"]
+        hash_before = _get_user_db_row("admin1")["password"]
 
         resp = admin_client.post(
             "/change-password",
@@ -51,16 +51,16 @@ class TestPasswordChangeValidation:
         assert resp.status_code == 200
         assert b"Current password is incorrect" in resp.data
 
-        hash_after = _get_user_db_row("admin")["password"]
+        hash_after = _get_user_db_row("admin1")["password"]
         assert hash_before == hash_after, "DB password hash must not change on validation failure"
 
     def test_mismatched_confirm_password_rejected(self, admin_client, db):
-        hash_before = _get_user_db_row("admin")["password"]
+        hash_before = _get_user_db_row("admin1")["password"]
 
         resp = admin_client.post(
             "/change-password",
             data={
-                "current_password":     "admin123",
+                "current_password":     "Sayan@@@",
                 "new_password":         "newadmin123",
                 "confirm_new_password": "differentpassword",
             },
@@ -69,16 +69,16 @@ class TestPasswordChangeValidation:
         assert resp.status_code == 200
         assert b"do not match" in resp.data
 
-        hash_after = _get_user_db_row("admin")["password"]
+        hash_after = _get_user_db_row("admin1")["password"]
         assert hash_before == hash_after
 
     def test_short_new_password_rejected(self, admin_client, db):
-        hash_before = _get_user_db_row("admin")["password"]
+        hash_before = _get_user_db_row("admin1")["password"]
 
         resp = admin_client.post(
             "/change-password",
             data={
-                "current_password":     "admin123",
+                "current_password":     "Sayan@@@",
                 "new_password":         "short",
                 "confirm_new_password": "short",
             },
@@ -87,25 +87,25 @@ class TestPasswordChangeValidation:
         assert resp.status_code == 200
         assert b"at least 8 characters" in resp.data
 
-        hash_after = _get_user_db_row("admin")["password"]
+        hash_after = _get_user_db_row("admin1")["password"]
         assert hash_before == hash_after
 
     def test_same_new_password_rejected(self, admin_client, db):
-        hash_before = _get_user_db_row("admin")["password"]
+        hash_before = _get_user_db_row("admin1")["password"]
 
         resp = admin_client.post(
             "/change-password",
             data={
-                "current_password":     "admin123",
-                "new_password":         "admin123",
-                "confirm_new_password": "admin123",
+                "current_password":     "Sayan@@@",
+                "new_password":         "Sayan@@@",
+                "confirm_new_password": "Sayan@@@",
             },
             follow_redirects=True,
         )
         assert resp.status_code == 200
         assert b"must be different" in resp.data
 
-        hash_after = _get_user_db_row("admin")["password"]
+        hash_after = _get_user_db_row("admin1")["password"]
         assert hash_before == hash_after
 
 
@@ -134,8 +134,10 @@ class TestPasswordChangeSuccess:
                 },
                 follow_redirects=False,
             )
-            assert change_resp.status_code == 302, f"Change password failed for {username}"
-            assert "/dashboard" in change_resp.headers["Location"]
+            if username == "student1":
+                assert "/students/" in change_resp.headers["Location"]
+            else:
+                assert "/dashboard" in change_resp.headers["Location"]
 
             # 3. Verify DB hash changed and matches new password
             hash_after = _get_user_db_row(username)["password"]
@@ -159,7 +161,7 @@ class TestPasswordChangeSuccess:
                 follow_redirects=False,
             )
             assert new_login_resp.status_code == 302
-            if username == "student":
+            if username == "student1":
                 assert "/students/" in new_login_resp.headers["Location"]
             else:
                 assert "/dashboard" in new_login_resp.headers["Location"]
@@ -178,15 +180,15 @@ class TestPasswordChangeSuccess:
 
     def test_admin_password_change_roundtrip(self, app, db):
         self._test_role_password_change_roundtrip(
-            app, "admin", "admin123", "newadminpass123"
+            app, "admin1", "Sayan@@@", "newadminpass123"
         )
 
     def test_teacher_password_change_roundtrip(self, app, db):
         self._test_role_password_change_roundtrip(
-            app, "teacher", "teacher123", "newteacherpass123"
+            app, "teacher1", "Sayan@@", "newteacherpass123"
         )
 
     def test_student_password_change_roundtrip(self, app, db):
         self._test_role_password_change_roundtrip(
-            app, "student", "student123", "newstudentpass123"
+            app, "student1", "Sayan@", "newstudentpass123"
         )

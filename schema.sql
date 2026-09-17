@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     totp_enabled       BOOLEAN      NOT NULL DEFAULT FALSE,
     failed_login_attempts INT       NOT NULL DEFAULT 0,
     locked_until       DATETIME     NULL,
+    requires_password_change BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (linked_student_id) REFERENCES students(id) ON DELETE SET NULL
 );
 
