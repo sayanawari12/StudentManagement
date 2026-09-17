@@ -344,13 +344,14 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        login_type = request.form.get("login_type", "").strip().lower()
 
         try:
             user = database.get_user_by_username(username)
         except Error as e:
             app.logger.warning("DB error during login for user %r from %s: %s", username, request.remote_addr, e)
             flash("Could not reach the database. Please check MySQL is running.", "error")
-            return render_template("login.html")
+            return render_template("login.html", login_type=login_type, username=username)
 
         # 1. Account Lockout check (if account exists and is locked)
         if user and database.is_account_locked(user):
@@ -358,10 +359,18 @@ def login():
             diff = locked_until - datetime.datetime.now()
             remaining_minutes = max(1, math.ceil(diff.total_seconds() / 60))
             flash(f"Account locked. Try again in {remaining_minutes} minutes.", "error")
-            return render_template("login.html")
+            return render_template("login.html", login_type=login_type, username=username)
 
         # 2. Check password
         if user and check_password_hash(user["password"], password):
+            # Role validation check against selected login_type
+            if login_type and login_type in ("student", "teacher", "admin"):
+                user_role = (user.get("role") or "").strip().lower()
+                if user_role != login_type:
+                    app.logger.warning("Login type mismatch for user %r: selected %s, actual role %s", username, login_type, user_role)
+                    flash(f"Access denied: Account '{username}' is a {user_role.title()}, not a {login_type.title()}.", "error")
+                    return render_template("login.html", login_type=login_type, username=username)
+
             try:
                 database.reset_failed_login(user["id"])
             except Error as e:
@@ -405,6 +414,8 @@ def login():
                 flash("Invalid username or password.", "error")
         else:
             flash("Invalid username or password.", "error")
+
+        return render_template("login.html", login_type=login_type, username=username)
 
     return render_template("login.html")
 

@@ -50,6 +50,26 @@ class TestLoginFlow:
             assert "role" not in sess
             assert "user_id" not in sess
 
+    def test_login_with_matching_login_type_succeeds(self, client):
+        resp = client.post(
+            "/login",
+            data={"username": "admin1", "password": "Sayan@@@", "login_type": "admin"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert "/dashboard" in resp.headers["Location"]
+
+    def test_login_with_mismatched_login_type_fails(self, client):
+        resp = client.post(
+            "/login",
+            data={"username": "admin1", "password": "Sayan@@@", "login_type": "student"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b"Access denied" in resp.data
+        with client.session_transaction() as sess:
+            assert "user_id" not in sess
+
 
 # ---------------------------------------------------------------------------
 # Session contents after login
