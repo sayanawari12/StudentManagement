@@ -869,16 +869,16 @@ textarea {
   position: relative;
   z-index: 5;
   width: 100%;
-  max-width: 530px;
+  max-width: 680px;
   margin: 36px auto 0;
 }
 
 .cat-track {
   position: absolute;
-  top: -36px;
+  top: -40px;
   left: 0;
   right: 0;
-  height: 36px;
+  height: 40px;
   pointer-events: none;
   overflow: visible;
 }
@@ -887,8 +887,8 @@ textarea {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 44px;
-  height: 34px;
+  width: 50px;
+  height: 38px;
   transform: translateX(-50%);
   will-change: transform;
 }
@@ -939,32 +939,38 @@ textarea {
 /* Login Card Surface */
 .login-card {
   width: 100%;
-  max-width: 530px;
-  background: #FFFFFF;
+  max-width: 680px;
+  background: var(--bg-surface);
   border: 1px solid #E6DFD5;
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(120, 100, 80, 0.07), 0 4px 12px rgba(120, 100, 80, 0.03);
-  padding: 42px 48px 38px;
+  padding: 44px 54px 40px;
   position: relative;
 }
 
 .login-card-header {
   text-align: center;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 
 .login-card-header h1 {
   font-family: var(--font-heading), "Georgia", serif;
-  font-size: 34px;
+  font-size: 36px;
   font-weight: 700;
-  color: #2C2520;
+  color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.5px;
 }
 
 .login-card-header h1 span.ms-accent {
-  color: #A86F4D;
+  color: var(--accent);
   font-weight: 700;
+}
+
+.login-card p.sub-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 6px 0 16px;
 }
 
 .title-underline {
@@ -981,8 +987,8 @@ textarea {
   background: #F4EFEA;
   border-radius: 10px;
   padding: 4px;
-  gap: 4px;
-  margin-bottom: 24px;
+  gap: 6px;
+  margin-bottom: 26px;
   border: 1px solid #E8E0D5;
 }
 
@@ -992,27 +998,27 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   border: none;
   border-radius: 8px;
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 14px;
-  color: #7A6B5D;
+  color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .login-type-btn:hover:not(.active) {
-  color: #3D3228;
-  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .login-type-btn.active {
-  background: #A86F4D;
+  background: var(--accent);
   color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(168, 111, 77, 0.25);
+  box-shadow: 0 2px 6px rgba(169, 113, 79, 0.25);
 }
 
 .login-type-btn svg {
@@ -1033,7 +1039,7 @@ textarea {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.8px;
-  color: #6E6154;
+  color: var(--text-secondary);
   margin-bottom: 6px;
   text-transform: uppercase;
 }
@@ -1056,14 +1062,14 @@ textarea {
 .login-card input[type="text"],
 .login-card input[type="password"] {
   width: 100%;
-  height: 46px;
+  height: 48px;
   padding: 0 14px 0 42px;
   border: 1px solid #DED5C9;
   border-radius: 8px;
   background: #FAFAFA;
   font-family: var(--font-body);
   font-size: 15px;
-  color: #2C2520;
+  color: var(--text-primary);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
@@ -1074,9 +1080,9 @@ textarea {
 .login-card input[type="text"]:focus,
 .login-card input[type="password"]:focus {
   outline: none;
-  border-color: #A86F4D;
+  border-color: var(--accent);
   background: #FFFFFF;
-  box-shadow: 0 0 0 3px rgba(168, 111, 77, 0.15);
+  box-shadow: 0 0 0 3px rgba(169, 113, 79, 0.15);
 }
 
 .login-card input::placeholder {
@@ -1100,14 +1106,14 @@ textarea {
 }
 
 .toggle-password:hover {
-  color: #3D3228;
+  color: var(--text-primary);
 }
 
 /* Log in Button */
 .btn-login {
   width: 100%;
-  height: 48px;
-  background: #A86F4D;
+  height: 50px;
+  background: var(--accent);
   color: #FFFFFF;
   border: none;
   border-radius: 8px;
@@ -1120,7 +1126,72 @@ textarea {
   justify-content: center;
   transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
   margin-top: 10px;
-  box-shadow: 0 4px 12px rgba(168, 111, 77, 0.2);
+  box-shadow: 0 4px 12px rgba(169, 113, 79, 0.2);
+}
+
+.btn-login:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 6px 16px rgba(169, 113, 79, 0.28);
+}
+
+.btn-login:active {
+  transform: translateY(1px);
+}
+
+/* Divider & Footer Row */
+.login-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 22px 0 18px;
+  color: #A89887;
+  font-size: 13px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #E6DFD5;
+}
+
+.login-divider span {
+  padding: 0 14px;
+}
+
+.login-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-me input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.forgot-password {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-password:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
 }
 
 .btn-login:hover {
