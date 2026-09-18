@@ -172,6 +172,24 @@ CREATE TABLE IF NOT EXISTS exam_marks (
 );
 
 -- ----------------------------------------------------------------
+-- 11. Timetable Management
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS timetable (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    semester    INT          NOT NULL,
+    subject_id  INT          NOT NULL,
+    teacher_id  INT          NOT NULL,
+    day_of_week VARCHAR(20)  NOT NULL,
+    start_time  TIME         NOT NULL,
+    end_time    TIME         NOT NULL,
+    room        VARCHAR(50)  NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ----------------------------------------------------------------
 -- Sample student data (INSERT IGNORE = safe to re-run)
 -- ----------------------------------------------------------------
 INSERT IGNORE INTO students

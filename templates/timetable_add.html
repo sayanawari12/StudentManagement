@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Add Class Timetable Entry — Student MS{% endblock %}
+
+{% block content %}
+<div style="max-width: 680px; margin: 0 auto;">
+
+  <div style="margin-bottom: 24px;">
+    <a href="{{ url_for('timetable', semester=form_data.get('semester', 1)) }}" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+      &larr; Back to Timetable
+    </a>
+    <h1 style="font-family: 'Newsreader', serif; font-size: 26px; font-weight: 500; color: var(--text); margin: 0;">
+      Add Class Timetable Entry
+    </h1>
+    <p style="font-size: 14px; color: var(--text-secondary); margin: 4px 0 0 0;">
+      Schedule a new class session for a specific semester, subject, teacher, day, and room.
+    </p>
+  </div>
+
+  <div class="card" style="padding: 28px; border: 1px solid var(--border); border-radius: var(--radius); background: #FFF;">
+    <form method="POST" action="{{ url_for('timetable_add') }}" id="timetableAddForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {# Semester Selector #}
+      <div style="margin-bottom: 20px;">
+        <label for="semesterSelect" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+          Semester <span style="color: #C53030;">*</span>
+        </label>
+        <select name="semester" id="semesterSelect" required onchange="loadSemesterSubjects(this.value)" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+          {% for sem in semesters %}
+            <option value="{{ sem }}" {% if form_data.get('semester') | string == sem | string %}selected{% endif %}>
+              Semester {{ sem }}
+            </option>
+          {% endfor %}
+        </select>
+        <span style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; display: block;">
+          Selecting a semester dynamically loads its configured subjects.
+        </span>
+      </div>
+
+      {# Subject Selector (Dynamically Populated) #}
+      <div style="margin-bottom: 20px;">
+        <label for="subjectSelect" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+          Subject <span style="color: #C53030;">*</span>
+        </label>
+        <select name="subject_id" id="subjectSelect" required style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+          {% if init_subjects %}
+            {% for sub in init_subjects %}
+              <option value="{{ sub.id }}" {% if form_data.get('subject_id') | string == sub.id | string %}selected{% endif %}>
+                {{ sub.subject_code }}: {{ sub.subject_name }}
+              </option>
+            {% endfor %}
+          {% else %}
+            <option value="">No subjects configured for this semester</option>
+          {% endif %}
+        </select>
+        <span id="subjectStatusText" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; display: block;"></span>
+      </div>
+
+      {# Teacher Selector #}
+      <div style="margin-bottom: 20px;">
+        <label for="teacherSelect" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+          Teacher <span style="color: #C53030;">*</span>
+        </label>
+        <select name="teacher_id" id="teacherSelect" required style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+          <option value="">-- Select Assigned Teacher --</option>
+          {% for t in teachers %}
+            <option value="{{ t.id }}" {% if form_data.get('teacher_id') | string == t.id | string %}selected{% endif %}>
+              {{ t.username }} ({{ t.role | capitalize }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Day & Time Row #}
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <div>
+          <label for="daySelect" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+            Day <span style="color: #C53030;">*</span>
+          </label>
+          <select name="day_of_week" id="daySelect" required style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+            {% for d in weekdays %}
+              <option value="{{ d }}" {% if form_data.get('day_of_week') == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="startTime" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+            Start Time <span style="color: #C53030;">*</span>
+          </label>
+          <input type="time" name="start_time" id="startTime" required value="{{ form_data.get('start_time', '09:00') }}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit;">
+        </div>
+
+        <div>
+          <label for="endTime" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+            End Time <span style="color: #C53030;">*</span>
+          </label>
+          <input type="time" name="end_time" id="endTime" required value="{{ form_data.get('end_time', '10:00') }}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit;">
+        </div>
+      </div>
+
+      {# Room Field #}
+      <div style="margin-bottom: 28px;">
+        <label for="roomInput" style="display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;">
+          Room / Classroom <span style="color: #C53030;">*</span>
+        </label>
+        <input type="text" name="room" id="roomInput" required placeholder="e.g. Room 101, Lab 2, Hall B" value="{{ form_data.get('room', '') }}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit;">
+      </div>
+
+      {# Buttons #}
+      <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 20px;">
+        <a href="{{ url_for('timetable') }}" style="padding: 10px 18px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500;">
+          Cancel
+        </a>
+        <button type="submit" class="btn-primary" style="padding: 10px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 500;">
+          Save Class Entry
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
+<script>
+function loadSemesterSubjects(semesterVal) {
+  const subjectSelect = document.getElementById("subjectSelect");
+  const statusText = document.getElementById("subjectStatusText");
+  
+  if (!semesterVal) return;
+
+  subjectSelect.innerHTML = '<option value="">Loading subjects...</option>';
+  if (statusText) statusText.textContent = "Fetching subjects for Semester " + semesterVal + "...";
+
+  fetch("/api/semesters/" + semesterVal + "/subjects")
+    .then(response => response.json())
+    .then(data => {
+      subjectSelect.innerHTML = "";
+      if (data.success && data.subjects && data.subjects.length > 0) {
+        data.subjects.forEach(sub => {
+          const opt = document.createElement("option");
+          opt.value = sub.id;
+          opt.textContent = sub.subject_code + ": " + sub.subject_name;
+          subjectSelect.appendChild(opt);
+        });
+        if (statusText) statusText.textContent = data.subjects.length + " subjects loaded for Semester " + semesterVal;
+      } else {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No subjects configured for this semester.";
+        subjectSelect.appendChild(opt);
+        if (statusText) statusText.textContent = "No subjects found for Semester " + semesterVal;
+      }
+    })
+    .catch(err => {
+      console.error("Error loading subjects:", err);
+      subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+      if (statusText) statusText.textContent = "Failed to load subjects.";
+    });
+}
+</script>
+{% endblock %}

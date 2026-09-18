@@ -92,6 +92,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
             Student Rankings
           </a>
+          <a href="{{ url_for('timetable') }}" class="drawer-item {{ 'active' if request.endpoint in ['timetable', 'timetable_add', 'timetable_edit'] else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            {{ 'Timetable Management' if session.get('role') == 'admin' else 'My Timetable' }}
+          </a>
         {% endif %}
 
         {% if session.get('role') == 'student' and session.get('linked_student_id') %}
@@ -106,6 +110,10 @@
           <a href="{{ url_for('student_result_history_route', student_id=session.linked_student_id) }}" class="drawer-item {{ 'active' if request.endpoint in ['student_result_history_route', 'view_exam_results_route'] else '' }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             My Exam Results
+          </a>
+          <a href="{{ url_for('timetable') }}" class="drawer-item {{ 'active' if request.endpoint == 'timetable' else '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            My Timetable
           </a>
         {% endif %}
       </div>
@@ -134,7 +142,7 @@
       {# --- SECTION: ACCOUNT --- #}
       <div class="drawer-section">
         <a href="{{ url_for('change_password') }}" class="drawer-item {{ 'active' if request.endpoint == 'change_password' else '' }}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Change Password
         </a>
         <a href="{{ url_for('totp_setup') }}" class="drawer-item {{ 'active' if request.endpoint in ['totp_setup'] else '' }}">
@@ -189,6 +197,8 @@
              class="{{ 'active' if request.endpoint in ['list_exams_route', 'create_exam_route', 'edit_exam_route', 'enter_exam_marks_route'] else '' }}">Exams & Results</a>
           <a href="{{ url_for('rankings') }}"
              class="{{ 'active' if request.endpoint == 'rankings' else '' }}">Student Rankings</a>
+          <a href="{{ url_for('timetable') }}"
+             class="{{ 'active' if request.endpoint in ['timetable', 'timetable_add', 'timetable_edit'] else '' }}">{{ 'Timetable Management' if session.get('role') == 'admin' else 'My Timetable' }}</a>
         {% endif %}
 
         {# Analytics — admin + teacher #}
@@ -205,6 +215,8 @@
              class="{{ 'active' if request.endpoint == 'student_academic_record_route' else '' }}">Academic Transcript</a>
           <a href="{{ url_for('student_result_history_route', student_id=session.linked_student_id) }}"
              class="{{ 'active' if request.endpoint in ['student_result_history_route', 'view_exam_results_route'] else '' }}">My Exam Results</a>
+          <a href="{{ url_for('timetable') }}"
+             class="{{ 'active' if request.endpoint == 'timetable' else '' }}">My Timetable</a>
         {% endif %}
 
         {# Notices — all logged-in roles #}

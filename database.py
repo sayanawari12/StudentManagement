@@ -2301,6 +2301,313 @@ def get_document_stats_for_student(stud_id):
 
 
 # ---------------------------------------------------------------------------
+# Timetable Management Helpers
+# ---------------------------------------------------------------------------
+
+VALID_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+def ensure_timetable_table_exists():
+    """Ensure timetable table exists in the database."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS timetable (
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                semester    INT          NOT NULL,
+                subject_id  INT          NOT NULL,
+                teacher_id  INT          NOT NULL,
+                day_of_week VARCHAR(20)  NOT NULL,
+                start_time  TIME         NOT NULL,
+                end_time    TIME         NOT NULL,
+                room        VARCHAR(50)  NOT NULL,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+                FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        logger.warning("Database error during ensure_timetable_table_exists: %s", e)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def get_all_teachers():
+    """Fetch all users who are registered as teachers (or admin)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT id, username, role, linked_student_id
+            FROM users
+            WHERE role IN ('teacher', 'admin')
+            ORDER BY username ASC
+        """)
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def check_timetable_conflict(semester, teacher_id, room, day_of_week, start_time, end_time, exclude_id=None):
+    """
+    Check for timetable schedule conflicts:
+      - Same semester + day + overlapping time
+      - Same teacher + day + overlapping time
+      - Same room + day + overlapping time (if room provided)
+    Returns (has_conflict: bool, message: str).
+    """
+    ensure_timetable_table_exists()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # A. Check Semester Conflict
+        query_sem = """
+            SELECT t.id, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+            FROM timetable t
+            JOIN subjects sub ON sub.id = t.subject_id
+            WHERE t.semester = %s AND t.day_of_week = %s
+              AND (t.start_time < %s AND t.end_time > %s)
+        """
+        params_sem = [semester, day_of_week, end_time, start_time]
+        if exclude_id:
+            query_sem += " AND t.id != %s"
+            params_sem.append(exclude_id)
+
+        cursor.execute(query_sem, params_sem)
+        conflict_sem = cursor.fetchone()
+        if conflict_sem:
+            return True, f"Conflict: Semester {semester} already has class '{conflict_sem['subject_name']}' scheduled on {day_of_week} ({conflict_sem['start_fmt']} - {conflict_sem['end_fmt']})."
+
+        # B. Check Teacher Conflict
+        query_teacher = """
+            SELECT t.id, u.username as teacher_name, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+            FROM timetable t
+            JOIN users u ON u.id = t.teacher_id
+            JOIN subjects sub ON sub.id = t.subject_id
+            WHERE t.teacher_id = %s AND t.day_of_week = %s
+              AND (t.start_time < %s AND t.end_time > %s)
+        """
+        params_teacher = [teacher_id, day_of_week, end_time, start_time]
+        if exclude_id:
+            query_teacher += " AND t.id != %s"
+            params_teacher.append(exclude_id)
+
+        cursor.execute(query_teacher, params_teacher)
+        conflict_teacher = cursor.fetchone()
+        if conflict_teacher:
+            return True, f"Conflict: Teacher '{conflict_teacher['teacher_name']}' is already assigned to another class ('{conflict_teacher['subject_name']}') on {day_of_week} ({conflict_teacher['start_fmt']} - {conflict_teacher['end_fmt']})."
+
+        # C. Check Room Conflict (if room specified)
+        room_str = str(room or "").strip()
+        if room_str:
+            query_room = """
+                SELECT t.id, t.room, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+                FROM timetable t
+                JOIN subjects sub ON sub.id = t.subject_id
+                WHERE LOWER(TRIM(t.room)) = LOWER(TRIM(%s)) AND t.day_of_week = %s
+                  AND (t.start_time < %s AND t.end_time > %s)
+            """
+            params_room = [room_str, day_of_week, end_time, start_time]
+            if exclude_id:
+                query_room += " AND t.id != %s"
+                params_room.append(exclude_id)
+
+            cursor.execute(query_room, params_room)
+            conflict_room = cursor.fetchone()
+            if conflict_room:
+                return True, f"Conflict: Room '{conflict_room['room']}' is already occupied by '{conflict_room['subject_name']}' on {day_of_week} ({conflict_room['start_fmt']} - {conflict_room['end_fmt']})."
+
+        return False, ""
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_timetable_entries(semester=None, day_of_week=None, teacher_id=None):
+    """Fetch timetable entries with optional filtering by semester, day, or teacher."""
+    ensure_timetable_table_exists()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        sql = """
+            SELECT t.id, t.semester, t.subject_id, t.teacher_id, t.day_of_week,
+                   TIME_FORMAT(t.start_time, '%%H:%%i') AS start_time,
+                   TIME_FORMAT(t.end_time, '%%H:%%i') AS end_time,
+                   t.room, t.created_at, t.updated_at,
+                   sub.subject_code, sub.subject_name, sub.course,
+                   u.username AS teacher_name
+            FROM timetable t
+            JOIN subjects sub ON sub.id = t.subject_id
+            JOIN users u ON u.id = t.teacher_id
+            WHERE 1=1
+        """
+        params = []
+        if semester is not None and str(semester).strip() != "":
+            sql += " AND t.semester = %s"
+            params.append(int(semester))
+        if day_of_week is not None and str(day_of_week).strip() != "":
+            sql += " AND t.day_of_week = %s"
+            params.append(str(day_of_week).strip())
+        if teacher_id is not None and str(teacher_id).strip() != "":
+            sql += " AND t.teacher_id = %s"
+            params.append(int(teacher_id))
+
+        sql += """
+            ORDER BY 
+              FIELD(t.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') ASC,
+              t.start_time ASC,
+              t.semester ASC
+        """
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_timetable_entry_by_id(entry_id):
+    """Fetch a single timetable entry by ID."""
+    ensure_timetable_table_exists()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT t.id, t.semester, t.subject_id, t.teacher_id, t.day_of_week,
+                   TIME_FORMAT(t.start_time, '%%H:%%i') AS start_time,
+                   TIME_FORMAT(t.end_time, '%%H:%%i') AS end_time,
+                   t.room, t.created_at, t.updated_at,
+                   sub.subject_code, sub.subject_name, sub.course,
+                   u.username AS teacher_name
+            FROM timetable t
+            JOIN subjects sub ON sub.id = t.subject_id
+            JOIN users u ON u.id = t.teacher_id
+            WHERE t.id = %s
+        """, (entry_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def create_timetable_entry(semester, subject_id, teacher_id, day_of_week, start_time, end_time, room, created_by):
+    """Create a new timetable entry after validating ownership and conflicts."""
+    ensure_timetable_table_exists()
+
+    sem_int = int(semester)
+    sub_int = int(subject_id)
+    teach_int = int(teacher_id)
+    day_str = str(day_of_week).strip()
+    room_str = str(room).strip()
+
+    if day_str not in VALID_WEEKDAYS:
+        raise ValueError(f"Invalid day of week: {day_str}")
+
+    if not start_time or not end_time or str(start_time) >= str(end_time):
+        raise ValueError("Start time must be strictly before end time.")
+
+    sub = get_subject_by_id(sub_int)
+    if not sub:
+        raise ValueError("Invalid subject selected.")
+    if int(sub["semester"]) != sem_int:
+        raise ValueError(f"Subject '{sub['subject_name']}' does not belong to Semester {sem_int}.")
+
+    teacher_user = get_user_by_id(teach_int)
+    if not teacher_user or teacher_user.get("role") not in ("teacher", "admin"):
+        raise ValueError("Invalid teacher selected.")
+
+    has_conflict, msg = check_timetable_conflict(sem_int, teach_int, room_str, day_str, start_time, end_time)
+    if has_conflict:
+        raise ValueError(msg)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO timetable (semester, subject_id, teacher_id, day_of_week, start_time, end_time, room)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (sem_int, sub_int, teach_int, day_str, start_time, end_time, room_str))
+        new_id = cursor.lastrowid
+        conn.commit()
+        return new_id
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_timetable_entry(entry_id, semester, subject_id, teacher_id, day_of_week, start_time, end_time, room, updated_by):
+    """Update an existing timetable entry after validating ownership and conflicts."""
+    ensure_timetable_table_exists()
+
+    entry_int = int(entry_id)
+    sem_int = int(semester)
+    sub_int = int(subject_id)
+    teach_int = int(teacher_id)
+    day_str = str(day_of_week).strip()
+    room_str = str(room).strip()
+
+    if day_str not in VALID_WEEKDAYS:
+        raise ValueError(f"Invalid day of week: {day_str}")
+
+    if not start_time or not end_time or str(start_time) >= str(end_time):
+        raise ValueError("Start time must be strictly before end time.")
+
+    sub = get_subject_by_id(sub_int)
+    if not sub:
+        raise ValueError("Invalid subject selected.")
+    if int(sub["semester"]) != sem_int:
+        raise ValueError(f"Subject '{sub['subject_name']}' does not belong to Semester {sem_int}.")
+
+    teacher_user = get_user_by_id(teach_int)
+    if not teacher_user or teacher_user.get("role") not in ("teacher", "admin"):
+        raise ValueError("Invalid teacher selected.")
+
+    has_conflict, msg = check_timetable_conflict(sem_int, teach_int, room_str, day_str, start_time, end_time, exclude_id=entry_int)
+    if has_conflict:
+        raise ValueError(msg)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE timetable
+            SET semester = %s, subject_id = %s, teacher_id = %s, day_of_week = %s, start_time = %s, end_time = %s, room = %s
+            WHERE id = %s
+        """, (sem_int, sub_int, teach_int, day_str, start_time, end_time, room_str, entry_int))
+        conn.commit()
+        return True
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_timetable_entry(entry_id, deleted_by):
+    """Delete a timetable entry by ID."""
+    ensure_timetable_table_exists()
+    entry_int = int(entry_id)
+    entry = get_timetable_entry_by_id(entry_int)
+    if not entry:
+        return False
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM timetable WHERE id = %s", (entry_int,))
+        conn.commit()
+        return True
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Global Search Service
 # ---------------------------------------------------------------------------
 

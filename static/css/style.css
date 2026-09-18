@@ -2652,6 +2652,29 @@ body.drawer-open {
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Timetable Management Responsiveness                                   */
+/* ---------------------------------------------------------------------- */
+
+.timetable-desktop-grid {
+  display: block;
+}
+
+.timetable-mobile-cards {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .timetable-desktop-grid {
+    display: none !important;
+  }
+
+  .timetable-mobile-cards {
+    display: flex !important;
+  }
+}
+
+
 
 
 

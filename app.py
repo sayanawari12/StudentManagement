@@ -3009,6 +3009,267 @@ def api_student_rankings():
 
 
 # ---------------------------------------------------------------------------
+# Timetable Management Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/api/semesters/<int:semester>/subjects")
+@role_required("admin", "teacher", "student")
+def api_semester_subjects(semester):
+    """Dynamic API endpoint returning subjects configured for a given semester."""
+    try:
+        subjects = database.get_subjects_by_course_and_semester("BCA", semester)
+        cleaned = [
+            {
+                "id": s["id"],
+                "subject_code": s["subject_code"],
+                "subject_name": s["subject_name"],
+                "course": s["course"],
+                "semester": s["semester"]
+            }
+            for s in subjects
+        ]
+        return jsonify({"success": True, "semester": semester, "subjects": cleaned})
+    except Exception as e:
+        app.logger.warning("Error fetching subjects for semester %s: %s", semester, e)
+        return jsonify({"success": False, "message": "Failed to fetch subjects", "subjects": []}), 500
+
+
+@app.route("/timetable")
+@role_required("admin", "teacher", "student")
+def timetable():
+    """Main Timetable View for Admin, Teacher, and Student roles."""
+    user_role = session.get("role")
+    user_id = session.get("user_id")
+    linked_student_id = session.get("linked_student_id")
+
+    # Determine current day of week dynamically
+    today_name = datetime.datetime.now().strftime("%A")
+
+    selected_day = request.args.get("day", default="", type=str).strip()
+    if selected_day not in database.VALID_WEEKDAYS:
+        selected_day = ""
+
+    selected_semester = request.args.get("semester", default=None, type=int)
+
+    is_admin = (user_role == "admin")
+    is_teacher = (user_role == "teacher")
+    is_student = (user_role == "student")
+
+    student_record = None
+    if is_student and linked_student_id:
+        student_record = database.get_student_by_id(linked_student_id)
+        if student_record and student_record.get("semester"):
+            # Students are restricted strictly to their enrolled semester
+            selected_semester = int(student_record["semester"])
+
+    if not selected_semester or selected_semester < 1 or selected_semester > 6:
+        selected_semester = 1 if not is_student else (student_record.get("semester", 1) if student_record else 1)
+
+    # Fetch entries based on role
+    if is_teacher:
+        timetable_entries = database.get_timetable_entries(
+            day_of_week=selected_day if selected_day else None,
+            teacher_id=user_id
+        )
+        today_classes = [e for e in database.get_timetable_entries(day_of_week=today_name, teacher_id=user_id)]
+    elif is_student:
+        timetable_entries = database.get_timetable_entries(
+            semester=selected_semester,
+            day_of_week=selected_day if selected_day else None
+        )
+        today_classes = [e for e in database.get_timetable_entries(semester=selected_semester, day_of_week=today_name)]
+    else:
+        # Admin view
+        timetable_entries = database.get_timetable_entries(
+            semester=selected_semester,
+            day_of_week=selected_day if selected_day else None
+        )
+        today_classes = [e for e in database.get_timetable_entries(semester=selected_semester, day_of_week=today_name)]
+
+    # Group entries by day_of_week for grid rendering
+    entries_by_day = {day: [] for day in database.VALID_WEEKDAYS}
+    for entry in timetable_entries:
+        d = entry.get("day_of_week")
+        if d in entries_by_day:
+            entries_by_day[d].append(entry)
+
+    teachers = database.get_all_teachers() if is_admin else []
+
+    return render_template(
+        "timetable.html",
+        timetable_entries=timetable_entries,
+        entries_by_day=entries_by_day,
+        today_classes=today_classes,
+        today_name=today_name,
+        selected_semester=selected_semester,
+        selected_day=selected_day,
+        weekdays=database.VALID_WEEKDAYS,
+        teachers=teachers,
+        is_admin=is_admin,
+        is_teacher=is_teacher,
+        is_student=is_student,
+        student_record=student_record
+    )
+
+
+@app.route("/timetable/add", methods=["GET", "POST"])
+@role_required("admin")
+def timetable_add():
+    """Add a new timetable entry (Admin only)."""
+    teachers = database.get_all_teachers()
+    weekdays = database.VALID_WEEKDAYS
+    semesters = list(range(1, 7))
+
+    if request.method == "POST":
+        semester = request.form.get("semester", "").strip()
+        subject_id = request.form.get("subject_id", "").strip()
+        teacher_id = request.form.get("teacher_id", "").strip()
+        day_of_week = request.form.get("day_of_week", "").strip()
+        start_time = request.form.get("start_time", "").strip()
+        end_time = request.form.get("end_time", "").strip()
+        room = request.form.get("room", "").strip()
+
+        form_data = {
+            "semester": semester,
+            "subject_id": subject_id,
+            "teacher_id": teacher_id,
+            "day_of_week": day_of_week,
+            "start_time": start_time,
+            "end_time": end_time,
+            "room": room
+        }
+
+        try:
+            database.create_timetable_entry(
+                semester=semester,
+                subject_id=subject_id,
+                teacher_id=teacher_id,
+                day_of_week=day_of_week,
+                start_time=start_time,
+                end_time=end_time,
+                room=room,
+                created_by=session["user_id"]
+            )
+            flash("Class timetable entry created successfully.", "success")
+            return redirect(url_for("timetable", semester=semester))
+        except ValueError as ve:
+            flash(str(ve), "error")
+        except Exception as e:
+            app.logger.error("Error creating timetable entry: %s", e)
+            flash("An unexpected error occurred while creating the timetable entry.", "error")
+
+        init_subjects = database.get_subjects_by_course_and_semester("BCA", semester) if semester and semester.isdigit() else []
+        return render_template(
+            "timetable_add.html",
+            teachers=teachers,
+            weekdays=weekdays,
+            semesters=semesters,
+            form_data=form_data,
+            init_subjects=init_subjects
+        )
+
+    default_sem = request.args.get("semester", default=1, type=int)
+    init_subjects = database.get_subjects_by_course_and_semester("BCA", default_sem)
+    return render_template(
+        "timetable_add.html",
+        teachers=teachers,
+        weekdays=weekdays,
+        semesters=semesters,
+        form_data={"semester": str(default_sem)},
+        init_subjects=init_subjects
+    )
+
+
+@app.route("/timetable/edit/<int:entry_id>", methods=["GET", "POST"])
+@role_required("admin")
+def timetable_edit(entry_id):
+    """Edit an existing timetable entry (Admin only)."""
+    entry = database.get_timetable_entry_by_id(entry_id)
+    if not entry:
+        flash("Timetable entry not found.", "error")
+        return redirect(url_for("timetable"))
+
+    teachers = database.get_all_teachers()
+    weekdays = database.VALID_WEEKDAYS
+    semesters = list(range(1, 7))
+
+    if request.method == "POST":
+        semester = request.form.get("semester", "").strip()
+        subject_id = request.form.get("subject_id", "").strip()
+        teacher_id = request.form.get("teacher_id", "").strip()
+        day_of_week = request.form.get("day_of_week", "").strip()
+        start_time = request.form.get("start_time", "").strip()
+        end_time = request.form.get("end_time", "").strip()
+        room = request.form.get("room", "").strip()
+
+        try:
+            database.update_timetable_entry(
+                entry_id=entry_id,
+                semester=semester,
+                subject_id=subject_id,
+                teacher_id=teacher_id,
+                day_of_week=day_of_week,
+                start_time=start_time,
+                end_time=end_time,
+                room=room,
+                updated_by=session["user_id"]
+            )
+            flash("Timetable entry updated successfully.", "success")
+            return redirect(url_for("timetable", semester=semester))
+        except ValueError as ve:
+            flash(str(ve), "error")
+        except Exception as e:
+            app.logger.error("Error updating timetable entry #%s: %s", entry_id, e)
+            flash("An unexpected error occurred while updating the timetable entry.", "error")
+
+        current_subjects = database.get_subjects_by_course_and_semester("BCA", semester) if semester and semester.isdigit() else []
+        return render_template(
+            "timetable_edit.html",
+            entry=entry,
+            teachers=teachers,
+            weekdays=weekdays,
+            semesters=semesters,
+            current_subjects=current_subjects,
+            form_data={
+                "semester": semester,
+                "subject_id": subject_id,
+                "teacher_id": teacher_id,
+                "day_of_week": day_of_week,
+                "start_time": start_time,
+                "end_time": end_time,
+                "room": room
+            }
+        )
+
+    current_subjects = database.get_subjects_by_course_and_semester("BCA", entry["semester"])
+    return render_template(
+        "timetable_edit.html",
+        entry=entry,
+        teachers=teachers,
+        weekdays=weekdays,
+        semesters=semesters,
+        current_subjects=current_subjects,
+        form_data={}
+    )
+
+
+@app.route("/timetable/delete/<int:entry_id>", methods=["POST"])
+@role_required("admin")
+def timetable_delete(entry_id):
+    """Delete a timetable entry (Admin only)."""
+    try:
+        success = database.delete_timetable_entry(entry_id, session["user_id"])
+        if success:
+            flash("Timetable entry deleted successfully.", "success")
+        else:
+            flash("Timetable entry not found.", "error")
+    except Exception as e:
+        app.logger.error("Error deleting timetable entry #%s: %s", entry_id, e)
+        flash("Failed to delete timetable entry.", "error")
+    return redirect(url_for("timetable"))
+
+
+# ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
 

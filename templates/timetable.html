@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if is_admin %}Timetable Management{% else %}My Timetable{% endif %} — Student MS
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-family: 'Newsreader', serif; font-size: 28px; font-weight: 500; color: var(--text); margin: 0;">
+      {% if is_admin %}Timetable Management{% else %}My Timetable{% endif %}
+    </h1>
+    <p style="font-size: 14px; color: var(--text-secondary); margin: 4px 0 0 0;">
+      {% if is_admin %}
+        Manage and schedule academic class timetables across semesters and rooms.
+      {% elif is_teacher %}
+        Your teaching schedule for assigned classes and room locations.
+      {% else %}
+        Class timetable schedule for Semester {{ selected_semester }}.
+      {% endif %}
+    </p>
+  </div>
+
+  {% if is_admin %}
+    <a href="{{ url_for('timetable_add', semester=selected_semester) }}" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 18px; border-radius: var(--radius); font-size: 14px; font-weight: 500;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Class Entry
+    </a>
+  {% endif %}
+</div>
+
+{# Filter & Search Toolbar #}
+<div class="card" style="padding: 18px 24px; margin-bottom: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
+  <form method="GET" action="{{ url_for('timetable') }}" style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+    {% if not is_student %}
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label for="semester" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Semester:</label>
+        <select name="semester" id="semester" onchange="this.form.submit()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+          {% for sem_num in range(1, 7) %}
+            <option value="{{ sem_num }}" {% if sem_num == selected_semester %}selected{% endif %}>
+              Semester {{ sem_num }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    {% else %}
+      <div style="font-size: 14px; font-weight: 500; color: var(--text-secondary);">
+        Enrolled Semester: <strong style="color: var(--text);">Semester {{ selected_semester }}</strong>
+      </div>
+    {% endif %}
+
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <label for="day" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Day:</label>
+      <select name="day" id="day" onchange="this.form.submit()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; background: #FFF;">
+        <option value="">All Weekdays</option>
+        {% for d in weekdays %}
+          <option value="{{ d }}" {% if d == selected_day %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if selected_day or (not is_student and selected_semester != 1) %}
+      <a href="{{ url_for('timetable') }}" style="font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 500;">Reset Filters</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Today's Classes Card #}
+<div class="card" style="padding: 20px 24px; margin-bottom: 28px; border: 1px solid var(--border); border-radius: var(--radius); background: #FFF;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+    <h2 style="font-family: 'Newsreader', serif; font-size: 18px; font-weight: 500; margin: 0; color: var(--text); display: flex; align-items: center; gap: 8px;">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 16 14"/></svg>
+      Today's Schedule — {{ today_name }}
+    </h2>
+    <span class="badge" style="background: var(--soft-accent); color: var(--accent); font-weight: 500; font-size: 12px; padding: 4px 10px; border-radius: 12px;">
+      {{ today_classes | length }} class{% if today_classes | length != 1 %}es{% endif %} today
+    </span>
+  </div>
+
+  {% if today_classes %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
+      {% for cls in today_classes %}
+        <div style="padding: 14px 16px; border-left: 4px solid var(--accent); background: var(--bg); border-radius: 4px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+            <span style="font-weight: 600; font-size: 14px; color: var(--text);">{{ cls.subject_code }}: {{ cls.subject_name }}</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--accent); white-space: nowrap;">{{ cls.start_time }} – {{ cls.end_time }}</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">
+            Teacher: <strong style="color: var(--text);">{{ cls.teacher_name }}</strong>
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between;">
+            <span>Room: <strong>{{ cls.room }}</strong></span>
+            <span>Sem {{ cls.semester }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div style="text-align: center; padding: 18px; color: var(--text-secondary); font-size: 14px; background: var(--bg); border-radius: var(--radius);">
+      No classes scheduled for today ({{ today_name }}).
+    </div>
+  {% endif %}
+</div>
+
+{# Desktop Weekly Grid View #}
+<div class="timetable-desktop-grid card" style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: #FFF; margin-bottom: 24px;">
+  <h2 style="font-family: 'Newsreader', serif; font-size: 20px; font-weight: 500; margin: 0 0 16px 0; color: var(--text);">
+    Weekly Schedule Grid
+  </h2>
+
+  {% if timetable_entries %}
+    <div style="overflow-x: auto;">
+      <table class="table" style="width: 100%; border-collapse: collapse; min-width: 760px;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); background: var(--bg);">
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 140px;">Day</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 110px;">Time</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Subject</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Teacher</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 90px;">Sem</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 110px;">Room</th>
+            {% if is_admin %}
+              <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--text-secondary); width: 110px;">Actions</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in timetable_entries %}
+            <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+              <td style="padding: 14px 12px; font-size: 14px; font-weight: 600; color: var(--text);">
+                {{ entry.day_of_week }}
+              </td>
+              <td style="padding: 14px 12px; font-size: 13px; color: var(--accent); font-weight: 500; white-space: nowrap;">
+                {{ entry.start_time }} – {{ entry.end_time }}
+              </td>
+              <td style="padding: 14px 12px; font-size: 14px;">
+                <div style="font-weight: 500; color: var(--text);">{{ entry.subject_name }}</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">{{ entry.subject_code }}</div>
+              </td>
+              <td style="padding: 14px 12px; font-size: 14px; color: var(--text);">
+                {{ entry.teacher_name }}
+              </td>
+              <td style="padding: 14px 12px; font-size: 13px; color: var(--text-secondary);">
+                Sem {{ entry.semester }}
+              </td>
+              <td style="padding: 14px 12px; font-size: 13px; color: var(--text);">
+                <span style="background: var(--bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 12px;">
+                  {{ entry.room }}
+                </span>
+              </td>
+              {% if is_admin %}
+                <td style="padding: 14px 12px; text-align: right; white-space: nowrap;">
+                  <a href="{{ url_for('timetable_edit', entry_id=entry.id) }}" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500; margin-right: 12px;">Edit</a>
+                  <form method="POST" action="{{ url_for('timetable_delete', entry_id=entry.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this timetable entry?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="background: none; border: none; color: #C53030; font-size: 13px; cursor: pointer; font-weight: 500; padding: 0;">Delete</button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--border)" stroke-width="1.5" style="margin-bottom: 12px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 16 14"/></svg>
+      <p style="font-size: 15px; margin: 0 0 8px 0; color: var(--text); font-weight: 500;">
+        {% if is_teacher %}
+          No classes are currently assigned to you.
+        {% else %}
+          No timetable entries have been scheduled yet.
+        {% endif %}
+      </p>
+      {% if is_admin %}
+        <p style="font-size: 13px; margin: 0 0 16px 0;">Click below to schedule your first class entry.</p>
+        <a href="{{ url_for('timetable_add', semester=selected_semester) }}" class="btn-primary" style="display: inline-block; padding: 8px 16px; font-size: 13px;">Add Class Entry</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{# Mobile Day-wise Card View (<768px) #}
+<div class="timetable-mobile-cards" style="display: flex; flex-direction: column; gap: 16px;">
+  <h2 style="font-family: 'Newsreader', serif; font-size: 20px; font-weight: 500; margin: 0; color: var(--text);">
+    Day-Wise Schedule
+  </h2>
+
+  {% for day_name in weekdays %}
+    {% set day_entries = entries_by_day[day_name] %}
+    {% if not selected_day or selected_day == day_name %}
+      <div class="card" style="padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: #FFF;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px;">
+          <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--text);">{{ day_name }}</h3>
+          <span style="font-size: 12px; color: var(--text-secondary);">{{ day_entries | length }} class{% if day_entries | length != 1 %}es{% endif %}</span>
+        </div>
+
+        {% if day_entries %}
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for entry in day_entries %}
+              <div style="padding: 12px; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--accent); border: 1px solid var(--border); border-left-width: 4px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <strong style="font-size: 14px; color: var(--text);">{{ entry.subject_code }}: {{ entry.subject_name }}</strong>
+                  <span style="font-size: 12px; color: var(--accent); font-weight: 600;">{{ entry.start_time }} – {{ entry.end_time }}</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">
+                  Teacher: {{ entry.teacher_name }}
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+                  <span>Room: <strong>{{ entry.room }}</strong> (Sem {{ entry.semester }})</span>
+                  {% if is_admin %}
+                    <div style="display: flex; gap: 8px;">
+                      <a href="{{ url_for('timetable_edit', entry_id=entry.id) }}" style="color: var(--accent); text-decoration: none; font-weight: 500;">Edit</a>
+                      <form method="POST" action="{{ url_for('timetable_delete', entry_id=entry.id) }}" style="display: inline;" onsubmit="return confirm('Delete entry?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="background: none; border: none; color: #C53030; cursor: pointer; font-size: 12px; padding: 0;">Delete</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="font-size: 13px; color: var(--text-secondary); font-style: italic;">No classes scheduled for {{ day_name }}.</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}
