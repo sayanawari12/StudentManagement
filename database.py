@@ -2677,21 +2677,19 @@ def global_search(query, user_role, user_id, linked_student_id=None, limit=10):
 def get_semester_rankings(semester):
     """
     Calculates student rankings for a given semester strictly following Data Integrity & Completeness Rules:
-      1. Semesters 1 and 3 are valid semester selections but return no student ranking records.
-      2. Semesters 2, 4, 5, 6 compute rankings based on authoritative exam_marks and dynamic max marks.
-      3. A student is eligible for ranking ONLY if their required academic result data for that semester is complete
+      1. Semesters 1 through 6 compute rankings dynamically based on authoritative exam_marks and dynamic max marks.
+      2. A student is eligible for ranking ONLY if their required academic result data for that semester is complete
          (e.g., all 6 required subjects present for BCA). Incomplete students (e.g. 5/6 or 2/6 subjects) are excluded.
-      4. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
-      5. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
-      6. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
+      3. Percentage = (Total Obtained Marks / Total Maximum Marks) * 100. No CGPA.
+      4. Deterministic competition ranking (1, 2, 2, 4) for equal percentages.
+      5. Displayed Obtained/Total marks and Percentage are derived from the exact same records.
     """
     try:
         sem_int = int(semester)
     except (ValueError, TypeError):
         sem_int = 1
 
-    # Semesters 1 and 3 return zero ranking rows for the Student Ranking feature
-    if sem_int in (1, 3):
+    if sem_int < 1 or sem_int > 6:
         return []
 
     # Ensure default BCA subjects exist in DB for this semester

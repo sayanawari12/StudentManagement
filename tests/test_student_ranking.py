@@ -90,47 +90,31 @@ def test_all_six_semester_selectors_exist(auth_admin):
         assert f"Semester {sem}" in html
 
 
-def test_sem_1_and_sem_3_rankings_return_empty_list():
-    """Verify get_semester_rankings for sem 1 and 3 returns empty list []."""
-    assert database.get_semester_rankings(1) == []
-    assert database.get_semester_rankings(3) == []
+def test_empty_semester_rankings_return_empty_list():
+    """Verify get_semester_rankings for non-existent or empty semester returns empty list []."""
+    assert database.get_semester_rankings(99) == []
 
 
-def test_rankings_route_sem_1_and_3_http_200_empty(auth_admin):
-    """Verify /rankings?semester=1 and 3 load HTTP 200 with empty state message."""
-    res1 = auth_admin.get("/rankings?semester=1")
-    assert res1.status_code == 200
-    html1 = res1.data.decode("utf-8")
-    assert "Semester 1" in html1
-    assert "No ranking available for Semester 1 yet." in html1
-
-    res3 = auth_admin.get("/rankings?semester=3")
-    assert res3.status_code == 200
-    html3 = res3.data.decode("utf-8")
-    assert "Semester 3" in html3
-    assert "No ranking available for Semester 3 yet." in html3
+def test_rankings_route_empty_semester_http_200_empty(auth_admin):
+    """Verify /rankings with invalid/empty semester loads HTTP 200 with empty state message."""
+    res99 = auth_admin.get("/rankings?semester=99")
+    assert res99.status_code == 200
+    html99 = res99.data.decode("utf-8")
+    assert "No ranking available for Semester 1 yet." in html99 or "No ranking available" in html99
 
 
-def test_api_student_rankings_sem_1_and_3_http_200_empty(auth_admin):
-    """Verify /api/student-rankings?semester=1 and 3 return valid HTTP 200 JSON with rankings: []."""
-    res1 = auth_admin.get("/api/student-rankings?semester=1")
-    assert res1.status_code == 200
-    json1 = res1.get_json()
-    assert json1["success"] is True
-    assert json1["semester"] == 1
-    assert json1["rankings"] == []
-
-    res3 = auth_admin.get("/api/student-rankings?semester=3")
-    assert res3.status_code == 200
-    json3 = res3.get_json()
-    assert json3["success"] is True
-    assert json3["semester"] == 3
-    assert json3["rankings"] == []
+def test_api_student_rankings_empty_semester_http_200_empty(auth_admin):
+    """Verify /api/student-rankings with unpopulated semester returns valid HTTP 200 JSON with rankings: []."""
+    res99 = auth_admin.get("/api/student-rankings?semester=99")
+    assert res99.status_code == 200
+    json99 = res99.get_json()
+    assert json99["success"] is True
+    assert json99["rankings"] == []
 
 
 def test_rankings_work_for_allowed_semesters():
-    """Verify database.get_semester_rankings returns list for semesters 2, 4, 5, 6."""
-    for sem in (2, 4, 5, 6):
+    """Verify database.get_semester_rankings returns list for semesters 1 through 6."""
+    for sem in range(1, 7):
         res = database.get_semester_rankings(sem)
         assert isinstance(res, list)
 
@@ -393,6 +377,78 @@ def test_legitimate_grades_feature_preserved(db):
     assert len(grades) >= 1
     grade_entry = next(g for g in grades if g["subject"] == "C Programming")
     assert float(grade_entry["marks_obtained"]) == 92.0
+
+
+def test_semester_3_ranking_with_complete_data(db):
+    """
+    Verify that Semester 3 returns valid ranking records when students have
+    complete exam_marks for all required Semester 3 subjects.
+    """
+    admin_id = db["users"]["admin"]["id"]
+    subjects = database.get_subjects_by_course_and_semester("BCA", 3)
+    assert len(subjects) == 6, "Semester 3 must have 6 required subjects"
+
+    _clean_student("TEST_SEM3_COMP")
+    database.insert_student({
+        "student_id": "TEST_SEM3_COMP",
+        "student_name": "Semester 3 Top Student",
+        "email": "sem3comp@test.com",
+        "phone": "9998887777",
+        "gender": "Female",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 3,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("TEST_SEM3_COMP")
+    stud_id = stud["id"]
+
+    exam_id = database.create_exam("Sem 3 Final Exam Test", "Semester Examination", "BCA", 3, "2025-2026", admin_id, max_marks=100.0)
+
+    for sub in subjects:
+        database.save_exam_marks(exam_id, stud_id, sub["id"], 92.0, 100.0, admin_id)
+
+    rankings = database.get_semester_rankings(3)
+    ranked_ids = [r["student_id"] for r in rankings]
+    assert "TEST_SEM3_COMP" in ranked_ids
+    match = next(r for r in rankings if r["student_id"] == "TEST_SEM3_COMP")
+    assert match["percentage"] == 92.0
+    assert match["total_obtained"] == 552.0
+    assert match["total_max"] == 600.0
+
+
+def test_semester_3_completeness_rules(db):
+    """
+    Verify that Semester 3 excludes incomplete students missing required subjects.
+    """
+    admin_id = db["users"]["admin"]["id"]
+    subjects = database.get_subjects_by_course_and_semester("BCA", 3)
+
+    _clean_student("TEST_SEM3_INC")
+    database.insert_student({
+        "student_id": "TEST_SEM3_INC",
+        "student_name": "Semester 3 Incomplete Student",
+        "email": "sem3inc@test.com",
+        "phone": "9998887778",
+        "gender": "Male",
+        "date_of_birth": "2000-01-01",
+        "course": "BCA",
+        "semester": 3,
+        "address": "123 Street"
+    })
+    stud = database.get_student_by_student_id("TEST_SEM3_INC")
+    stud_id = stud["id"]
+
+    exam_id = database.create_exam("Sem 3 Incomplete Exam Test", "Semester Examination", "BCA", 3, "2025-2026", admin_id, max_marks=100.0)
+
+    # Only save marks for 3 out of 6 subjects
+    for sub in subjects[:3]:
+        database.save_exam_marks(exam_id, stud_id, sub["id"], 98.0, 100.0, admin_id)
+
+    rankings = database.get_semester_rankings(3)
+    ranked_ids = [r["student_id"] for r in rankings]
+    assert "TEST_SEM3_INC" not in ranked_ids
+
 
 
 
