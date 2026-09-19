@@ -396,3 +396,47 @@ def test_empty_timetable_works(auth_admin):
     res = auth_admin.get("/timetable")
     assert res.status_code == 200
     assert b"No timetable entries have been scheduled yet" in res.data or b"No classes" in res.data
+
+
+def test_timetable_time_formatting_regression(auth_admin, db):
+    """Regression test: verify start_time and end_time are correctly formatted as HH:MM without literal %H or %i."""
+    import re
+    _clean_timetable()
+    admin_id = db["users"]["admin"]["id"]
+    teacher_id = db["users"]["teacher"]["id"]
+    subjects = database.get_subjects_by_course_and_semester("BCA", 2)
+
+    entry_id = database.create_timetable_entry(
+        semester=2,
+        subject_id=subjects[0]["id"],
+        teacher_id=teacher_id,
+        day_of_week="Monday",
+        start_time="09:00",
+        end_time="10:30",
+        room="Room 101",
+        created_by=admin_id
+    )
+
+    # 1. Direct helper checks
+    entry = database.get_timetable_entry_by_id(entry_id)
+    assert entry["start_time"] == "09:00"
+    assert entry["end_time"] == "10:30"
+    assert "%i" not in entry["start_time"]
+    assert "%i" not in entry["end_time"]
+    assert "%H" not in entry["start_time"]
+    assert "%H" not in entry["end_time"]
+
+    entries = database.get_timetable_entries(semester=2)
+    assert len(entries) == 1
+    assert entries[0]["start_time"] == "09:00"
+    assert entries[0]["end_time"] == "10:30"
+
+    # 2. View HTML rendering check
+    res = auth_admin.get("/timetable?semester=2")
+    assert res.status_code == 200
+    html = res.data.decode("utf-8")
+    assert "%H" not in html
+    assert "%i" not in html
+    assert "09:00" in html
+    assert "10:30" in html
+

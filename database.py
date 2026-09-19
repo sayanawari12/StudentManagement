@@ -2306,6 +2306,29 @@ def get_document_stats_for_student(stud_id):
 
 VALID_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
+def _format_time_str(val):
+    """Safely format any time value (timedelta, time object, or string) as HH:MM format."""
+    if val is None:
+        return ""
+    if isinstance(val, (datetime.time, datetime.datetime)):
+        return val.strftime("%H:%M")
+    if isinstance(val, datetime.timedelta):
+        secs = int(val.total_seconds())
+        hours = (secs // 3600) % 24
+        minutes = (secs % 3600) // 60
+        return f"{hours:02d}:{minutes:02d}"
+    val_str = str(val).strip()
+    if val_str == "%H:%i" or not val_str:
+        return ""
+    parts = val_str.split(":")
+    if len(parts) >= 2:
+        try:
+            return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+        except ValueError:
+            pass
+    return val_str
+
+
 def ensure_timetable_table_exists():
     """Ensure timetable table exists in the database."""
     conn = None
@@ -2370,7 +2393,7 @@ def check_timetable_conflict(semester, teacher_id, room, day_of_week, start_time
     try:
         # A. Check Semester Conflict
         query_sem = """
-            SELECT t.id, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+            SELECT t.id, sub.subject_name, TIME_FORMAT(t.start_time, '%H:%i') as start_fmt, TIME_FORMAT(t.end_time, '%H:%i') as end_fmt
             FROM timetable t
             JOIN subjects sub ON sub.id = t.subject_id
             WHERE t.semester = %s AND t.day_of_week = %s
@@ -2384,11 +2407,13 @@ def check_timetable_conflict(semester, teacher_id, room, day_of_week, start_time
         cursor.execute(query_sem, params_sem)
         conflict_sem = cursor.fetchone()
         if conflict_sem:
-            return True, f"Conflict: Semester {semester} already has class '{conflict_sem['subject_name']}' scheduled on {day_of_week} ({conflict_sem['start_fmt']} - {conflict_sem['end_fmt']})."
+            start_lbl = _format_time_str(conflict_sem['start_fmt'])
+            end_lbl = _format_time_str(conflict_sem['end_fmt'])
+            return True, f"Conflict: Semester {semester} already has class '{conflict_sem['subject_name']}' scheduled on {day_of_week} ({start_lbl} - {end_lbl})."
 
         # B. Check Teacher Conflict
         query_teacher = """
-            SELECT t.id, u.username as teacher_name, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+            SELECT t.id, u.username as teacher_name, sub.subject_name, TIME_FORMAT(t.start_time, '%H:%i') as start_fmt, TIME_FORMAT(t.end_time, '%H:%i') as end_fmt
             FROM timetable t
             JOIN users u ON u.id = t.teacher_id
             JOIN subjects sub ON sub.id = t.subject_id
@@ -2403,13 +2428,15 @@ def check_timetable_conflict(semester, teacher_id, room, day_of_week, start_time
         cursor.execute(query_teacher, params_teacher)
         conflict_teacher = cursor.fetchone()
         if conflict_teacher:
-            return True, f"Conflict: Teacher '{conflict_teacher['teacher_name']}' is already assigned to another class ('{conflict_teacher['subject_name']}') on {day_of_week} ({conflict_teacher['start_fmt']} - {conflict_teacher['end_fmt']})."
+            start_lbl = _format_time_str(conflict_teacher['start_fmt'])
+            end_lbl = _format_time_str(conflict_teacher['end_fmt'])
+            return True, f"Conflict: Teacher '{conflict_teacher['teacher_name']}' is already assigned to another class ('{conflict_teacher['subject_name']}') on {day_of_week} ({start_lbl} - {end_lbl})."
 
         # C. Check Room Conflict (if room specified)
         room_str = str(room or "").strip()
         if room_str:
             query_room = """
-                SELECT t.id, t.room, sub.subject_name, TIME_FORMAT(t.start_time, '%%H:%%i') as start_fmt, TIME_FORMAT(t.end_time, '%%H:%%i') as end_fmt
+                SELECT t.id, t.room, sub.subject_name, TIME_FORMAT(t.start_time, '%H:%i') as start_fmt, TIME_FORMAT(t.end_time, '%H:%i') as end_fmt
                 FROM timetable t
                 JOIN subjects sub ON sub.id = t.subject_id
                 WHERE LOWER(TRIM(t.room)) = LOWER(TRIM(%s)) AND t.day_of_week = %s
@@ -2423,7 +2450,9 @@ def check_timetable_conflict(semester, teacher_id, room, day_of_week, start_time
             cursor.execute(query_room, params_room)
             conflict_room = cursor.fetchone()
             if conflict_room:
-                return True, f"Conflict: Room '{conflict_room['room']}' is already occupied by '{conflict_room['subject_name']}' on {day_of_week} ({conflict_room['start_fmt']} - {conflict_room['end_fmt']})."
+                start_lbl = _format_time_str(conflict_room['start_fmt'])
+                end_lbl = _format_time_str(conflict_room['end_fmt'])
+                return True, f"Conflict: Room '{conflict_room['room']}' is already occupied by '{conflict_room['subject_name']}' on {day_of_week} ({start_lbl} - {end_lbl})."
 
         return False, ""
     finally:
@@ -2439,8 +2468,8 @@ def get_timetable_entries(semester=None, day_of_week=None, teacher_id=None):
     try:
         sql = """
             SELECT t.id, t.semester, t.subject_id, t.teacher_id, t.day_of_week,
-                   TIME_FORMAT(t.start_time, '%%H:%%i') AS start_time,
-                   TIME_FORMAT(t.end_time, '%%H:%%i') AS end_time,
+                   TIME_FORMAT(t.start_time, '%H:%i') AS start_time,
+                   TIME_FORMAT(t.end_time, '%H:%i') AS end_time,
                    t.room, t.created_at, t.updated_at,
                    sub.subject_code, sub.subject_name, sub.course,
                    u.username AS teacher_name
@@ -2467,7 +2496,11 @@ def get_timetable_entries(semester=None, day_of_week=None, teacher_id=None):
               t.semester ASC
         """
         cursor.execute(sql, params)
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+        for r in rows:
+            r["start_time"] = _format_time_str(r.get("start_time"))
+            r["end_time"] = _format_time_str(r.get("end_time"))
+        return rows
     finally:
         cursor.close()
         conn.close()
@@ -2481,8 +2514,8 @@ def get_timetable_entry_by_id(entry_id):
     try:
         cursor.execute("""
             SELECT t.id, t.semester, t.subject_id, t.teacher_id, t.day_of_week,
-                   TIME_FORMAT(t.start_time, '%%H:%%i') AS start_time,
-                   TIME_FORMAT(t.end_time, '%%H:%%i') AS end_time,
+                   TIME_FORMAT(t.start_time, '%H:%i') AS start_time,
+                   TIME_FORMAT(t.end_time, '%H:%i') AS end_time,
                    t.room, t.created_at, t.updated_at,
                    sub.subject_code, sub.subject_name, sub.course,
                    u.username AS teacher_name
@@ -2491,7 +2524,11 @@ def get_timetable_entry_by_id(entry_id):
             JOIN users u ON u.id = t.teacher_id
             WHERE t.id = %s
         """, (entry_id,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        if row:
+            row["start_time"] = _format_time_str(row.get("start_time"))
+            row["end_time"] = _format_time_str(row.get("end_time"))
+        return row
     finally:
         cursor.close()
         conn.close()
